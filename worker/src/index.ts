@@ -16,7 +16,8 @@ try {
 }
 
 const SERVER_URL = (process.env.SERVER_URL ?? 'ws://localhost:8787').replace(/\/$/, '');
-const TOKEN = process.env.WORKER_TOKEN ?? 'dev-token';
+// An empty WORKER_TOKEN= line in .env counts as "not set", the same way the server treats it.
+const TOKEN = process.env.WORKER_TOKEN || 'dev-token';
 const NAME = process.env.WORKER_NAME ?? os.hostname();
 const MAX_SIMULATORS = Math.max(1, Number(process.env.MAX_SIMULATORS ?? 2));
 const MOCK = process.argv.includes('--mock') || process.env.WORKER_MOCK === '1';
