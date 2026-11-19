@@ -2,8 +2,11 @@
 import type { WebSocket } from 'ws';
 import {
   decodeFrame,
+  type AppleAccount,
   type BuildStage,
   type InputEvent,
+  type PublishError,
+  type PublishStage,
   type ServerToWorker,
   type WorkerToServer,
 } from '../../shared/protocol';
@@ -15,6 +18,12 @@ interface Worker {
   name: string;
   mock: boolean;
   canInput: boolean;
+  /** Runs simulators. False for a signing-only worker. */
+  canPreview: boolean;
+  /** Has the operator's own App Store Connect key. */
+  hasOwnAccount: boolean;
+  /** Accepts uploads that bring a person's own key along. */
+  publishesForUsers: boolean;
   ready: boolean;
   projects: Set<string>;
 }
@@ -28,7 +37,7 @@ interface Pending {
   worker: Worker;
   resolve: (msg: WorkerToServer) => void;
   reject: (err: Error) => void;
-  onProgress?: (stage: BuildStage) => void;
+  onProgress?: (stage: string) => void;
   timer: NodeJS.Timeout;
 }
 
@@ -38,11 +47,34 @@ const pending = new Map<string, Pending>();
 
 const BUILD_TIMEOUT_MS = 12 * 60_000;
 const SCREENSHOT_TIMEOUT_MS = 30_000;
+// Archiving, signing and the upload to Apple can each take many minutes.
+const PUBLISH_TIMEOUT_MS = 40 * 60_000;
+
+const listeners = new Set<() => void>();
+
+/** Calls back whenever a worker connects, announces itself or leaves. */
+export function onChange(listener: () => void): void {
+  listeners.add(listener);
+}
+
+function changed(): void {
+  for (const listener of listeners) listener();
+}
 
 export class WorkerUnavailable extends Error {}
 
+/** Workers that can build and run previews. */
 export function workerCount(): number {
-  return [...workers].filter((w) => w.ready).length;
+  return [...workers].filter((w) => w.ready && w.canPreview).length;
+}
+
+/** The worker for an upload to the operator's account, or to a person's own account. */
+function publisher(target: 'own' | 'operator'): Worker | undefined {
+  return [...workers].find((w) => w.ready && (target === 'own' ? w.publishesForUsers : w.hasOwnAccount));
+}
+
+export function canPublish(target: 'own' | 'operator'): boolean {
+  return publisher(target) !== undefined;
 }
 
 function toWorker(w: Worker, msg: ServerToWorker): void {
@@ -53,7 +85,7 @@ function toWorker(w: Worker, msg: ServerToWorker): void {
 function pick(projectId: string): Worker {
   const current = assignment.get(projectId);
   if (current && workers.has(current)) return current;
-  const ready = [...workers].filter((w) => w.ready);
+  const ready = [...workers].filter((w) => w.ready && w.canPreview);
   if (ready.length === 0) throw new WorkerUnavailable('no worker connected');
   const chosen = ready.reduce((a, b) => (b.projects.size < a.projects.size ? b : a));
   assignment.set(projectId, chosen);
@@ -65,7 +97,7 @@ function request(
   worker: Worker,
   msg: ServerToWorker & { jobId: string },
   timeoutMs: number,
-  onProgress?: (stage: BuildStage) => void,
+  onProgress?: (stage: string) => void,
 ): Promise<WorkerToServer> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
@@ -94,11 +126,44 @@ export async function build(
       files,
     },
     BUILD_TIMEOUT_MS,
-    onProgress,
+    onProgress as (stage: string) => void,
   );
   if (res.type !== 'build.result') throw new Error('unexpected worker reply');
   if (res.ok) setPreview(project.id, { canInput: worker.canInput });
   return { ok: res.ok, errors: res.errors };
+}
+
+/**
+ * Uploads the project to TestFlight: with `account` to that person's own developer account, without
+ * it to the operator's. The upload is built from the files alone and needs no simulator, so it can
+ * run on a separate, locked-down machine (a worker started with PREVIEWS=0).
+ */
+export async function publish(
+  project: { id: string; name: string; bundleId: string },
+  files: Record<string, string>,
+  buildNumber: string,
+  account: AppleAccount | undefined,
+  onProgress: (stage: PublishStage) => void,
+): Promise<{ ok: boolean; error?: PublishError; detail?: string }> {
+  const worker = publisher(account ? 'own' : 'operator');
+  if (!worker) throw new WorkerUnavailable('no publishing worker connected');
+  const res = await request(
+    worker,
+    {
+      type: 'publish',
+      jobId: randomId(16),
+      projectId: project.id,
+      appName: project.name,
+      bundleId: project.bundleId,
+      buildNumber,
+      files,
+      account,
+    },
+    PUBLISH_TIMEOUT_MS,
+    onProgress as (stage: string) => void,
+  );
+  if (res.type !== 'publish.result') throw new Error('unexpected worker reply');
+  return { ok: res.ok, error: res.error, detail: res.detail };
 }
 
 export async function screenshot(projectId: string): Promise<{ mime: string; data: string } | null> {
@@ -134,7 +199,17 @@ function unassign(projectId: string): void {
 }
 
 export function attachWorker(ws: WebSocket): void {
-  const worker: Worker = { ws, name: 'worker', mock: false, canInput: false, ready: false, projects: new Set() };
+  const worker: Worker = {
+    ws,
+    name: 'worker',
+    mock: false,
+    canInput: false,
+    canPreview: true,
+    hasOwnAccount: false,
+    publishesForUsers: false,
+    ready: false,
+    projects: new Set(),
+  };
   workers.add(worker);
 
   ws.on('message', (data, isBinary) => {
@@ -157,14 +232,26 @@ export function attachWorker(ws: WebSocket): void {
         worker.name = String(msg.name).slice(0, 80);
         worker.mock = Boolean(msg.mock);
         worker.canInput = Boolean(msg.canInput);
+        worker.canPreview = msg.canPreview !== false;
+        // Older workers only say canPublish, and mean their own account by it.
+        worker.hasOwnAccount = Boolean(msg.hasOwnAccount ?? msg.canPublish);
+        worker.publishesForUsers = Boolean(msg.publishesForUsers);
         worker.ready = true;
-        workersChanged(true);
-        console.log(`[workers] ${worker.name} connected (${msg.info}; input: ${worker.canInput ? 'yes' : 'no'})`);
+        if (worker.canPreview) workersChanged(true);
+        changed();
+        console.log(
+          `[workers] ${worker.name} connected (${msg.info}; previews: ${worker.canPreview ? 'yes' : 'no'}; input: ${worker.canInput ? 'yes' : 'no'}; ` +
+            `testflight: ${[worker.hasOwnAccount && 'own account', worker.publishesForUsers && "people's accounts"].filter(Boolean).join(' + ') || 'no'})`,
+        );
         break;
       case 'build.progress':
-        pending.get(msg.jobId)?.onProgress?.(msg.stage);
+      case 'publish.progress': {
+        const p = pending.get(msg.jobId);
+        if (p?.worker === worker) p.onProgress?.(msg.stage);
         break;
+      }
       case 'build.result':
+      case 'publish.result':
       case 'screenshot.result': {
         const p = pending.get(msg.jobId);
         if (!p || p.worker !== worker) break;
@@ -193,6 +280,7 @@ export function attachWorker(ws: WebSocket): void {
     }
     for (const projectId of [...worker.projects]) unassign(projectId);
     if (workerCount() === 0) workersChanged(false);
+    changed();
   });
 
   ws.on('error', () => ws.close());

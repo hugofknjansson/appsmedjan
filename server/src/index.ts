@@ -10,6 +10,7 @@ import { config } from './config';
 import * as db from './db';
 import { live } from './live';
 import { buildProject, syncViewers } from './preview';
+import { publishState } from './publish';
 import { api, userFromRequest } from './routes';
 import * as workers from './workers';
 
@@ -122,6 +123,7 @@ function attachClient(ws: WebSocket, project: db.Project): void {
     running: l.running,
     parts: l.parts,
     preview: l.preview,
+    publish: publishState(project),
   };
   ws.send(JSON.stringify(state));
   if (l.lastFrame) ws.send(l.lastFrame, { binary: true });

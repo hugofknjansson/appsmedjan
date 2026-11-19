@@ -9,6 +9,14 @@ export interface ProjectSummary {
   updatedAt: number;
 }
 
+export interface AppleStatus {
+  enabled: boolean;
+  connected: boolean;
+  teamId?: string;
+  keyId?: string;
+  connectedAt?: number;
+}
+
 /** An error code from the server, e.g. "daily_limit". The UI translates it. */
 export class ApiError extends Error {
   constructor(public code: string) {
@@ -47,4 +55,9 @@ export const api = {
   files: (id: string) => call<{ files: Record<string, string> }>('GET', `/api/projects/${id}/files`),
   sendMessage: (id: string, text: string) => call<{ ok: true }>('POST', `/api/projects/${id}/messages`, { text }),
   stop: (id: string) => call<{ ok: true }>('POST', `/api/projects/${id}/stop`, {}),
+  appleAccount: () => call<AppleStatus>('GET', '/api/apple-account'),
+  connectApple: (body: { key: string; keyId: string; issuerId: string; teamId: string }) =>
+    call<AppleStatus>('PUT', '/api/apple-account', body),
+  disconnectApple: () => call<AppleStatus>('DELETE', '/api/apple-account'),
+  testflight: (id: string) => call<{ ok: true }>('POST', `/api/projects/${id}/testflight`, {}),
 };

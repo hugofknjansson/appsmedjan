@@ -58,6 +58,7 @@ async function main() {
     INVITE_CODE: 'smedja',
     ANTHROPIC_API_KEY: 'test-key',
     ANTHROPIC_BASE_URL: `http://localhost:${API_PORT}`,
+    TESTFLIGHT_USERS: 'test@example.com',
   });
   const base = `http://localhost:${PORT}`;
   await waitFor('server', async () => (await fetch(`${base}/api/config`)).ok);
@@ -133,8 +134,14 @@ async function main() {
   assert(true, 'the code view lists and shows files');
   await shot('3-code');
 
-  // A second message replays the history as plain text.
+  // TestFlight: the mock worker pretends to archive and upload.
   await page.getByRole('tab', { name: 'Förhandsvisning' }).click();
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Till TestFlight' }).click();
+  await page.getByText(/Version \d{12} är uppladdad/).waitFor({ timeout: 15_000 });
+  assert(true, 'the app can be sent to TestFlight and the result is shown');
+
+  // A second message replays the history as plain text.
   const before = fake.requests.length;
   await page.getByLabel('Beskriv vad du vill ändra').fill('Gör den blå');
   await page.getByRole('button', { name: 'Skicka' }).click();
@@ -156,6 +163,11 @@ async function main() {
     return (await fetch(`/api/projects/${id}/files`)).status;
   }, projectId);
   assert(status === 404, "another user cannot read the project's files");
+  const publishStatus = await otherPage.evaluate(
+    async (id) => (await fetch(`/api/projects/${id}/testflight`, { method: 'POST' })).status,
+    projectId,
+  );
+  assert(publishStatus === 404, "another user cannot send the project to TestFlight");
 
   // Phone-sized layout.
   await page.setViewportSize({ width: 390, height: 800 });

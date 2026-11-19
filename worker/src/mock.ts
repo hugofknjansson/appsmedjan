@@ -1,7 +1,7 @@
 // A stand-in driver for development on machines without Xcode (Linux, CI).
 // It "builds" instantly and streams a drawn placeholder screen so the whole flow can be exercised.
-import type { BuildStage, InputEvent } from '../../shared/protocol';
-import type { BuildJob, Driver, Emit } from './driver';
+import type { BuildStage, InputEvent, PublishStage } from '../../shared/protocol';
+import type { BuildJob, Driver, Emit, PublishJob, PublishResult } from './driver';
 
 interface MockSession {
   appName: string;
@@ -21,7 +21,7 @@ export class MockDriver implements Driver {
   constructor(private readonly emit: Emit) {}
 
   async init() {
-    return { canInput: true, info: 'mock driver, no Xcode' };
+    return { canInput: true, canPublish: true, hasOwnAccount: true, publishesForUsers: true, info: 'mock driver, no Xcode' };
   }
 
   async build(job: BuildJob, progress: (stage: BuildStage) => void) {
@@ -46,6 +46,25 @@ export class MockDriver implements Driver {
     this.sessions.set(job.projectId, s);
     this.emit.streamInfo(job.projectId, 'image/svg+xml');
     this.draw(job.projectId);
+    return { ok: true };
+  }
+
+  /** Pretends to upload. A file containing MOCK_NO_APP_RECORD exercises the "create the app first" path. */
+  async publish(job: PublishJob, progress: (stage: PublishStage) => void): Promise<PublishResult> {
+    const target = job.account ? `the person's own team ${job.account.teamId}` : "the operator's account";
+    console.log(`[mock] upload for ${job.projectId} to ${target}`);
+    progress('preparing');
+    await sleep(200);
+    progress('archiving');
+    await sleep(600);
+    if (Object.values(job.files).some((content) => content.includes('MOCK_BUILD_ERROR'))) {
+      return { ok: false, error: 'compile' };
+    }
+    progress('uploading');
+    await sleep(600);
+    if (Object.values(job.files).some((content) => content.includes('MOCK_NO_APP_RECORD'))) {
+      return { ok: false, error: 'no_app_record' };
+    }
     return { ok: true };
   }
 

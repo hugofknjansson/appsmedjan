@@ -85,6 +85,59 @@ export type InputEvent =
   | { kind: 'button'; button: 'home' };
 
 // ---------------------------------------------------------------------------
+// TestFlight
+// ---------------------------------------------------------------------------
+
+export type PublishStage = 'queued' | 'preparing' | 'archiving' | 'uploading';
+
+/**
+ * no_app_record: the app has not been created in App Store Connect yet (Apple offers no API for that step).
+ * compile: the app does not build. signing: certificates or profiles could not be set up.
+ * auth: the App Store Connect key was rejected. unavailable: no worker that can publish is connected.
+ */
+export type PublishError = 'no_app_record' | 'compile' | 'signing' | 'auth' | 'unavailable' | 'internal';
+
+/** The Apple developer account an upload goes to. The key itself only ever travels server -> worker. */
+export interface AppleAccount {
+  teamId: string;
+  keyId: string;
+  issuerId: string;
+  /** Private key as PEM text. */
+  key: string;
+}
+
+export const isTeamId = (s: unknown): s is string => typeof s === 'string' && /^[A-Z0-9]{10}$/.test(s);
+export const isKeyId = (s: unknown): s is string => typeof s === 'string' && /^[A-Z0-9]{6,20}$/.test(s);
+export const isIssuerId = (s: unknown): s is string =>
+  typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
+
+export interface PublishState {
+  /** Whether this person can send the app to TestFlight right now. */
+  available: boolean;
+  /**
+   * Whose developer account the upload goes to: the person's own (connected in the app), the
+   * operator's (for people the operator has listed), or none yet.
+   */
+  account: 'own' | 'operator' | 'none';
+  /** Whether people can connect their own Apple developer account on this server. */
+  canConnect: boolean;
+  status: 'idle' | 'working' | 'uploaded' | 'failed';
+  stage?: PublishStage;
+  error?: PublishError;
+  /** Shown with no_app_record so the account owner knows which app to create. */
+  bundleId?: string;
+  /** Build number of the latest upload attempt. */
+  build?: string;
+  /** When the status last changed (ms since epoch). */
+  at?: number;
+}
+
+/** Build numbers must grow with every upload; the UTC minute does that without any stored counter. */
+export function buildNumberFor(date: Date): string {
+  return date.toISOString().replace(/\D/g, '').slice(0, 12);
+}
+
+// ---------------------------------------------------------------------------
 // Browser <-> server (JSON text frames; simulator frames arrive as binary)
 // ---------------------------------------------------------------------------
 
@@ -96,6 +149,7 @@ export type ServerToClient =
       running: boolean;
       parts: Part[];
       preview: PreviewState;
+      publish: PublishState;
     }
   | { type: 'run.start' }
   | { type: 'run.end' }
@@ -104,6 +158,7 @@ export type ServerToClient =
   | { type: 'step'; step: Step }
   | { type: 'message'; message: ChatMessage }
   | { type: 'preview'; preview: PreviewState }
+  | { type: 'publish'; publish: PublishState }
   | { type: 'frame.clear' }
   | { type: 'files.changed' }
   | { type: 'project'; name: string };
@@ -123,15 +178,43 @@ export type ServerToWorker =
       bundleId: string;
       files: Record<string, string>;
     }
+  | {
+      type: 'publish';
+      jobId: string;
+      projectId: string;
+      appName: string;
+      bundleId: string;
+      buildNumber: string;
+      files: Record<string, string>;
+      /** Present when the upload goes to the person's own account; otherwise the worker uses its own key. */
+      account?: AppleAccount;
+    }
   | { type: 'screenshot'; jobId: string; projectId: string }
   | { type: 'input'; projectId: string; event: InputEvent }
   | { type: 'viewers'; projectId: string; count: number }
   | { type: 'release'; projectId: string };
 
 export type WorkerToServer =
-  | { type: 'hello'; name: string; mock: boolean; canInput: boolean; maxSimulators: number; info: string }
+  | {
+      type: 'hello';
+      name: string;
+      mock: boolean;
+      canInput: boolean;
+      /** True when this worker takes TestFlight uploads. */
+      canPublish?: boolean;
+      /** True when the worker has the operator's own App Store Connect key. */
+      hasOwnAccount?: boolean;
+      /** True when the worker accepts uploads that bring a person's own key along. */
+      publishesForUsers?: boolean;
+      /** False for a signing-only worker that runs no simulators (and so no untrusted app code). */
+      canPreview?: boolean;
+      maxSimulators: number;
+      info: string;
+    }
   | { type: 'build.progress'; jobId: string; stage: BuildStage }
   | { type: 'build.result'; jobId: string; ok: boolean; errors?: string; durationMs: number }
+  | { type: 'publish.progress'; jobId: string; stage: PublishStage }
+  | { type: 'publish.result'; jobId: string; ok: boolean; error?: PublishError; detail?: string; durationMs: number }
   | { type: 'screenshot.result'; jobId: string; ok: boolean; mime?: string; data?: string; error?: string }
   | { type: 'stream.info'; projectId: string; mime: string }
   | { type: 'sim.stopped'; projectId: string };

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import WebSocket from 'ws';
 import { encodeFrame, type ServerToWorker, type WorkerToServer } from '../../shared/protocol';
-import type { Driver, Emit } from './driver';
+import type { Driver, Emit, PublishResult } from './driver';
 import { MockDriver } from './mock';
 import { XcodeDriver } from './xcode';
 
@@ -21,6 +21,9 @@ const TOKEN = process.env.WORKER_TOKEN || 'dev-token';
 const NAME = process.env.WORKER_NAME ?? os.hostname();
 const MAX_SIMULATORS = Math.max(1, Number(process.env.MAX_SIMULATORS ?? 2));
 const MOCK = process.argv.includes('--mock') || process.env.WORKER_MOCK === '1';
+// PREVIEWS=0 makes this a signing-only worker: it uploads to TestFlight but runs no simulators, so no
+// app code written by the model ever runs next to the keys.
+const PREVIEWS = process.env.PREVIEWS !== '0';
 
 let socket: WebSocket | null = null;
 
@@ -64,6 +67,21 @@ async function handle(msg: ServerToWorker): Promise<void> {
       const durationMs = Date.now() - started;
       console.log(`[worker] build ${msg.projectId}: ${result.ok ? 'ok' : 'failed'} in ${(durationMs / 1000).toFixed(1)}s`);
       send({ type: 'build.result', jobId: msg.jobId, ok: result.ok, errors: result.errors, durationMs });
+      break;
+    }
+    case 'publish': {
+      const started = Date.now();
+      let result: PublishResult;
+      try {
+        result = await driver.publish(msg, (stage) => send({ type: 'publish.progress', jobId: msg.jobId, stage }));
+      } catch (err) {
+        result = { ok: false, error: 'internal', detail: (err as Error).message };
+      }
+      const durationMs = Date.now() - started;
+      console.log(
+        `[worker] publish ${msg.projectId} (${msg.buildNumber}): ${result.ok ? 'uploaded' : `failed, ${result.error}`} in ${(durationMs / 1000).toFixed(1)}s`,
+      );
+      send({ type: 'publish.result', jobId: msg.jobId, ok: result.ok, error: result.error, detail: result.detail, durationMs });
       break;
     }
     case 'screenshot':
@@ -110,6 +128,10 @@ function connect(): void {
       name: NAME,
       mock: MOCK,
       canInput: capabilities.canInput,
+      canPublish: capabilities.canPublish,
+      hasOwnAccount: capabilities.hasOwnAccount,
+      publishesForUsers: capabilities.publishesForUsers,
+      canPreview: PREVIEWS,
       maxSimulators: MAX_SIMULATORS,
       info: capabilities.info,
     });

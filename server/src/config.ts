@@ -36,6 +36,13 @@ export const config = {
   trustProxy: Boolean(process.env.TRUST_PROXY),
   /** Extra origins allowed to open the browser WebSocket (comma separated), besides the server's own host. */
   allowedOrigins: (process.env.ALLOWED_ORIGINS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
+  /** Emails allowed to send apps to TestFlight under the operator's developer account ("*" allows everyone). */
+  testflightUsers: (process.env.TESTFLIGHT_USERS ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
+  /**
+   * Encrypts people's App Store Connect keys in the database. Without it nobody can connect their own
+   * Apple developer account. Changing it makes the stored keys unreadable (people connect again).
+   */
+  secretsKey: process.env.SECRETS_KEY ?? '',
   /** How long a simulator stays up after the last viewer leaves. */
   releaseAfterMs: Number(process.env.RELEASE_AFTER_MS ?? 5 * 60_000),
 };

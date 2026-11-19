@@ -338,6 +338,158 @@ textarea {
   display: none;
 }
 
+/* Sits at the right end of the bar; on narrow screens that is the first row, beside the app's name. */
+.publish-btn {
+  margin-left: auto;
+  flex: none;
+}
+
+.publish-btn + .topbar-right {
+  margin-left: 0;
+}
+
+.publish-note {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--accent-soft);
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+.publish-note[data-failed='true'] {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+
+.publish-note .link {
+  flex: none;
+}
+
+/* --- Dialog with a step-by-step guide -------------------------------------------- */
+
+.sheet {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+.sheet::backdrop {
+  background: rgb(0 0 0 / 45%);
+}
+
+.sheet-head {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 12px 12px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.sheet-head h2 {
+  margin: 0;
+}
+
+.sheet-body {
+  display: grid;
+  gap: 18px;
+  padding: 20px 24px 24px;
+}
+
+.sheet-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.guide {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 22px;
+  counter-reset: step;
+}
+
+.guide > li {
+  counter-increment: step;
+  position: relative;
+  padding-left: 42px;
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
+.guide > li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.guide h3 {
+  margin: 3px 0 0;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.guide p {
+  color: var(--muted);
+  font-size: 0.94rem;
+}
+
+.guide-form {
+  width: 100%;
+  display: grid;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.guide-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.guide-form input {
+  font-weight: 400;
+}
+
+.guide-form small {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.guide-form .btn {
+  justify-self: start;
+}
+
+.fine {
+  font-size: 0.85rem;
+}
+
 /* --- Dashboard ----------------------------------------------------------------- */
 
 .dash {

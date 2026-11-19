@@ -8,9 +8,11 @@ import {
   isValidSourcePath,
   type BuildStage,
   type InputEvent,
+  type PublishStage,
 } from '../../shared/protocol';
-import type { BuildJob, Driver, Emit } from './driver';
+import type { BuildJob, Driver, Emit, PublishJob, PublishResult } from './driver';
 import { exec, mustExec } from './exec';
+import { Publisher, publishConfigFromEnv } from './publish';
 import { Streamer } from './stream';
 
 interface Session {
@@ -44,6 +46,7 @@ export class XcodeDriver implements Driver {
   private runtimeId = '';
   private deviceTypeId = '';
   private hasIdb = false;
+  private publisher: Publisher | null = null;
   private readonly workDir: string;
   private readonly maxSimulators: number;
 
@@ -55,7 +58,7 @@ export class XcodeDriver implements Driver {
     this.workDir = opts.workDir ?? path.join(os.homedir(), 'Library', 'Application Support', 'appsmedjan-worker');
   }
 
-  async init(): Promise<{ canInput: boolean; info: string }> {
+  async init(): Promise<{ canInput: boolean; canPublish: boolean; hasOwnAccount: boolean; publishesForUsers: boolean; info: string }> {
     const xcode = await exec('xcodebuild', ['-version']);
     if (xcode.code !== 0) throw new Error('Xcode is not installed (xcodebuild not found). Install Xcode from the App Store.');
     const xcodegen = await exec('xcodegen', ['--version']);
@@ -75,8 +78,18 @@ export class XcodeDriver implements Driver {
         await exec('xcrun', ['simctl', 'shutdown', d.udid]);
       }
     }
+    // Uploads go to the operator's own account (key in this worker's environment), to people's own
+    // accounts (key sent with each job; opt in with PUBLISH_FOR_USERS=1), or both.
+    const publisher = new Publisher(publishConfigFromEnv(), this.workDir);
+    const hasOwnAccount = await publisher.hasOwnAccount();
+    const forUsers = process.env.PUBLISH_FOR_USERS === '1';
+    if (hasOwnAccount || forUsers) {
+      this.publisher = publisher;
+      const targets = [hasOwnAccount && 'your own account', forUsers && "people's own accounts"].filter(Boolean);
+      console.log(`[xcode] TestFlight uploads are on (${targets.join(' and ')})`);
+    }
     const version = xcode.stdout.split('\n')[0]?.trim() ?? 'Xcode';
-    return { canInput: this.hasIdb, info: `${version}, ${this.deviceTypeId.split('.').pop()}, ${this.runtimeId.split('.').pop()}` };
+    return { canInput: this.hasIdb, canPublish: this.publisher !== null, hasOwnAccount, publishesForUsers: forUsers, info: `${version}, ${this.deviceTypeId.split('.').pop()}, ${this.runtimeId.split('.').pop()}` };
   }
 
   private async pickRuntimeAndDevice(): Promise<void> {
@@ -230,25 +243,16 @@ export class XcodeDriver implements Driver {
     });
   }
 
+  async publish(job: PublishJob, progress: (stage: PublishStage) => void): Promise<PublishResult> {
+    if (!this.publisher) return { ok: false, error: 'unavailable' };
+    // Someone else's key is only handled when the operator has said this machine may.
+    if (job.account && process.env.PUBLISH_FOR_USERS !== '1') return { ok: false, error: 'unavailable' };
+    return this.publisher.publish(job, progress);
+  }
+
   /** Mirrors the job's files into the project folder and regenerates the Xcode project when the file set changes. */
   private async syncFiles(s: Session, job: BuildJob): Promise<void> {
-    const sources = path.join(s.dir, 'Sources');
-    await fs.mkdir(sources, { recursive: true });
-
-    const wanted = Object.keys(job.files).filter(isValidSourcePath).sort();
-    const existing = await listFiles(s.dir, 'Sources');
-    for (const rel of existing) {
-      if (!wanted.includes(rel)) await fs.rm(path.join(s.dir, rel), { force: true });
-    }
-    for (const rel of wanted) {
-      const target = path.join(s.dir, rel);
-      const content = job.files[rel]!;
-      // Untouched files keep their timestamps, which keeps incremental builds fast.
-      const current = await fs.readFile(target, 'utf8').catch(() => null);
-      if (current === content) continue;
-      await fs.mkdir(path.dirname(target), { recursive: true });
-      await fs.writeFile(target, content);
-    }
+    const wanted = await mirrorSources(s.dir, job.files);
 
     const spec = projectSpec(job);
     const specPath = path.join(s.dir, 'project.yml');
@@ -364,6 +368,25 @@ export class XcodeDriver implements Driver {
 
 // --- Helpers ------------------------------------------------------------------
 
+/** Makes dir/Sources match the given files exactly, and returns the paths that were kept. */
+export async function mirrorSources(dir: string, files: Record<string, string>): Promise<string[]> {
+  await fs.mkdir(path.join(dir, 'Sources'), { recursive: true });
+  const wanted = Object.keys(files).filter(isValidSourcePath).sort();
+  for (const rel of await listFiles(dir, 'Sources')) {
+    if (!wanted.includes(rel)) await fs.rm(path.join(dir, rel), { force: true });
+  }
+  for (const rel of wanted) {
+    const target = path.join(dir, rel);
+    const content = files[rel]!;
+    // Untouched files keep their timestamps, which keeps incremental builds fast.
+    const current = await fs.readFile(target, 'utf8').catch(() => null);
+    if (current === content) continue;
+    await fs.mkdir(path.dirname(target), { recursive: true });
+    await fs.writeFile(target, content);
+  }
+  return wanted;
+}
+
 async function listFiles(root: string, rel: string): Promise<string[]> {
   const out: string[] = [];
   const entries = await fs.readdir(path.join(root, rel), { withFileTypes: true }).catch(() => []);
@@ -375,8 +398,14 @@ async function listFiles(root: string, rel: string): Promise<string[]> {
   return out;
 }
 
-/** The XcodeGen spec. Only the app name and bundle id vary, and both are written as quoted JSON strings. */
-export function projectSpec(job: { appName: string; bundleId: string }): string {
+/**
+ * The XcodeGen spec. Only the app name and bundle id vary, and both are written as quoted JSON strings.
+ * With `publish`, the project is also set up for a signed store build: team, build number and app icon.
+ */
+export function projectSpec(
+  job: { appName: string; bundleId: string },
+  publish?: { teamId: string; buildNumber: string },
+): string {
   // Control characters and "$" (build-setting expansion) are dropped from the name.
   const cleaned = job.appName.replace(/[\u0000-\u001f]/g, ' ').replace(/[$\\]/g, '').replace(/\s+/g, ' ').trim();
   const displayName = JSON.stringify(cleaned.slice(0, 30) || 'App');
@@ -390,14 +419,14 @@ targets:
     type: application
     platform: iOS
     sources:
-      - path: Sources
+      - path: Sources${publish ? '\n      - path: Resources' : ''}
     scheme: {}
     settings:
       base:
         PRODUCT_NAME: App
         PRODUCT_BUNDLE_IDENTIFIER: ${JSON.stringify(job.bundleId)}
         MARKETING_VERSION: "1.0"
-        CURRENT_PROJECT_VERSION: "1"
+        CURRENT_PROJECT_VERSION: ${JSON.stringify(publish?.buildNumber ?? '1')}
         SWIFT_VERSION: "5.0"
         TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: YES
@@ -405,7 +434,15 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
-`;
+${
+  publish
+    ? `        DEVELOPMENT_TEAM: ${JSON.stringify(publish.teamId)}
+        CODE_SIGN_STYLE: Automatic
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+`
+    : ''
+}`;
 }
 
 /** Pulls the compiler errors out of xcodebuild's output, with paths relative to the project. */

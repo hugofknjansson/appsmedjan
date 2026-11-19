@@ -8,6 +8,8 @@ import { config } from './config';
 import * as db from './db';
 import { forget } from './live';
 import { STARTER_FILES } from './prompt';
+import { accountStatus, connectAccount, disconnectAccount } from './apple';
+import { accountChanged, startPublish } from './publish';
 import { isRunning, startRun, stopRun } from './runs';
 import * as workers from './workers';
 
@@ -228,6 +230,50 @@ api.post('/projects/:id/stop', requireUser, (req, res) => {
   if (!project) return;
   stopRun(project.id);
   res.json({ ok: true });
+});
+
+// --- The person's own Apple developer account ---------------------------------
+
+api.get('/apple-account', requireUser, (req, res) => {
+  res.json(accountStatus((req as Authed).user.id));
+});
+
+/** Connects an App Store Connect API key. The key is checked against Apple before it is stored. */
+api.put('/apple-account', requireUser, authLimiter, async (req, res) => {
+  const user = (req as Authed).user;
+  const result = await connectAccount(user.id, req.body);
+  if (!result.ok) {
+    res.status(result.error === 'apple_unreachable' ? 502 : 400).json({ error: result.error });
+    return;
+  }
+  accountChanged(user.id);
+  res.json(accountStatus(user.id));
+});
+
+api.delete('/apple-account', requireUser, (req, res) => {
+  const user = (req as Authed).user;
+  disconnectAccount(user.id);
+  accountChanged(user.id);
+  res.json(accountStatus(user.id));
+});
+
+/** Sends the app to TestFlight. Progress and the outcome arrive over the project's WebSocket. */
+api.post('/projects/:id/testflight', requireUser, (req, res) => {
+  const project = ownProject(req, res);
+  if (!project) return;
+  switch (startPublish(project, (req as Authed).user)) {
+    case 'forbidden':
+      res.status(403).json({ error: 'publish_forbidden' });
+      return;
+    case 'unavailable':
+      res.status(503).json({ error: 'publish_unavailable' });
+      return;
+    case 'busy':
+      res.status(409).json({ error: 'busy' });
+      return;
+    default:
+      res.status(202).json({ ok: true });
+  }
 });
 
 api.use((_req, res) => {

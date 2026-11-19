@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useReducer, useRef, useState, type FormEvent } from 'react';
-import type { ChatMessage, InputEvent, Part, PreviewState, ServerToClient, Step } from '../../shared/protocol';
+import type {
+  ChatMessage,
+  InputEvent,
+  Part,
+  PreviewState,
+  PublishState,
+  ServerToClient,
+  Step,
+} from '../../shared/protocol';
 import { ApiError, api } from './api';
+import { AppleAccountDialog } from './AppleAccount';
 import { Logo } from './Logo';
 import { FrameBus, Phone } from './Phone';
 import { apiErrorText, stepText, t } from './i18n';
@@ -11,6 +20,7 @@ interface State {
   running: boolean;
   parts: Part[];
   preview: PreviewState;
+  publish: PublishState;
   filesVersion: number;
 }
 
@@ -22,6 +32,7 @@ function reduce(state: State | null, ev: ServerToClient): State | null {
       running: ev.running,
       parts: ev.parts,
       preview: ev.preview,
+      publish: ev.publish,
       filesVersion: (state?.filesVersion ?? 0) + 1,
     };
   }
@@ -52,6 +63,8 @@ function reduce(state: State | null, ev: ServerToClient): State | null {
       return { ...state, messages: [...state.messages, ev.message] };
     case 'preview':
       return { ...state, preview: ev.preview };
+    case 'publish':
+      return { ...state, publish: ev.publish };
     case 'project':
       return { ...state, name: ev.name };
     case 'files.changed':
@@ -70,6 +83,8 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
   );
   const bus = useMemo(() => new FrameBus(), []);
   const socket = useRef<WebSocket | null>(null);
+  const [publishError, setPublishError] = useState('');
+  const [appleOpen, setAppleOpen] = useState(false);
 
   useEffect(() => {
     let closed = false;
@@ -134,6 +149,23 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
   };
 
+  async function sendToTestFlight() {
+    if (!state) return;
+    // Without an account to upload to, the first step is connecting one.
+    if (state.publish.account === 'none') {
+      setAppleOpen(true);
+      return;
+    }
+    const question = state.publish.account === 'own' ? t.confirmPublishOwn : t.confirmPublish;
+    if (!window.confirm(question.replace('{name}', state.name))) return;
+    setPublishError('');
+    try {
+      await api.testflight(id);
+    } catch (err) {
+      setPublishError(apiErrorText(err instanceof ApiError ? err.code : 'internal'));
+    }
+  }
+
   if (missing) {
     return (
       <div className="page center">
@@ -152,6 +184,16 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
           ← <span className="hide-narrow">{t.back}</span>
         </button>
         <strong className="project-name">{state?.name ?? ''}</strong>
+        {state && (state.publish.available || (state.publish.account === 'none' && state.publish.canConnect)) && (
+          <button
+            className="btn publish-btn"
+            title={t.testflightHint}
+            disabled={state.publish.status === 'working' || state.running}
+            onClick={() => void sendToTestFlight()}
+          >
+            {state.publish.status === 'working' ? `${t.publishStage[state.publish.stage ?? 'queued']}…` : t.testflight}
+          </button>
+        )}
         <div className="topbar-right">
           {!connected && <span className="muted">{t.reconnecting}…</span>}
           <div className="tabs" role="tablist">
@@ -167,6 +209,8 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
           </div>
         </div>
       </header>
+      {state && <PublishNote publish={state.publish} requestError={publishError} />}
+      {appleOpen && <AppleAccountDialog onClose={() => setAppleOpen(false)} />}
 
       <div className="workspace" data-tab={tab}>
         <section className="chat-pane">{state && <Chat id={id} state={state} />}</section>
@@ -184,6 +228,42 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
           {!state && <Logo small />}
         </section>
       </div>
+    </div>
+  );
+}
+
+// --- TestFlight ----------------------------------------------------------------
+
+const RECENT_MS = 6 * 3600_000;
+
+/** Tells how the latest upload went. Old results stay quiet so the bar doesn't greet every visit. */
+function PublishNote({ publish, requestError }: { publish: PublishState; requestError: string }) {
+  const [dismissed, setDismissed] = useState<string | null>(null);
+
+  let text = '';
+  let failed = false;
+  if (requestError) {
+    text = requestError;
+    failed = true;
+  } else if (publish.account !== 'none' && publish.at && Date.now() - publish.at < RECENT_MS) {
+    if (publish.status === 'uploaded') {
+      text = t.publishUploaded.replace('{build}', publish.build ?? '');
+    } else if (publish.status === 'failed') {
+      const code = publish.error ?? 'internal';
+      // With the person's own account, the fix for a key or signing problem is theirs to make.
+      const own = publish.account === 'own' && (code === 'auth' || code === 'signing') ? t.publishErrorOwn[code] : null;
+      text = (own ?? t.publishError[code]).replace('{bundleId}', publish.bundleId ?? '');
+      failed = true;
+    }
+  }
+  const key = `${publish.status}:${publish.at ?? 0}:${requestError}`;
+  if (!text || dismissed === key) return null;
+  return (
+    <div className="publish-note" data-failed={failed} role="status">
+      <span>{text}</span>
+      <button className="link" onClick={() => setDismissed(key)}>
+        {t.dismiss}
+      </button>
     </div>
   );
 }

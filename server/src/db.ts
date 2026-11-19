@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import type { ChatMessage, Part } from '../../shared/protocol';
+import type { ChatMessage, Part, PublishError } from '../../shared/protocol';
 import { config } from './config';
 
 fs.mkdirSync(config.dataDir, { recursive: true });
@@ -50,6 +50,21 @@ db.exec(`
     day TEXT NOT NULL,
     messages INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (user_id, day)
+  );
+  CREATE TABLE IF NOT EXISTS apple_accounts (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    team_id TEXT NOT NULL,
+    key_id TEXT NOT NULL,
+    issuer_id TEXT NOT NULL,
+    key_enc TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS publishes (
+    project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+    status TEXT NOT NULL,
+    error TEXT,
+    build TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
   );
 `);
 
@@ -143,6 +158,11 @@ export function userForSession(token: string): User | null {
        WHERE s.token_hash = ? AND s.expires_at > ?`,
     )
     .get(sha256(token), Date.now()) as { id: string; email: string } | undefined;
+  return row ?? null;
+}
+
+export function getUser(id: string): User | null {
+  const row = db.prepare('SELECT id, email FROM users WHERE id = ?').get(id) as { id: string; email: string } | undefined;
   return row ?? null;
 }
 
@@ -253,6 +273,71 @@ export function putFile(projectId: string, filePath: string, content: string): v
 export function deleteFile(projectId: string, filePath: string): boolean {
   const res = db.prepare('DELETE FROM files WHERE project_id = ? AND path = ?').run(projectId, filePath);
   return Number(res.changes) > 0;
+}
+
+// --- Apple developer accounts ------------------------------------------------
+
+export interface AppleAccountRow {
+  teamId: string;
+  keyId: string;
+  issuerId: string;
+  /** The private key, encrypted (see secrets.ts). */
+  keyEnc: string;
+  createdAt: number;
+}
+
+export function getAppleAccount(userId: string): AppleAccountRow | null {
+  const row = db
+    .prepare('SELECT team_id, key_id, issuer_id, key_enc, created_at FROM apple_accounts WHERE user_id = ?')
+    .get(userId) as
+    | { team_id: string; key_id: string; issuer_id: string; key_enc: string; created_at: number }
+    | undefined;
+  if (!row) return null;
+  return { teamId: row.team_id, keyId: row.key_id, issuerId: row.issuer_id, keyEnc: row.key_enc, createdAt: row.created_at };
+}
+
+export function setAppleAccount(userId: string, account: Omit<AppleAccountRow, 'createdAt'>): void {
+  db.prepare(
+    `INSERT INTO apple_accounts (user_id, team_id, key_id, issuer_id, key_enc, created_at) VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT (user_id) DO UPDATE SET
+       team_id = excluded.team_id, key_id = excluded.key_id, issuer_id = excluded.issuer_id,
+       key_enc = excluded.key_enc, created_at = excluded.created_at`,
+  ).run(userId, account.teamId, account.keyId, account.issuerId, account.keyEnc, Date.now());
+}
+
+export function deleteAppleAccount(userId: string): void {
+  db.prepare('DELETE FROM apple_accounts WHERE user_id = ?').run(userId);
+}
+
+// --- TestFlight ----------------------------------------------------------------
+
+export interface Publish {
+  status: 'uploaded' | 'failed';
+  error: PublishError | null;
+  build: string;
+  updatedAt: number;
+}
+
+/** The outcome of the latest upload attempt, if there has been one. */
+export function getPublish(projectId: string): Publish | null {
+  const row = db.prepare('SELECT status, error, build, updated_at FROM publishes WHERE project_id = ?').get(projectId) as
+    | { status: string; error: string | null; build: string; updated_at: number }
+    | undefined;
+  if (!row) return null;
+  return {
+    status: row.status === 'uploaded' ? 'uploaded' : 'failed',
+    error: row.error as PublishError | null,
+    build: row.build,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function setPublish(projectId: string, status: Publish['status'], error: PublishError | null, build: string): void {
+  db.prepare(
+    `INSERT INTO publishes (project_id, status, error, build, updated_at) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT (project_id) DO UPDATE SET
+       status = excluded.status, error = excluded.error, build = excluded.build, updated_at = excluded.updated_at`,
+  ).run(projectId, status, error, build, Date.now());
 }
 
 // --- Messages ----------------------------------------------------------------

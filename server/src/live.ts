@@ -32,6 +32,11 @@ export function live(projectId: string): Live {
   return l;
 }
 
+/** Projects that have live state right now (someone has them open, or had recently). */
+export function liveProjectIds(): string[] {
+  return [...lives.keys()];
+}
+
 export function forget(projectId: string): void {
   const l = lives.get(projectId);
   if (!l) return;

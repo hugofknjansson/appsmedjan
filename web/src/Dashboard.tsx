@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError, api, type ProjectSummary, type User } from './api';
+import { AppleAccountDialog } from './AppleAccount';
 import { Logo } from './Logo';
 import { apiErrorText, lang, t } from './i18n';
 
@@ -15,9 +16,12 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [appleEnabled, setAppleEnabled] = useState(false);
+  const [appleOpen, setAppleOpen] = useState(false);
 
   useEffect(() => {
     api.projects().then((r) => setProjects(r.projects)).catch(() => setProjects([]));
+    api.appleAccount().then((s) => setAppleEnabled(s.enabled)).catch(() => undefined);
     fetch('/api/status')
       .then((r) => r.json())
       .then((s: { workers: number; agentReady: boolean }) => {
@@ -55,11 +59,18 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
         <Logo small />
         <div className="topbar-right">
           <span className="muted hide-narrow">{user.email}</span>
+          {appleEnabled && (
+            <button className="btn ghost" onClick={() => setAppleOpen(true)}>
+              {t.appleAccount}
+            </button>
+          )}
           <button className="btn ghost" onClick={onLogout}>
             {t.logout}
           </button>
         </div>
       </header>
+
+      {appleOpen && <AppleAccountDialog onClose={() => setAppleOpen(false)} />}
 
       <main className="dash">
         <section className="hero">

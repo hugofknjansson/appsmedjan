@@ -43,7 +43,7 @@ SwiftUI för iPhone, iOS 17+, enbart Apples egna ramverk (SwiftData, Charts, Map
 sparas på enheten. Xcode-projektet genereras med XcodeGen från filerna under `Sources/`, så agenten
 behöver aldrig röra projektfilen.
 
-Inte stöd ännu: bilder och andra resurser, tredjepartspaket, och allt som kräver Info.plist-nycklar
+Inte stöd ännu: egna bilder och andra resurser (appikonen är en genererad platshållare), tredjepartspaket, och allt som kräver Info.plist-nycklar
 eller capabilities (kamera, plats, pushnotiser, HealthKit, Sign in with Apple, köp i appen, widgets).
 Agenten vet om det och bygger närmaste fungerande variant.
 
@@ -110,6 +110,74 @@ På Macen (Apple silicon rekommenderas):
 Inställningar: `MAX_SIMULATORS` (standard 2, varje simulator tar ett par GB minne) och `SIM_DEVICE`
 (till exempel `iPhone 16`; annars väljs nyaste vanliga iPhone-modellen). Flera Macar kan ansluta till
 samma server; nya projekt hamnar på den minst belastade.
+
+### Skicka appar till TestFlight
+
+Knappen "Till TestFlight" i en app bygger en signerad version och laddar upp den till **ditt eget**
+Apple-utvecklarkonto, så att den kan installeras på en riktig iPhone via TestFlight-appen. Det kräver
+ett betalt medlemskap i Apple Developer Program. Funktionen är avstängd tills stegen nedan är gjorda.
+
+1. Skapa en API-nyckel i App Store Connect (Users and Access > Integrations > App Store Connect API).
+   Rollen Admin fungerar; snävare roller kan sakna rätt att skapa certifikat och profiler. Ladda ner
+   `.p8`-filen (det går bara en gång) och notera Key ID och Issuer ID.
+2. På Macen som ska ladda upp, lägg till i `.env` och starta om arbetaren:
+
+   ```
+   APPLE_TEAM_ID=ABCDE12345
+   ASC_KEY_ID=...
+   ASC_ISSUER_ID=...
+   ASC_KEY_PATH=~/hemligt/AuthKey_....p8
+   ```
+
+   Arbetaren skriver `TestFlight uploads are on` när nyckeln hittas, och servern visar `testflight: yes`.
+3. På servern, ange vilka konton som får använda knappen (allt som laddas upp hamnar under ditt
+   utvecklarkonto och ditt ansvar): `TESTFLIGHT_USERS=du@example.com,testare@example.com`, eller `*` för alla.
+4. Första gången för varje app: tryck på knappen en gång. Arbetaren registrerar då appens bundle-id i
+   ditt utvecklarkonto (via App Store Connect-API:t) och stannar med ett meddelande som visar det,
+   eftersom själva appen saknas. Apple har inget API för att skapa appen, så det görs för hand i
+   App Store Connect (Apps > + > New App, iOS, välj bundle-id:t i listan). Tryck sedan på knappen igen.
+   Arbetaren kontrollerar att appen finns innan den bygger, så försöket utan app tar bara några sekunder.
+5. När uppladdningen är klar bearbetar Apple bygget i några minuter. Interna testare (personer i ditt
+   App Store Connect-team som lagts till under TestFlight > Internal Testing) får det direkt. Externa
+   testare kräver en betagranskning av Apple och bjuds in för hand i App Store Connect.
+
+Varje uppladdning får versionsnummer 1.0 och ett byggnummer av datum och klockslag (UTC). Apparna får en
+automatiskt genererad ikon i en färg per app, eftersom App Store Connect inte tar emot appar utan ikon.
+
+Tänk på att nyckeln ger åtkomst till ditt utvecklarkonto och att appar i simulatorn kan läsa filer som
+arbetarens användare kommer åt (se Säkerhet). På en Mac där bara du själv bygger appar är det rimligt.
+För fler användare bör uppladdningen ligga på en egen Mac eller ett eget macOS-konto som inte kör
+simulatorer. Servern skickar redan uppladdningar till den arbetare som har nyckeln, men en sådan
+arbetare tar i dag också emot vanliga byggen; ett rent signeringsläge är inte byggt.
+
+Uppladdningen är provad mot låtsasarbetaren, arkivet signeras för riktig enhet och läsanropen mot
+App Store Connect fungerar med en riktig nyckel, men **ingen uppladdning har gått hela vägen till Apple**
+och registreringen av bundle-id är bara enhetstestad. Räkna med justeringar första gången, troligast i
+hur Apples felmeddelanden tolkas (`classifyPublishFailure` i `worker/src/publish.ts`); arbetarens logg visar
+alltid verktygens egna felutskrifter.
+
+### Användarens eget Apple-konto
+
+För att någon utanför ditt team ska kunna publicera sin app behöver appen ligga i **deras eget**
+Apple-utvecklarkonto. Apples riktlinje 4.2.6 kräver att appar från en appgenereringstjänst skickas in av
+den som står för innehållet, så att samla allas appar under tjänstens konto är inte en väg framåt.
+
+Med `SECRETS_KEY` satt på servern får varje användare en guide ("Apple-konto" bland sina appar, eller
+knappen "Till TestFlight" i en app): skaffa konto hos Apple, skapa en API-nyckel i App Store Connect,
+ladda upp nyckelfilen. Key ID läses ur filnamnet och Team ID hämtas från Apple när det går. Nyckeln
+prövas mot Apple (enbart läsanrop) innan den sparas, krypterad med AES-256-GCM. Därefter går användarens
+uppladdningar till deras konto i stället för ditt, och `TESTFLIGHT_USERS` behövs inte för dem.
+
+På arbetaren som ska ladda upp sätts `PUBLISH_FOR_USERS=1`. Användarens nyckel skickas då med jobbet
+och finns på disk i en privat temporär mapp bara medan uppladdningen pågår. Eftersom appar i simulatorn
+körs som samma macOS-användare bör en publik tjänst ha en egen Mac för uppladdningar, startad med
+`PREVIEWS=0` så att den aldrig kör simulatorer.
+
+Det användaren fortfarande gör själv hos Apple: gå med i utvecklarprogrammet, skapa appen i App Store
+Connect första gången (Apple har inget API för det), och lägga till sig själv som testare i TestFlight.
+
+Kopplingen är provad mot en låtsasversion av Apples API och uppladdningen mot låtsasarbetaren. Med en
+riktig nyckel är bara kontrollen av nyckeln och uppladdningen under operatörens konto körda mot Apple.
 
 ### Drift
 
