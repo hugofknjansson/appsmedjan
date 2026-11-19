@@ -88,7 +88,11 @@ export type InputEvent =
 // TestFlight
 // ---------------------------------------------------------------------------
 
-export type PublishStage = 'queued' | 'preparing' | 'archiving' | 'uploading';
+/** waiting_for_app: the app has to be created by hand in App Store Connect; the upload goes on once it exists. */
+export type PublishStage = 'queued' | 'preparing' | 'waiting_for_app' | 'archiving' | 'uploading';
+
+/** added: the account holder was made a TestFlight tester automatically. manual: they add themselves. */
+export type PublishTester = 'added' | 'manual';
 
 /**
  * no_app_record: the app has not been created in App Store Connect yet (Apple offers no API for that step).
@@ -124,8 +128,10 @@ export interface PublishState {
   status: 'idle' | 'working' | 'uploaded' | 'failed';
   stage?: PublishStage;
   error?: PublishError;
-  /** Shown with no_app_record so the account owner knows which app to create. */
+  /** Shown while waiting for the app, and with no_app_record, so the account owner knows which app to create. */
   bundleId?: string;
+  /** After an upload: whether the account holder already is a TestFlight tester of the app. */
+  tester?: PublishTester;
   /** Build number of the latest upload attempt. */
   build?: string;
   /** When the status last changed (ms since epoch). */
@@ -214,7 +220,15 @@ export type WorkerToServer =
   | { type: 'build.progress'; jobId: string; stage: BuildStage }
   | { type: 'build.result'; jobId: string; ok: boolean; errors?: string; durationMs: number }
   | { type: 'publish.progress'; jobId: string; stage: PublishStage }
-  | { type: 'publish.result'; jobId: string; ok: boolean; error?: PublishError; detail?: string; durationMs: number }
+  | {
+      type: 'publish.result';
+      jobId: string;
+      ok: boolean;
+      error?: PublishError;
+      detail?: string;
+      tester?: PublishTester;
+      durationMs: number;
+    }
   | { type: 'screenshot.result'; jobId: string; ok: boolean; mime?: string; data?: string; error?: string }
   | { type: 'stream.info'; projectId: string; mime: string }
   | { type: 'sim.stopped'; projectId: string };

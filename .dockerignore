@@ -1,0 +1,12 @@
+# Never ship local secrets or data into the image.
+.env
+.env.*
+!.env.example
+data
+node_modules
+**/node_modules
+web/dist
+.git
+.claude
+*.log
+.DS_Store

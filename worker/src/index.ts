@@ -81,7 +81,15 @@ async function handle(msg: ServerToWorker): Promise<void> {
       console.log(
         `[worker] publish ${msg.projectId} (${msg.buildNumber}): ${result.ok ? 'uploaded' : `failed, ${result.error}`} in ${(durationMs / 1000).toFixed(1)}s`,
       );
-      send({ type: 'publish.result', jobId: msg.jobId, ok: result.ok, error: result.error, detail: result.detail, durationMs });
+      send({
+        type: 'publish.result',
+        jobId: msg.jobId,
+        ok: result.ok,
+        error: result.error,
+        detail: result.detail,
+        tester: result.tester,
+        durationMs,
+      });
       break;
     }
     case 'screenshot':

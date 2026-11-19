@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import type { ChatMessage, Part, PublishError } from '../../shared/protocol';
+import type { ChatMessage, Part, PublishError, PublishTester } from '../../shared/protocol';
 import { config } from './config';
 
 fs.mkdirSync(config.dataDir, { recursive: true });
@@ -67,6 +67,13 @@ db.exec(`
     updated_at INTEGER NOT NULL
   );
 `);
+
+// Columns added after a table first shipped. SQLite has no "ADD COLUMN IF NOT EXISTS".
+function addColumn(table: string, column: string, type: string): void {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as unknown as { name: string }[];
+  if (!columns.some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+}
+addColumn('publishes', 'tester', 'TEXT');
 
 export interface User {
   id: string;
@@ -315,29 +322,36 @@ export interface Publish {
   status: 'uploaded' | 'failed';
   error: PublishError | null;
   build: string;
+  /** Whether the account holder was made a TestFlight tester automatically. */
+  tester: PublishTester | null;
   updatedAt: number;
 }
 
 /** The outcome of the latest upload attempt, if there has been one. */
 export function getPublish(projectId: string): Publish | null {
-  const row = db.prepare('SELECT status, error, build, updated_at FROM publishes WHERE project_id = ?').get(projectId) as
-    | { status: string; error: string | null; build: string; updated_at: number }
+  const row = db.prepare('SELECT status, error, build, tester, updated_at FROM publishes WHERE project_id = ?').get(projectId) as
+    | { status: string; error: string | null; build: string; tester: string | null; updated_at: number }
     | undefined;
   if (!row) return null;
   return {
     status: row.status === 'uploaded' ? 'uploaded' : 'failed',
     error: row.error as PublishError | null,
     build: row.build,
+    tester: row.tester === 'added' || row.tester === 'manual' ? row.tester : null,
     updatedAt: row.updated_at,
   };
 }
 
-export function setPublish(projectId: string, status: Publish['status'], error: PublishError | null, build: string): void {
+export function setPublish(
+  projectId: string,
+  outcome: { status: Publish['status']; error: PublishError | null; build: string; tester: PublishTester | null },
+): void {
   db.prepare(
-    `INSERT INTO publishes (project_id, status, error, build, updated_at) VALUES (?, ?, ?, ?, ?)
+    `INSERT INTO publishes (project_id, status, error, build, tester, updated_at) VALUES (?, ?, ?, ?, ?, ?)
      ON CONFLICT (project_id) DO UPDATE SET
-       status = excluded.status, error = excluded.error, build = excluded.build, updated_at = excluded.updated_at`,
-  ).run(projectId, status, error, build, Date.now());
+       status = excluded.status, error = excluded.error, build = excluded.build,
+       tester = excluded.tester, updated_at = excluded.updated_at`,
+  ).run(projectId, outcome.status, outcome.error, outcome.build, outcome.tester, Date.now());
 }
 
 // --- Messages ----------------------------------------------------------------

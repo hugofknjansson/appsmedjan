@@ -1,4 +1,4 @@
-import type { AppleAccount, BuildStage, InputEvent, PublishError, PublishStage } from '../../shared/protocol';
+import type { AppleAccount, BuildStage, InputEvent, PublishError, PublishStage, PublishTester } from '../../shared/protocol';
 
 export interface BuildJob {
   projectId: string;
@@ -18,6 +18,7 @@ export interface PublishResult {
   error?: PublishError;
   /** Raw tool output for the operator's logs. Never shown to the person using the app. */
   detail?: string;
+  tester?: PublishTester;
 }
 
 /** What a driver reports back to the server while it works. */

@@ -7,10 +7,12 @@ import {
   type InputEvent,
   type PublishError,
   type PublishStage,
+  type PublishTester,
   type ServerToWorker,
   type WorkerToServer,
 } from '../../shared/protocol';
 import { randomId } from './db';
+import { keepAlive } from './keepalive';
 import { clearFrame, live, sendFrame, setPreview, workersChanged } from './live';
 
 interface Worker {
@@ -47,8 +49,9 @@ const pending = new Map<string, Pending>();
 
 const BUILD_TIMEOUT_MS = 12 * 60_000;
 const SCREENSHOT_TIMEOUT_MS = 30_000;
-// Archiving, signing and the upload to Apple can each take many minutes.
-const PUBLISH_TIMEOUT_MS = 40 * 60_000;
+// Archiving, signing and the upload to Apple can each take many minutes, and before that the worker
+// may wait a quarter of an hour for the person to create the app in App Store Connect.
+const PUBLISH_TIMEOUT_MS = 60 * 60_000;
 
 const listeners = new Set<() => void>();
 
@@ -144,7 +147,7 @@ export async function publish(
   buildNumber: string,
   account: AppleAccount | undefined,
   onProgress: (stage: PublishStage) => void,
-): Promise<{ ok: boolean; error?: PublishError; detail?: string }> {
+): Promise<{ ok: boolean; error?: PublishError; detail?: string; tester?: PublishTester }> {
   const worker = publisher(account ? 'own' : 'operator');
   if (!worker) throw new WorkerUnavailable('no publishing worker connected');
   const res = await request(
@@ -163,7 +166,7 @@ export async function publish(
     onProgress as (stage: string) => void,
   );
   if (res.type !== 'publish.result') throw new Error('unexpected worker reply');
-  return { ok: res.ok, error: res.error, detail: res.detail };
+  return { ok: res.ok, error: res.error, detail: res.detail, tester: res.tester };
 }
 
 export async function screenshot(projectId: string): Promise<{ mime: string; data: string } | null> {
@@ -199,6 +202,7 @@ function unassign(projectId: string): void {
 }
 
 export function attachWorker(ws: WebSocket): void {
+  keepAlive(ws);
   const worker: Worker = {
     ws,
     name: 'worker',

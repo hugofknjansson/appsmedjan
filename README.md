@@ -132,14 +132,16 @@ ett betalt medlemskap i Apple Developer Program. Funktionen är avstängd tills 
    Arbetaren skriver `TestFlight uploads are on` när nyckeln hittas, och servern visar `testflight: yes`.
 3. På servern, ange vilka konton som får använda knappen (allt som laddas upp hamnar under ditt
    utvecklarkonto och ditt ansvar): `TESTFLIGHT_USERS=du@example.com,testare@example.com`, eller `*` för alla.
-4. Första gången för varje app: tryck på knappen en gång. Arbetaren registrerar då appens bundle-id i
-   ditt utvecklarkonto (via App Store Connect-API:t) och stannar med ett meddelande som visar det,
-   eftersom själva appen saknas. Apple har inget API för att skapa appen, så det görs för hand i
-   App Store Connect (Apps > + > New App, iOS, välj bundle-id:t i listan). Tryck sedan på knappen igen.
-   Arbetaren kontrollerar att appen finns innan den bygger, så försöket utan app tar bara några sekunder.
-5. När uppladdningen är klar bearbetar Apple bygget i några minuter. Interna testare (personer i ditt
-   App Store Connect-team som lagts till under TestFlight > Internal Testing) får det direkt. Externa
-   testare kräver en betagranskning av Apple och bjuds in för hand i App Store Connect.
+4. Första gången för varje app: tryck på knappen. Arbetaren registrerar appens bundle-id i
+   utvecklarkontot (via App Store Connect-API:t) och väntar sedan i upp till en kvart på att appen ska
+   skapas, eftersom Apple inte har något API för det. Webbklienten visar under tiden vilket bundle-id som
+   ska väljas. Skapa appen i App Store Connect (Apps > + > New App, iOS, välj bundle-id:t i listan), så
+   fortsätter uppladdningen av sig själv. Hinner du inte får du trycka på knappen igen.
+5. Kontoägaren läggs automatiskt till som intern TestFlight-testare, i en grupp som heter "Appsmedjan"
+   och får alla byggen. När Apple har bearbetat bygget (några minuter) dyker appen upp i TestFlight-appen
+   på telefonen, utan granskning. Går det inte (nyckelns roll får till exempel inte lista användare) säger
+   webbklienten att testaren får läggas till för hand. Externa testare kräver en betagranskning av Apple
+   och bjuds in för hand i App Store Connect.
 
 Varje uppladdning får versionsnummer 1.0 och ett byggnummer av datum och klockslag (UTC). Apparna får en
 automatiskt genererad ikon i en färg per app, eftersom App Store Connect inte tar emot appar utan ikon.
@@ -147,14 +149,15 @@ automatiskt genererad ikon i en färg per app, eftersom App Store Connect inte t
 Tänk på att nyckeln ger åtkomst till ditt utvecklarkonto och att appar i simulatorn kan läsa filer som
 arbetarens användare kommer åt (se Säkerhet). På en Mac där bara du själv bygger appar är det rimligt.
 För fler användare bör uppladdningen ligga på en egen Mac eller ett eget macOS-konto som inte kör
-simulatorer. Servern skickar redan uppladdningar till den arbetare som har nyckeln, men en sådan
-arbetare tar i dag också emot vanliga byggen; ett rent signeringsläge är inte byggt.
+simulatorer. Starta den arbetaren med `PREVIEWS=0`: då tar den bara emot uppladdningar och kör aldrig
+simulatorer, och servern skickar förhandsvisningarna till de andra arbetarna.
 
-Uppladdningen är provad mot låtsasarbetaren, arkivet signeras för riktig enhet och läsanropen mot
-App Store Connect fungerar med en riktig nyckel, men **ingen uppladdning har gått hela vägen till Apple**
-och registreringen av bundle-id är bara enhetstestad. Räkna med justeringar första gången, troligast i
-hur Apples felmeddelanden tolkas (`classifyPublishFailure` i `worker/src/publish.ts`); arbetarens logg visar
-alltid verktygens egna felutskrifter.
+Mot Apple med en riktig nyckel är det här kört: registrering av bundle-id, signering och en uppladdning
+som gick hela vägen till TestFlight. Väntan på att appen skapas och det automatiska tillägget av testare
+är provade mot låtsasarbetaren och enhetstestade, och läsanropen de bygger på är prövade mot Apple, men
+själva tillägget av testgrupp och testare har **inte körts mot Apple**. Räkna med justeringar där, och i
+hur fel från `xcodebuild` tolkas (`classifyPublishFailure` i `worker/src/publish.ts`); arbetarens logg
+visar alltid verktygens egna felutskrifter.
 
 ### Användarens eget Apple-konto
 
@@ -173,8 +176,9 @@ och finns på disk i en privat temporär mapp bara medan uppladdningen pågår. 
 körs som samma macOS-användare bör en publik tjänst ha en egen Mac för uppladdningar, startad med
 `PREVIEWS=0` så att den aldrig kör simulatorer.
 
-Det användaren fortfarande gör själv hos Apple: gå med i utvecklarprogrammet, skapa appen i App Store
-Connect första gången (Apple har inget API för det), och lägga till sig själv som testare i TestFlight.
+Det användaren fortfarande gör själv hos Apple: gå med i utvecklarprogrammet och skapa appen i
+App Store Connect första gången (Apple har inget API för det). Uppladdningen väntar in det steget, och
+kontoägaren läggs sedan till som TestFlight-testare automatiskt.
 
 Kopplingen är provad mot en låtsasversion av Apples API och uppladdningen mot låtsasarbetaren. Med en
 riktig nyckel är bara kontrollen av nyckeln och uppladdningen under operatörens konto körda mot Apple.
@@ -189,6 +193,23 @@ Servern lyssnar på `PORT` (8787) och serverar även den byggda webbklienten. L�
 proxy med HTTPS som släpper igenom WebSocket (`/ws` och `/worker`), och sätt `TRUST_PROXY=1`. Proxyn ska
 skicka vidare `Host` (eller `X-Forwarded-Host`) oförändrad, annars avvisas webbläsarens WebSocket. Databasen
 är en SQLite-fil i `data/`; ta backup på den.
+
+#### Fly.io
+
+Repot innehåller `Dockerfile` och `fly.toml` för [Fly.io](https://fly.io): en maskin i Stockholm som aldrig
+stängs av (Mac-arbetaren håller en anslutning öppen), med databasen på en volym under `/data`.
+
+```bash
+fly launch --copy-config --no-deploy --name ditt-namn --region arn
+fly volumes create data --region arn --size 1
+grep -E '^(ANTHROPIC_API_KEY|WORKER_TOKEN|INVITE_CODE|SECRETS_KEY|TESTFLIGHT_USERS)=.+' .env | fly secrets import --stage
+fly deploy --ha=false
+```
+
+Därefter sätts `SERVER_URL=wss://ditt-namn.fly.dev` i `.env` på Macen, och nya versioner driftsätts med
+`fly deploy`. `fly launch` skapar även en GitHub-åtgärd för automatisk driftsättning; den kräver en
+`FLY_API_TOKEN` i repots hemligheter och är inte incheckad här. Servern pingar sina WebSocket-anslutningar
+var 25:e sekund, annars kopplar Flys proxy ner en tyst arbetare efter ungefär en minut.
 
 ## Tester
 

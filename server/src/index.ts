@@ -7,6 +7,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { isValidProjectId, type ClientToServer, type InputEvent, type ServerToClient } from '../../shared/protocol';
 import { hasCredentials } from './agent';
 import { config } from './config';
+import { keepAlive } from './keepalive';
 import * as db from './db';
 import { live } from './live';
 import { buildProject, syncViewers } from './preview';
@@ -111,6 +112,7 @@ function cleanInput(e: unknown): InputEvent | null {
 }
 
 function attachClient(ws: WebSocket, project: db.Project): void {
+  keepAlive(ws);
   const l = live(project.id);
   l.clients.add(ws);
   if (l.preview.status === 'unavailable' && workers.workerCount() > 0) l.preview = { ...l.preview, status: 'idle' };

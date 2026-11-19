@@ -33,8 +33,20 @@ export function bundleIdName(appName: string, projectId: string): string {
 }
 
 interface Resource {
-  attributes?: { identifier?: string; bundleId?: string; seedId?: string };
+  id?: string;
+  attributes?: {
+    identifier?: string;
+    bundleId?: string;
+    seedId?: string;
+    username?: string;
+    firstName?: string;
+    lastName?: string;
+    hasAccessToAllBuilds?: boolean;
+  };
 }
+
+/** Name of the internal TestFlight group the service creates in each app. */
+const TESTER_GROUP = 'Appsmedjan';
 
 export interface StoreKey {
   keyId: string;
@@ -114,10 +126,85 @@ export class AppStoreConnect {
     return created.status === 409 ? 'exists' : 'created';
   }
 
-  /** True when an app with exactly this bundle id has been created in App Store Connect. */
-  async hasApp(bundleId: string): Promise<boolean> {
+  /** The id of the app with exactly this bundle id, or null when it has not been created in App Store Connect. */
+  async appId(bundleId: string): Promise<string | null> {
     const query = `filter[bundleId]=${encodeURIComponent(bundleId)}&fields[apps]=bundleId&limit=200`;
     const found = await this.call('GET', `/v1/apps?${query}`);
-    return found.data.some((r) => r.attributes?.bundleId === bundleId);
+    return found.data.find((r) => r.attributes?.bundleId === bundleId)?.id ?? null;
+  }
+
+  async hasApp(bundleId: string): Promise<boolean> {
+    return (await this.appId(bundleId)) !== null;
+  }
+
+  /**
+   * Makes the account holder an internal TestFlight tester of the app, in a group that gets every
+   * build. Internal testers need no review by Apple, so the app shows up in the TestFlight app on
+   * their phone as soon as a build has been processed. Returns false when the account holder cannot
+   * be found (the key's role may not list users).
+   */
+  async ensureAccountHolderTests(appId: string): Promise<boolean> {
+    const users = await this.call('GET', '/v1/users?filter[roles]=ACCOUNT_HOLDER&fields[users]=username,firstName,lastName&limit=1');
+    const holder = users.data[0]?.attributes;
+    if (!holder?.username) return false;
+
+    const groups = await this.call(
+      'GET',
+      `/v1/betaGroups?filter[app]=${encodeURIComponent(appId)}&filter[isInternalGroup]=true&fields[betaGroups]=name,hasAccessToAllBuilds&limit=50`,
+    );
+    let groupId = groups.data.find((g) => g.attributes?.hasAccessToAllBuilds)?.id;
+    if (!groupId) {
+      const created = await this.call('POST', '/v1/betaGroups', {
+        data: {
+          type: 'betaGroups',
+          attributes: { name: TESTER_GROUP, isInternalGroup: true, hasAccessToAllBuilds: true },
+          relationships: { app: { data: { type: 'apps', id: appId } } },
+        },
+      });
+      groupId = created.data[0]?.id;
+      if (!groupId) return false;
+    }
+
+    // Someone who is already a tester somewhere in the account is added to the group; otherwise created into it.
+    const group = { type: 'betaGroups', id: groupId };
+    const known = await this.call('GET', `/v1/betaTesters?filter[email]=${encodeURIComponent(holder.username)}&fields[betaTesters]=email&limit=1`);
+    const testerId = known.data[0]?.id;
+    if (testerId) {
+      await this.call('POST', `/v1/betaGroups/${encodeURIComponent(groupId)}/relationships/betaTesters`, {
+        data: [{ type: 'betaTesters', id: testerId }],
+      });
+    } else {
+      await this.call('POST', '/v1/betaTesters', {
+        data: {
+          type: 'betaTesters',
+          attributes: { email: holder.username, firstName: holder.firstName, lastName: holder.lastName },
+          relationships: { betaGroups: { data: [group] } },
+        },
+      });
+    }
+    return true;
+  }
+}
+
+/**
+ * Waits for the app to be created in App Store Connect, which only a person can do. Returns its id,
+ * or null when it still is not there after `waitMs`. `onWaiting` is called once, when the first
+ * look comes back empty.
+ */
+export async function waitForApp(
+  store: Pick<AppStoreConnect, 'appId'>,
+  bundleId: string,
+  opts: { waitMs: number; pollMs: number },
+  onWaiting: () => void,
+): Promise<string | null> {
+  const deadline = Date.now() + opts.waitMs;
+  let told = false;
+  for (;;) {
+    const id = await store.appId(bundleId);
+    if (id) return id;
+    if (!told) onWaiting();
+    told = true;
+    if (Date.now() + opts.pollMs > deadline) return null;
+    await new Promise((resolve) => setTimeout(resolve, opts.pollMs));
   }
 }

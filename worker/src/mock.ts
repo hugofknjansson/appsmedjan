@@ -49,23 +49,25 @@ export class MockDriver implements Driver {
     return { ok: true };
   }
 
-  /** Pretends to upload. A file containing MOCK_NO_APP_RECORD exercises the "create the app first" path. */
+  /** Pretends to upload. Markers in the files exercise the "create the app first" paths. */
   async publish(job: PublishJob, progress: (stage: PublishStage) => void): Promise<PublishResult> {
     const target = job.account ? `the person's own team ${job.account.teamId}` : "the operator's account";
     console.log(`[mock] upload for ${job.projectId} to ${target}`);
+    const has = (marker: string) => Object.values(job.files).some((content) => content.includes(marker));
     progress('preparing');
     await sleep(200);
+    // MOCK_APP_APPEARS: someone creates the app while we wait. MOCK_NO_APP_RECORD: nobody does.
+    if (has('MOCK_APP_APPEARS') || has('MOCK_NO_APP_RECORD')) {
+      progress('waiting_for_app');
+      await sleep(1500);
+      if (has('MOCK_NO_APP_RECORD')) return { ok: false, error: 'no_app_record' };
+    }
     progress('archiving');
     await sleep(600);
-    if (Object.values(job.files).some((content) => content.includes('MOCK_BUILD_ERROR'))) {
-      return { ok: false, error: 'compile' };
-    }
+    if (has('MOCK_BUILD_ERROR')) return { ok: false, error: 'compile' };
     progress('uploading');
     await sleep(600);
-    if (Object.values(job.files).some((content) => content.includes('MOCK_NO_APP_RECORD'))) {
-      return { ok: false, error: 'no_app_record' };
-    }
-    return { ok: true };
+    return { ok: true, tester: has('MOCK_TESTER_MANUAL') ? 'manual' : 'added' };
   }
 
   async screenshot(): Promise<{ mime: string; data: Buffer }> {

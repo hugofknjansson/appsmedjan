@@ -242,12 +242,17 @@ function PublishNote({ publish, requestError }: { publish: PublishState; request
 
   let text = '';
   let failed = false;
+  let link = false;
   if (requestError) {
     text = requestError;
     failed = true;
+  } else if (publish.status === 'working' && publish.stage === 'waiting_for_app') {
+    // The one step only the person can take; everything after it happens by itself.
+    text = t.publishWaiting.replace('{bundleId}', publish.bundleId ?? '');
+    link = true;
   } else if (publish.account !== 'none' && publish.at && Date.now() - publish.at < RECENT_MS) {
     if (publish.status === 'uploaded') {
-      text = t.publishUploaded.replace('{build}', publish.build ?? '');
+      text = (publish.tester === 'added' ? t.publishUploadedTester : t.publishUploaded).replace('{build}', publish.build ?? '');
     } else if (publish.status === 'failed') {
       const code = publish.error ?? 'internal';
       // With the person's own account, the fix for a key or signing problem is theirs to make.
@@ -256,14 +261,23 @@ function PublishNote({ publish, requestError }: { publish: PublishState; request
       failed = true;
     }
   }
-  const key = `${publish.status}:${publish.at ?? 0}:${requestError}`;
+  const key = `${publish.status}:${publish.stage ?? ''}:${publish.at ?? 0}:${requestError}`;
   if (!text || dismissed === key) return null;
   return (
     <div className="publish-note" data-failed={failed} role="status">
-      <span>{text}</span>
-      <button className="link" onClick={() => setDismissed(key)}>
-        {t.dismiss}
-      </button>
+      <span>
+        {text}{' '}
+        {link && (
+          <a className="link" href="https://appstoreconnect.apple.com/apps" target="_blank" rel="noreferrer">
+            {t.publishWaitingLink}
+          </a>
+        )}
+      </span>
+      {!link && (
+        <button className="link" onClick={() => setDismissed(key)}>
+          {t.dismiss}
+        </button>
+      )}
     </div>
   );
 }

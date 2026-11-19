@@ -17,7 +17,7 @@ import {
   type PublishError,
   type PublishStage,
 } from '../../shared/protocol';
-import { AppStoreConnect, StoreError, bundleIdName } from '../../shared/appstore';
+import { AppStoreConnect, StoreError, bundleIdName, waitForApp, type StoreKey } from '../../shared/appstore';
 import type { PublishJob, PublishResult } from './driver';
 import { exec, mustExec } from './exec';
 import { iconPng } from './icon';
@@ -106,13 +106,26 @@ export async function preparePublishProject(dir: string, job: PublishJob, teamId
   await mustExec('xcodegen', ['generate', '--spec', 'project.yml', '--quiet'], { cwd: dir, timeoutMs: 60_000 });
 }
 
-type Store = Pick<AppStoreConnect, 'ensureBundleId' | 'hasApp'>;
+type Store = Pick<AppStoreConnect, 'ensureBundleId' | 'appId' | 'ensureAccountHolderTests'>;
 
 const PEM = /^-----BEGIN PRIVATE KEY-----[A-Za-z0-9+/=\s]{50,2000}-----END PRIVATE KEY-----\s*$/;
+
+/** The account an upload runs under: the operator's key stays a file, a person's key arrives as text. */
+type Target = { teamId: string; keyId: string; issuerId: string } & ({ keyPath: string } | { key: string });
+
+export interface PublisherOptions {
+  /** How long to wait for a person to create the app in App Store Connect. */
+  waitForAppMs?: number;
+  pollMs?: number;
+  storeFor?: (key: StoreKey) => Store;
+}
 
 export class Publisher {
   /** Archives are heavy; one at a time per Mac. */
   private chain: Promise<unknown> = Promise.resolve();
+  private readonly waitForAppMs: number;
+  private readonly pollMs: number;
+  private readonly storeFor: (key: StoreKey) => Store;
 
   /**
    * `own` is the operator's account from the worker's environment, if there is one. Jobs that carry
@@ -121,9 +134,12 @@ export class Publisher {
   constructor(
     private readonly own: PublishConfig | null,
     private readonly workDir: string,
-    private readonly storeFor: (cfg: PublishConfig) => Store = (cfg) =>
-      new AppStoreConnect({ keyId: cfg.keyId, issuerId: cfg.issuerId, key: () => fs.readFile(cfg.keyPath, 'utf8') }),
-  ) {}
+    opts: PublisherOptions = {},
+  ) {
+    this.waitForAppMs = opts.waitForAppMs ?? 15 * 60_000;
+    this.pollMs = opts.pollMs ?? 10_000;
+    this.storeFor = opts.storeFor ?? ((key) => new AppStoreConnect(key));
+  }
 
   /** True when the operator's own key is configured and readable. */
   async hasOwnAccount(): Promise<boolean> {
@@ -137,32 +153,50 @@ export class Publisher {
     }
   }
 
-  publish(job: PublishJob, progress: (stage: PublishStage) => void): Promise<PublishResult> {
-    const next = this.chain.catch(() => undefined).then(() => this.run(job, progress));
-    this.chain = next;
-    return next;
-  }
-
-  private async run(job: PublishJob, progress: (stage: PublishStage) => void): Promise<PublishResult> {
+  async publish(job: PublishJob, progress: (stage: PublishStage) => void): Promise<PublishResult> {
     if (!isValidProjectId(job.projectId) || !isValidBundleId(job.bundleId) || !/^\d{1,18}$/.test(job.buildNumber)) {
       return { ok: false, error: 'internal', detail: 'Invalid publish job.' };
     }
-    if (!job.account) {
-      if (!this.own) return { ok: false, error: 'unavailable', detail: 'This worker has no account of its own.' };
-      return this.upload(job, this.own, progress);
+    let target: Target;
+    if (job.account) {
+      // The person's own account. Its values end up in a project file and on a command line: check them.
+      const { teamId, keyId, issuerId, key } = job.account;
+      if (!isTeamId(teamId) || !isKeyId(keyId) || !isIssuerId(issuerId) || typeof key !== 'string' || !PEM.test(key)) {
+        return { ok: false, error: 'auth', detail: 'The account details in the job are malformed.' };
+      }
+      target = { teamId, keyId, issuerId, key };
+    } else if (this.own) {
+      target = this.own;
+    } else {
+      return { ok: false, error: 'unavailable', detail: 'This worker has no account of its own.' };
     }
 
-    // The person's own account. Its values end up in a project file and on a command line: check them.
-    const { teamId, keyId, issuerId, key } = job.account;
-    if (!isTeamId(teamId) || !isKeyId(keyId) || !isIssuerId(issuerId) || typeof key !== 'string' || !PEM.test(key)) {
-      return { ok: false, error: 'auth', detail: 'The account details in the job are malformed.' };
-    }
-    // xcodebuild wants the key as a file. It lives in a private folder for the length of this upload only.
+    // Talking to Apple, and waiting for the person to create the app, happens outside the queue:
+    // it is light, and a wait of many minutes must not hold up other people's uploads.
+    progress('preparing');
+    const keyPath = 'keyPath' in target ? target.keyPath : null;
+    const store = this.storeFor({
+      keyId: target.keyId,
+      issuerId: target.issuerId,
+      key: keyPath ? () => fs.readFile(keyPath, 'utf8') : (target as { key: string }).key,
+    });
+    const checked = await this.checkStore(job, store, progress);
+    if ('stop' in checked) return checked.stop;
+
+    const next = this.chain.catch(() => undefined).then(() => this.withKeyFile(target, (cfg) => this.upload(job, cfg, progress)));
+    this.chain = next;
+    const result = await next;
+    return result.ok ? { ...result, tester: checked.tester } : result;
+  }
+
+  /** xcodebuild wants the key as a file. A person's key is one only while their archive and upload run. */
+  private async withKeyFile<T>(target: Target, task: (cfg: PublishConfig) => Promise<T>): Promise<T> {
+    if ('keyPath' in target) return task(target);
     const keyDir = await fs.mkdtemp(path.join(os.tmpdir(), 'appsmedjan-key-'));
     try {
-      const keyPath = path.join(keyDir, `AuthKey_${keyId}.p8`);
-      await fs.writeFile(keyPath, key, { mode: 0o600 });
-      return await this.upload(job, { teamId, keyId, issuerId, keyPath }, progress);
+      const keyPath = path.join(keyDir, `AuthKey_${target.keyId}.p8`);
+      await fs.writeFile(keyPath, target.key, { mode: 0o600 });
+      return await task({ teamId: target.teamId, keyId: target.keyId, issuerId: target.issuerId, keyPath });
     } finally {
       await fs.rm(keyDir, { recursive: true, force: true });
     }
@@ -180,8 +214,6 @@ export class Publisher {
     ];
 
     progress('preparing');
-    const blocked = await this.checkStore(job, this.storeFor(cfg));
-    if (blocked) return blocked;
     await preparePublishProject(dir, job, cfg.teamId);
     await fs.rm(archivePath, { recursive: true, force: true });
     await fs.rm(exportPath, { recursive: true, force: true });
@@ -221,28 +253,48 @@ export class Publisher {
   }
 
   /**
-   * Registers the bundle id and checks that the app exists before spending minutes on an archive.
+   * What can be settled with Apple before spending minutes on an archive: the bundle id is registered,
+   * the app exists (waiting a while for the person to create it), and the account holder is a tester.
    * Only a clear answer stops the upload; if Apple's API cannot be asked, the upload is tried anyway.
    */
-  private async checkStore(job: PublishJob, store: Store): Promise<PublishResult | null> {
+  private async checkStore(
+    job: PublishJob,
+    store: Store,
+    progress: (stage: PublishStage) => void,
+  ): Promise<{ stop: PublishResult } | { tester: PublishResult['tester'] }> {
     try {
       const outcome = await store.ensureBundleId(job.bundleId, bundleIdName(job.appName, job.projectId));
       if (outcome === 'created') console.log(`[publish] registered bundle id ${job.bundleId}`);
     } catch (err) {
       const stop = this.storeProblem(err, 'register the bundle id');
-      if (stop) return stop;
+      if (stop) return { stop };
     }
+
+    let appId: string | null;
     try {
-      if (!(await store.hasApp(job.bundleId))) {
-        const detail = `No app with bundle id ${job.bundleId} exists in App Store Connect yet.`;
-        console.warn(`[publish] ${detail}`);
-        return { ok: false, error: 'no_app_record', detail };
-      }
+      appId = await waitForApp(store, job.bundleId, { waitMs: this.waitForAppMs, pollMs: this.pollMs }, () => {
+        console.log(`[publish] waiting for an app with bundle id ${job.bundleId} to be created in App Store Connect`);
+        progress('waiting_for_app');
+      });
     } catch (err) {
       const stop = this.storeProblem(err, 'look the app up');
-      if (stop) return stop;
+      return stop ? { stop } : { tester: 'manual' };
     }
-    return null;
+    if (!appId) {
+      const detail = `No app with bundle id ${job.bundleId} exists in App Store Connect yet.`;
+      console.warn(`[publish] ${detail}`);
+      return { stop: { ok: false, error: 'no_app_record', detail } };
+    }
+
+    // Nice to have: without it the person adds themselves as a tester by hand.
+    try {
+      const added = await store.ensureAccountHolderTests(appId);
+      if (!added) console.warn('[publish] could not find the account holder; they add themselves as a tester by hand');
+      return { tester: added ? 'added' : 'manual' };
+    } catch (err) {
+      console.warn(`[publish] could not add the account holder as a tester (${(err as Error).message}); continuing`);
+      return { tester: 'manual' };
+    }
   }
 
   /** A rejected key ends the attempt; anything else (a role without access, no network) is only noted. */

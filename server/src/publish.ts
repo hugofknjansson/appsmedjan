@@ -1,5 +1,11 @@
 // Sends a project to TestFlight through a worker that can sign and upload, and tracks how it went.
-import { buildNumberFor, type AppleAccount, type PublishError, type PublishState } from '../../shared/protocol';
+import {
+  buildNumberFor,
+  type AppleAccount,
+  type PublishError,
+  type PublishState,
+  type PublishTester,
+} from '../../shared/protocol';
 import { accountStatus, credentialsFor } from './apple';
 import { config } from './config';
 import * as db from './db';
@@ -34,7 +40,11 @@ function route(owner: db.User | null): Pick<PublishState, 'account' | 'available
 export function publishState(project: db.Project): PublishState {
   const routing = route(db.getUser(project.userId));
   const current = working.get(project.id);
-  if (current) return { ...current, ...routing };
+  if (current) {
+    // While the upload waits for the app to be created, the person needs to know which bundle id to pick.
+    const bundleId = current.stage === 'waiting_for_app' ? project.bundleId : undefined;
+    return { ...current, ...routing, bundleId };
+  }
   const saved = db.getPublish(project.id);
   if (!saved) return { ...routing, status: 'idle' };
   return {
@@ -44,6 +54,7 @@ export function publishState(project: db.Project): PublishState {
     // Whoever creates the app in App Store Connect needs to know which bundle id to pick.
     bundleId: saved.error === 'no_app_record' ? project.bundleId : undefined,
     build: saved.build,
+    tester: saved.tester ?? undefined,
     at: saved.updatedAt,
   };
 }
@@ -89,7 +100,7 @@ export function startPublish(project: db.Project, user: db.User): StartResult {
 }
 
 async function run(project: db.Project, build: string, account: AppleAccount | undefined): Promise<void> {
-  let outcome: { ok: boolean; error?: PublishError; detail?: string };
+  let outcome: { ok: boolean; error?: PublishError; detail?: string; tester?: PublishTester };
   try {
     outcome = await workers.publish(project, db.getFiles(project.id), build, account, (stage) => {
       const current = working.get(project.id);
@@ -115,6 +126,11 @@ async function run(project: db.Project, build: string, account: AppleAccount | u
   }
   // The project may have been deleted while the upload was running.
   if (!db.getProject(project.id)) return;
-  db.setPublish(project.id, outcome.ok ? 'uploaded' : 'failed', outcome.ok ? null : (outcome.error ?? 'internal'), build);
+  db.setPublish(project.id, {
+    status: outcome.ok ? 'uploaded' : 'failed',
+    error: outcome.ok ? null : (outcome.error ?? 'internal'),
+    build,
+    tester: outcome.ok ? (outcome.tester ?? null) : null,
+  });
   push(project.id);
 }

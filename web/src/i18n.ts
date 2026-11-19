@@ -88,11 +88,17 @@ const sv = {
   testflightHint: 'Skicka appen till TestFlight så att den kan installeras på en riktig iPhone',
   confirmPublish: 'Skicka "{name}" till TestFlight? Appen laddas upp till tjänstens Apple-utvecklarkonto.',
   publishUploaded:
-    'Version {build} är uppladdad. Den dyker upp i TestFlight-appen på telefonen när Apple har bearbetat den, oftast efter några minuter.',
+    'Version {build} är uppladdad. Apple bearbetar den i några minuter. Lägg sedan till dig som testare under TestFlight i App Store Connect, så dyker den upp i TestFlight-appen på telefonen.',
+  publishUploadedTester:
+    'Version {build} är uppladdad. Kontoägaren är tillagd som testare, så appen dyker upp i TestFlight-appen på telefonen när Apple har bearbetat den, oftast efter några minuter.',
+  publishWaiting:
+    'Ett steg görs för hand hos Apple: skapa appen i App Store Connect (Apps > + > New App, iOS) och välj bundle-id {bundleId}. Uppladdningen fortsätter av sig själv när appen finns.',
+  publishWaitingLink: 'Öppna App Store Connect',
   dismiss: 'Stäng',
   publishStage: {
     queued: 'Väntar på tur',
     preparing: 'Förbereder',
+    waiting_for_app: 'Väntar på appen',
     archiving: 'Bygger för iPhone',
     uploading: 'Laddar upp till Apple',
   } satisfies Record<PublishStage, string>,
@@ -251,11 +257,17 @@ const en: typeof sv = {
   testflightHint: 'Send the app to TestFlight so it can be installed on a real iPhone',
   confirmPublish: 'Send "{name}" to TestFlight? The app is uploaded to the Apple developer account of this service.',
   publishUploaded:
-    'Version {build} is uploaded. It shows up in the TestFlight app on the phone once Apple has processed it, usually after a few minutes.',
+    'Version {build} is uploaded. Apple processes it for a few minutes. Then add yourself as a tester under TestFlight in App Store Connect, and it shows up in the TestFlight app on the phone.',
+  publishUploadedTester:
+    'Version {build} is uploaded. The account holder has been added as a tester, so the app shows up in the TestFlight app on the phone once Apple has processed it, usually after a few minutes.',
+  publishWaiting:
+    'One step is done by hand at Apple: create the app in App Store Connect (Apps > + > New App, iOS) and pick bundle ID {bundleId}. The upload continues by itself once the app exists.',
+  publishWaitingLink: 'Open App Store Connect',
   dismiss: 'Close',
   publishStage: {
     queued: 'Waiting in line',
     preparing: 'Preparing',
+    waiting_for_app: 'Waiting for the app',
     archiving: 'Building for iPhone',
     uploading: 'Uploading to Apple',
   },

@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { AppStoreConnect, StoreError, bundleIdName, signToken } from '../shared/appstore';
+import { AppStoreConnect, StoreError, bundleIdName, signToken, waitForApp } from '../shared/appstore';
 import { iconPng } from '../worker/src/icon';
 import { classifyPublishFailure, publishConfigFromEnv } from '../worker/src/publish';
 import { extractErrors, projectSpec } from '../worker/src/xcode';
@@ -95,7 +95,8 @@ try {
     new AppStoreConnect({ keyId: 'KEY1234567', issuerId: signing.ASC_ISSUER_ID, key: () => fs.promises.readFile(keyFile, 'utf8') }, (async (url: string, init: RequestInit) => {
       calls.push({ method: init.method!, url, body: init.body ? JSON.parse(String(init.body)) : undefined, auth: (init.headers as Record<string, string>).authorization! });
       const answer = answers.shift()!;
-      return new Response(JSON.stringify(answer.json), { status: answer.status });
+      // A 204 carries no body, like Apple's answer when a relationship is added.
+      return new Response(answer.status === 204 ? null : JSON.stringify(answer.json), { status: answer.status });
     }) as typeof fetch);
   const id = 'app.appsmedjan.pabc123def456';
   const row = (identifier: string) => ({ type: 'bundleIds', attributes: { identifier } });
@@ -111,8 +112,8 @@ try {
   assert.deepEqual(calls[1]!.body, { data: { type: 'bundleIds', attributes: { identifier: id, name: 'Appsmedjan App abc', platform: 'IOS' } } });
   assert.equal(await scripted([{ status: 200, json: { data: [] } }, { status: 409, json: { errors: [{ detail: 'exists' }] } }]).ensureBundleId(id, 'Name'), 'exists');
 
-  assert.equal(await scripted([{ status: 200, json: { data: [{ attributes: { bundleId: `${id}2` } }] } }]).hasApp(id), false);
-  assert.equal(await scripted([{ status: 200, json: { data: [{ attributes: { bundleId: id } }] } }]).hasApp(id), true);
+  assert.equal(await scripted([{ status: 200, json: { data: [{ id: '111', attributes: { bundleId: `${id}2` } }] } }]).hasApp(id), false);
+  assert.equal(await scripted([{ status: 200, json: { data: [{ id: '111', attributes: { bundleId: `${id}2` } }, { id: '222', attributes: { bundleId: id } }] } }]).appId(id), '222');
   await assert.rejects(
     scripted([{ status: 401, json: { errors: [{ detail: 'Provide a properly configured and signed bearer token' }] } }]).hasApp(id),
     (err: unknown) => err instanceof StoreError && err.status === 401 && err.message.includes('bearer token'),
@@ -125,8 +126,70 @@ try {
   assert.deepEqual(await scripted([{ status: 200, json: { data: [] } }, { status: 200, json: { data: [] } }]).probe(), { teamId: null });
   assert.deepEqual(await scripted([{ status: 200, json: { data: [] } }, { status: 403, json: { errors: [{ detail: 'no access' }] } }]).probe(), { teamId: null });
   await assert.rejects(scripted([{ status: 401, json: { errors: [{ detail: 'bad token' }] } }]).probe(), (err: unknown) => err instanceof StoreError && err.status === 401);
+
+  // The account holder becomes an internal tester: a new group that gets every build, and a new tester in it.
+  const holder = { id: 'u1', attributes: { username: 'holder@example.com', firstName: 'Ada', lastName: 'Berg' } };
+  calls.length = 0;
+  assert.equal(
+    await scripted([
+      { status: 200, json: { data: [holder] } },
+      { status: 200, json: { data: [{ id: 'g0', attributes: { name: 'Friends', hasAccessToAllBuilds: false } }] } },
+      { status: 201, json: { data: { id: 'g1' } } },
+      { status: 200, json: { data: [] } },
+      { status: 201, json: { data: { id: 't1' } } },
+    ]).ensureAccountHolderTests('app1'),
+    true,
+  );
+  assert.ok(calls[0]!.url.includes('filter[roles]=ACCOUNT_HOLDER'));
+  assert.ok(calls[1]!.url.includes('filter[app]=app1') && calls[1]!.url.includes('filter[isInternalGroup]=true'));
+  assert.deepEqual(calls[2]!.body, {
+    data: {
+      type: 'betaGroups',
+      attributes: { name: 'Appsmedjan', isInternalGroup: true, hasAccessToAllBuilds: true },
+      relationships: { app: { data: { type: 'apps', id: 'app1' } } },
+    },
+  });
+  assert.deepEqual(calls[4]!.body, {
+    data: {
+      type: 'betaTesters',
+      attributes: { email: 'holder@example.com', firstName: 'Ada', lastName: 'Berg' },
+      relationships: { betaGroups: { data: [{ type: 'betaGroups', id: 'g1' }] } },
+    },
+  });
+
+  // A fitting group and a known tester are reused: nothing is created, the tester is only added to the group.
+  calls.length = 0;
+  assert.equal(
+    await scripted([
+      { status: 200, json: { data: [holder] } },
+      { status: 200, json: { data: [{ id: 'g7', attributes: { hasAccessToAllBuilds: true } }] } },
+      { status: 200, json: { data: [{ id: 't9' }] } },
+      { status: 204, json: {} },
+    ]).ensureAccountHolderTests('app1'),
+    true,
+  );
+  assert.equal(calls.length, 4);
+  assert.ok(calls[3]!.url.endsWith('/v1/betaGroups/g7/relationships/betaTesters'));
+  assert.deepEqual(calls[3]!.body, { data: [{ type: 'betaTesters', id: 't9' }] });
+  // A key that cannot list users: nothing is changed and the person is told to add themselves.
+  assert.equal(await scripted([{ status: 200, json: { data: [] } }]).ensureAccountHolderTests('app1'), false);
 } finally {
   fs.rmSync(keyFile, { force: true });
+}
+
+// Waiting for a person to create the app: polls until it exists, says so once, gives up at the deadline
+{
+  const answers: Array<string | null> = [null, null, 'app42'];
+  let told = 0;
+  assert.equal(await waitForApp({ appId: async () => answers.shift() ?? null }, 'x.y', { waitMs: 1000, pollMs: 5 }, () => told++), 'app42');
+  assert.equal(told, 1);
+  told = 0;
+  assert.equal(await waitForApp({ appId: async () => 'app1' }, 'x.y', { waitMs: 1000, pollMs: 5 }, () => told++), 'app1');
+  assert.equal(told, 0, 'no waiting is announced when the app is already there');
+  let looks = 0;
+  const started = Date.now();
+  assert.equal(await waitForApp({ appId: async () => (looks++, null) }, 'x.y', { waitMs: 40, pollMs: 10 }, () => undefined), null);
+  assert.ok(looks >= 2 && Date.now() - started < 500);
 }
 
 // Stored secrets: readable only with the same key and for the same owner
