@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import WebSocket from 'ws';
-import { encodeFrame, type ServerToWorker, type WorkerToServer } from '../../shared/protocol';
+import { PROTOCOL_VERSION, encodeFrame, type ServerToWorker, type WorkerToServer } from '../../shared/protocol';
 import type { Driver, Emit, PublishResult } from './driver';
 import { MockDriver } from './mock';
 import { XcodeDriver } from './xcode';
@@ -13,6 +13,14 @@ try {
   process.loadEnvFile(path.resolve(here, '../../.env'));
 } catch {
   // No .env file: configuration comes from the real environment.
+}
+
+// Under launchd the output goes to a log file, where lines without a time are hard to make sense of.
+if (process.env.LOG_TIMESTAMPS === '1') {
+  for (const level of ['log', 'warn', 'error'] as const) {
+    const write = console[level].bind(console);
+    console[level] = (...args: unknown[]) => write(new Date().toISOString(), ...args);
+  }
 }
 
 const SERVER_URL = (process.env.SERVER_URL ?? 'ws://localhost:8787').replace(/\/$/, '');
@@ -133,6 +141,7 @@ function connect(): void {
     wasConnected = true;
     send({
       type: 'hello',
+      protocol: PROTOCOL_VERSION,
       name: NAME,
       mock: MOCK,
       canInput: capabilities.canInput,

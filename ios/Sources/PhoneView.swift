@@ -1,0 +1,131 @@
+// The simulator preview: shows the streamed screen and forwards taps, swipes and typing to it.
+import SwiftUI
+
+struct PhoneView: View {
+  let store: ProjectStore
+
+  @State private var typed = ""
+  @State private var touchStart: Date?
+
+  private var canInput: Bool { store.preview.canInput && store.preview.status == .running }
+
+  var body: some View {
+    VStack(spacing: 12) {
+      screen
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal)
+
+      if canInput {
+        HStack {
+          TextField("Skriv i appen", text: $typed)
+            .textFieldStyle(.roundedBorder)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .onSubmit(sendTyped)
+          Button("Radera", systemImage: "delete.left") { store.input(.key(.backspace)) }
+          Button("Retur", systemImage: "return") { store.input(.key(.enter)) }
+          Button("Hem", systemImage: "house") { store.input(.home) }
+        }
+        .labelStyle(.iconOnly)
+        .padding(.horizontal)
+      } else if store.preview.status == .running {
+        Text("Endast visning: tryck och text skickas inte till simulatorn just nu.")
+          .font(.footnote)
+          .foregroundStyle(.secondary)
+          .padding(.horizontal)
+      }
+    }
+    .padding(.vertical, 8)
+  }
+
+  @ViewBuilder
+  private var screen: some View {
+    if let frame = store.frame {
+      Image(uiImage: frame)
+        .resizable()
+        .aspectRatio(contentMode: .fit)
+        .clipShape(.rect(cornerRadius: 28))
+        .overlay { RoundedRectangle(cornerRadius: 28).stroke(.quaternary) }
+        .overlay {
+          GeometryReader { proxy in
+            Color.clear
+              .contentShape(.rect)
+              .gesture(touches(in: proxy.size))
+          }
+        }
+        .overlay(alignment: .top) {
+          if store.preview.status == .building {
+            Label(Texts.buildStage(store.preview.stage), systemImage: "hammer")
+              .font(.footnote)
+              .padding(8)
+              .background(.regularMaterial, in: .capsule)
+              .padding(.top, 12)
+          }
+        }
+        .accessibilityLabel("Appens skärm i simulatorn")
+    } else {
+      placeholder
+    }
+  }
+
+  @ViewBuilder
+  private var placeholder: some View {
+    switch store.preview.status {
+    case .building:
+      ProgressView(Texts.buildStage(store.preview.stage))
+    case .unavailable:
+      ContentUnavailableView(
+        "Ingen simulator är tillgänglig just nu",
+        systemImage: "iphone.slash",
+        description: Text("Din app sparas. Förhandsvisningen startar när en byggserver är ansluten.")
+      )
+    case .failed:
+      ContentUnavailableView {
+        Label("Den senaste ändringen gick inte att bygga", systemImage: "exclamationmark.triangle")
+      } actions: {
+        Button("Försök igen") { store.startPreview() }
+      }
+    case .idle:
+      ContentUnavailableView {
+        Label("Simulatorn är pausad", systemImage: "pause.circle")
+      } actions: {
+        Button("Starta") { store.startPreview() }
+          .disabled(store.isRunning)
+      }
+    case .running:
+      // Frames are on their way.
+      ProgressView()
+    }
+  }
+
+  /// One gesture tells taps from swipes: a short, still touch is a tap.
+  private func touches(in size: CGSize) -> some Gesture {
+    DragGesture(minimumDistance: 0)
+      .onChanged { _ in
+        if touchStart == nil { touchStart = .now }
+      }
+      .onEnded { value in
+        defer { touchStart = nil }
+        guard canInput, size.width > 0, size.height > 0 else { return }
+        func unit(_ point: CGPoint) -> (x: Double, y: Double) {
+          (min(max(point.x / size.width, 0), 1), min(max(point.y / size.height, 0), 1))
+        }
+        let from = unit(value.startLocation)
+        let to = unit(value.location)
+        let moved = hypot(value.translation.width, value.translation.height)
+        if moved < 10 {
+          store.input(.tap(x: from.x, y: from.y))
+        } else {
+          let elapsed = Date.now.timeIntervalSince(touchStart ?? .now)
+          let durationMs = min(max(Int(elapsed * 1000), 50), 3000)
+          store.input(.swipe(x1: from.x, y1: from.y, x2: to.x, y2: to.y, durationMs: durationMs))
+        }
+      }
+  }
+
+  private func sendTyped() {
+    guard !typed.isEmpty else { return }
+    store.input(.text(typed))
+    typed = ""
+  }
+}

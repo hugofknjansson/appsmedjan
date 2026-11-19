@@ -1,0 +1,48 @@
+# The Appsmedjan iPhone app: a native client for the same server as the web client.
+# Generate the Xcode project with `xcodegen generate` in this folder.
+name: Appsmedjan
+options:
+  createIntermediateGroups: true
+  developmentLanguage: sv
+  deploymentTarget:
+    iOS: "17.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    # Everything in a UI app starts on the main actor; concurrency is added only where it is needed.
+    SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+    SWIFT_APPROACHABLE_CONCURRENCY: YES
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  Appsmedjan:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: Appsmedjan
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        # Lets a development build talk to a server on this Mac over plain http. Other hosts need https.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.appsmedjan.ios
+        TARGETED_DEVICE_FAMILY: "1"
+    scheme:
+      testTargets: [AppsmedjanTests]
+  AppsmedjanTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: Appsmedjan
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: app.appsmedjan.ios.tests

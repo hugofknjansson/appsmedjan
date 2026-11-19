@@ -7,6 +7,7 @@ import path from 'node:path';
 import { AppStoreConnect, StoreError, bundleIdName, signToken, waitForApp } from '../shared/appstore';
 import { iconPng } from '../worker/src/icon';
 import { classifyPublishFailure, publishConfigFromEnv } from '../worker/src/publish';
+import { listFolders, pruneAfterDays, staleIds, touch } from '../worker/src/prune';
 import { extractErrors, projectSpec } from '../worker/src/xcode';
 import { buildNumberFor, decodeFrame, encodeFrame, isValidSourcePath } from '../shared/protocol';
 
@@ -201,5 +202,38 @@ assert.equal(open(sealed, 'user-1'), pem);
 assert.equal(open(sealed, 'user-2'), null, 'a value moved to another owner does not open');
 assert.equal(open(sealed.slice(0, -4) + 'AAAA', 'user-1'), null, 'tampered data does not open');
 assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonce');
+
+// Clean-up on unattended Macs: only what is old and not in use goes
+{
+  const day = 24 * 3600_000;
+  const now = 100 * day;
+  const items = [
+    { id: 'fresh', lastUsedMs: now - 2 * day },
+    { id: 'old', lastUsedMs: now - 20 * day },
+    { id: 'oldbutopen', lastUsedMs: now - 20 * day },
+    { id: 'orphan', lastUsedMs: null },
+  ];
+  assert.deepEqual(staleIds(items, new Set(['oldbutopen']), now, 14), ['old', 'orphan']);
+  assert.deepEqual(staleIds(items, new Set(), now, 0), [], 'zero days keeps everything');
+  assert.equal(pruneAfterDays({}), 14);
+  assert.equal(pruneAfterDays({ PRUNE_AFTER_DAYS: '0' }), 0);
+  assert.equal(pruneAfterDays({ PRUNE_AFTER_DAYS: '3' }), 3);
+  assert.equal(pruneAfterDays({ PRUNE_AFTER_DAYS: 'nonsense' }), 14);
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'appsmedjan-prune-'));
+  try {
+    fs.mkdirSync(path.join(root, 'aaaaaaaa1111'));
+    fs.mkdirSync(path.join(root, 'bbbbbbbb2222'));
+    fs.writeFileSync(path.join(root, 'not-a-folder'), '');
+    const longAgo = new Date(Date.now() - 30 * day);
+    fs.utimesSync(path.join(root, 'aaaaaaaa1111'), longAgo, longAgo);
+    assert.deepEqual(staleIds(await listFolders(root), new Set(), Date.now(), 14), ['aaaaaaaa1111']);
+    await touch(path.join(root, 'aaaaaaaa1111'));
+    assert.deepEqual(staleIds(await listFolders(root), new Set(), Date.now(), 14), [], 'using a project keeps it');
+    assert.deepEqual(await listFolders(path.join(root, 'missing')), []);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+}
 
 console.log('Unit checks passed.');

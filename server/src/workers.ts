@@ -1,6 +1,7 @@
 // Registry of connected Mac build workers, and the request/response plumbing towards them.
 import type { WebSocket } from 'ws';
 import {
+  PROTOCOL_VERSION,
   decodeFrame,
   type AppleAccount,
   type BuildStage,
@@ -241,6 +242,11 @@ export function attachWorker(ws: WebSocket): void {
         worker.hasOwnAccount = Boolean(msg.hasOwnAccount ?? msg.canPublish);
         worker.publishesForUsers = Boolean(msg.publishesForUsers);
         worker.ready = true;
+        if (msg.protocol !== PROTOCOL_VERSION) {
+          console.warn(
+            `[workers] ${worker.name} runs protocol ${msg.protocol ?? 'older than 2'}, this server ${PROTOCOL_VERSION}: update whichever is behind`,
+          );
+        }
         if (worker.canPreview) workersChanged(true);
         changed();
         console.log(

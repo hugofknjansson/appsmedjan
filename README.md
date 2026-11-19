@@ -111,6 +111,72 @@ Inställningar: `MAX_SIMULATORS` (standard 2, varje simulator tar ett par GB min
 (till exempel `iPhone 16`; annars väljs nyaste vanliga iPhone-modellen). Flera Macar kan ansluta till
 samma server; nya projekt hamnar på den minst belastade.
 
+### Hyrda Macar
+
+Arbetaren behöver inte köras på din egen dator. En hyrd Mac i ett datacenter fungerar likadant: den
+ansluter utåt till servern, så det enda den behöver är internet. `scripts/mac-worker.sh` sätter upp
+arbetaren så att den sköter sig själv: den startar vid inloggning, startas om ifall den stannar, loggar
+till `~/Library/Logs/appsmedjan-worker.log` och rensar bort simulatorer och byggmappar som inte använts
+på 14 dagar (`PRUNE_AFTER_DAYS`).
+
+Vad som finns att hyra (priser från leverantörernas sidor i november 2026, kontrollera före köp):
+
+| Leverantör | Minsta maskin | Pris | Bindning | Plats |
+|---|---|---|---|---|
+| Scaleway | Mac mini M4, 16 GB, 256 GB | 0,22 €/timme, cirka 149 €/månad | 24 timmar | Paris |
+| MacStadium | Mac mini M4, 16 GB, 256 GB | 149 $/månad | per månad, i förskott | ej angivet |
+| OakHost | Apple silicon, se deras sida | ej angivet | per månad, eller en vecka på prov | Tyskland |
+
+Scaleway är enklast att börja med, eftersom en provdag kostar runt 5 €. En Mac går inte att stänga av
+mellan användningarna för att spara pengar: den kostar lika mycket oavsett om någon bygger.
+
+Räkna med ungefär 4 GB minne per simulator som är igång, utöver 6 GB till macOS och byggen: 16 GB räcker
+till 2 simulatorer åt gången, 24 GB till 4. Skriptet föreslår ett värde för `MAX_SIMULATORS` utifrån
+Macens minne. Behövs mer hyr du en Mac till; servern lägger nya projekt på den minst belastade.
+
+Så här sätter du upp en ny Mac, över SSH eller skärmdelning:
+
+1. Installera Xcode. Det kräver ett Apple-konto och går inte att skripta helt. Antingen via App Store
+   över skärmdelning, eller i terminalen:
+
+   ```bash
+   brew install xcodesorg/made/xcodes && xcodes install --latest
+   ```
+
+   ```bash
+   sudo xcodebuild -license accept && sudo xcodebuild -runFirstLaunch && xcodebuild -downloadPlatform iOS
+   ```
+
+2. Se till att användaren som ska köra arbetaren är inloggad på skrivbordet, med automatisk inloggning
+   påslagen, och att Macen inte går i vila (`sudo pmset -a sleep 0 disksleep 0 displaysleep 0`).
+   Simulatorer startar inte utan en skrivbordssession.
+3. Hämta koden och kontrollera läget. `check` ändrar ingenting och säger vad som saknas:
+
+   ```bash
+   git clone https://github.com/hugofknjansson/appsmedjan.git && cd appsmedjan && scripts/mac-worker.sh check
+   ```
+
+4. Installera verktygen och starta arbetaren. Skriptet frågar efter `WORKER_TOKEN` (samma som på servern)
+   utan att visa det:
+
+   ```bash
+   scripts/mac-worker.sh install --server wss://din-server.example
+   ```
+
+5. Serverns logg visar arbetaren som ansluten. Därefter: `scripts/mac-worker.sh status`, `logs`,
+   `restart`, och `update` för att hämta ny kod och starta om.
+
+**Håll nycklar borta från användarnas kod.** Appar i simulatorn körs som arbetarens macOS-användare.
+Kör därför förhandsvisningar och uppladdningar till TestFlight under två olika användare på Macen
+(eller på två Macar): en som installeras med `--role preview` och inte har några nycklar, och en med
+`--role signing` som har Apple-nyckeln men aldrig kör simulatorer. Den uppdelningen är förberedd i
+skriptet men inte körd på en riktig hyrd Mac; signering under en användare utan egen skärmsession kan
+kräva att nyckelringen låses upp för hand.
+
+Skriptet är provkört på en Mac som redan har Xcode: kontrollen, inställningsfilen, startskriptet i
+launchd:s avskalade miljö och den genererade launchd-filen. Själva installationen på en ny, hyrd Mac
+är **inte körd**.
+
 ### Skicka appar till TestFlight
 
 Knappen "Till TestFlight" i en app bygger en signerad version och laddar upp den till **ditt eget**
@@ -210,6 +276,26 @@ Därefter sätts `SERVER_URL=wss://ditt-namn.fly.dev` i `.env` på Macen, och ny
 `fly deploy`. `fly launch` skapar även en GitHub-åtgärd för automatisk driftsättning; den kräver en
 `FLY_API_TOKEN` i repots hemligheter och är inte incheckad här. Servern pingar sina WebSocket-anslutningar
 var 25:e sekund, annars kopplar Flys proxy ner en tyst arbetare efter ungefär en minut.
+
+## iPhone-appen
+
+`ios/` innehåller en första version av Appsmedjan som iPhone-app (SwiftUI, iOS 17+): logga in eller
+skapa konto, se och skapa appar, chatta med agenten medan den arbetar, se simulatorns skärm och styra
+den med tryck, svep och text, samt skicka appen till TestFlight. Den pratar med samma server som
+webbklienten, över samma API och WebSocket.
+
+```bash
+cd ios && xcodegen generate && open Appsmedjan.xcodeproj
+```
+
+Appen ansluter till `https://appsmedjan.fly.dev`. En utvecklingsbyggnad kan peka på en annan server med
+startargumentet `-serverURL http://localhost:8787`. Xcode-projektet och `Info.plist` genereras av
+XcodeGen från `ios/project.yml` och är inte incheckade.
+
+Saknas ännu: kodvyn, koppling av eget Apple-konto (görs på webben), engelsk översättning, appikon, och
+signering för riktig telefon. Enhetstesterna (`Tests/ProtocolTests.swift`) täcker tolkningen av serverns
+meddelanden; flödet konto, ny app, chatt, förhandsvisning och hemknapp är provkört i simulatorn mot en
+riktig byggarbetare.
 
 ## Tester
 

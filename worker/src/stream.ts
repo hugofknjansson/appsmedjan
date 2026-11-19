@@ -7,6 +7,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { exec } from './exec';
 
+/**
+ * How long the video stream gets to deliver its first frame. On a simulator that has just been
+ * created, idb needs about 7 seconds on an M4; a slower or busier Mac needs more. Falling back too
+ * early leaves the whole session on screenshots.
+ */
+const FIRST_FRAME_TIMEOUT_MS = 20_000;
+
 const SOI = Buffer.from([0xff, 0xd8]);
 const EOI = Buffer.from([0xff, 0xd9]);
 
@@ -119,8 +126,8 @@ export class Streamer {
       else if (this.active) setTimeout(() => this.active && this.mode === 'idb' && !this.proc && this.startIdb(), 1000);
     });
     this.watchdog = setTimeout(() => {
-      if (!gotFrame && this.proc === proc) this.fallBackToPolling('no frames within 8 seconds');
-    }, 8000);
+      if (!gotFrame && this.proc === proc) this.fallBackToPolling(`no frames within ${FIRST_FRAME_TIMEOUT_MS / 1000} seconds`);
+    }, FIRST_FRAME_TIMEOUT_MS);
   }
 
   private async pollLoop(): Promise<void> {

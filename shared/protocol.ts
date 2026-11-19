@@ -1,5 +1,12 @@
 // Types and small validators shared by the server, the Mac build worker and the web client.
 
+/**
+ * Raised whenever the messages between server and worker change in a way the other side must know
+ * about. Workers on rented Macs are updated separately from the server; the server says so in its
+ * log when one of them is behind (or ahead).
+ */
+export const PROTOCOL_VERSION = 2;
+
 // ---------------------------------------------------------------------------
 // Project files
 // ---------------------------------------------------------------------------
@@ -203,6 +210,8 @@ export type ServerToWorker =
 export type WorkerToServer =
   | {
       type: 'hello';
+      /** PROTOCOL_VERSION of the code the worker runs. Missing from workers older than version 2. */
+      protocol?: number;
       name: string;
       mock: boolean;
       canInput: boolean;

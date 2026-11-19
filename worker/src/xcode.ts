@@ -13,6 +13,7 @@ import {
 import type { BuildJob, Driver, Emit, PublishJob, PublishResult } from './driver';
 import { exec, mustExec } from './exec';
 import { Publisher, publishConfigFromEnv } from './publish';
+import { listFolders, pruneAfterDays, staleIds, touch } from './prune';
 import { Streamer } from './stream';
 
 interface Session {
@@ -40,6 +41,7 @@ interface SimDevice {
 
 const DEVICE_PREFIX = 'asm-';
 const BUILD_TIMEOUT_MS = 10 * 60_000;
+const PRUNE_EVERY_MS = 6 * 3600_000;
 
 export class XcodeDriver implements Driver {
   private sessions = new Map<string, Session>();
@@ -88,6 +90,9 @@ export class XcodeDriver implements Driver {
       const targets = [hasOwnAccount && 'your own account', forUsers && "people's own accounts"].filter(Boolean);
       console.log(`[xcode] TestFlight uploads are on (${targets.join(' and ')})`);
     }
+    // On a Mac that runs unattended, simulators and build folders nobody uses any more are cleared out.
+    await this.prune();
+    setInterval(() => void this.prune(), PRUNE_EVERY_MS).unref();
     const version = xcode.stdout.split('\n')[0]?.trim() ?? 'Xcode';
     return { canInput: this.hasIdb, canPublish: this.publisher !== null, hasOwnAccount, publishesForUsers: forUsers, info: `${version}, ${this.deviceTypeId.split('.').pop()}, ${this.runtimeId.split('.').pop()}` };
   }
@@ -199,6 +204,7 @@ export class XcodeDriver implements Driver {
       s.lastUsed = Date.now();
       progress('preparing');
       await this.syncFiles(s, job);
+      await touch(s.dir);
 
       progress('compiling');
       // The simulator boots while the code compiles; both must finish before installing.
@@ -248,6 +254,48 @@ export class XcodeDriver implements Driver {
     // Someone else's key is only handled when the operator has said this machine may.
     if (job.account && process.env.PUBLISH_FOR_USERS !== '1') return { ok: false, error: 'unavailable' };
     return this.publisher.publish(job, progress);
+  }
+
+  /**
+   * Deletes simulators and build folders of projects that have not been used for PRUNE_AFTER_DAYS
+   * (default 14, 0 to keep everything). A project that comes back is simply built from scratch again.
+   */
+  private async prune(): Promise<void> {
+    const days = pruneAfterDays();
+    if (days === 0) return;
+    try {
+      const inUse = new Set(this.sessions.keys());
+      const projects = path.join(this.workDir, 'projects');
+      const folders = await listFolders(projects);
+      const lastUsed = new Map(folders.map((f) => [f.id, f.lastUsedMs]));
+
+      // A simulator is as old as its project's folder; one without a folder belongs to nothing.
+      const simulators = (await this.listDevices())
+        .filter((d) => d.name.startsWith(DEVICE_PREFIX) && d.state === 'Shutdown')
+        .map((d) => ({ udid: d.udid, id: d.name.slice(DEVICE_PREFIX.length) }));
+      const staleSims = new Set(
+        staleIds(simulators.map((d) => ({ id: d.id, lastUsedMs: lastUsed.get(d.id) ?? null })), inUse, Date.now(), days),
+      );
+      for (const sim of simulators) {
+        if (staleSims.has(sim.id)) await exec('xcrun', ['simctl', 'delete', sim.udid], { timeoutMs: 60_000 });
+      }
+
+      const staleFolders = staleIds(folders, inUse, Date.now(), days);
+      for (const id of staleFolders) await fs.rm(path.join(projects, id), { recursive: true, force: true });
+
+      const uploads = path.join(this.workDir, 'publish');
+      const staleUploads = staleIds(await listFolders(uploads), new Set(), Date.now(), days);
+      for (const id of staleUploads) await fs.rm(path.join(uploads, id), { recursive: true, force: true });
+
+      const removed = staleSims.size + staleFolders.length + staleUploads.length;
+      if (removed > 0) {
+        console.log(
+          `[xcode] cleared ${staleSims.size} simulators, ${staleFolders.length} build folders and ${staleUploads.length} upload folders unused for ${days} days`,
+        );
+      }
+    } catch (err) {
+      console.warn(`[xcode] clean-up failed: ${(err as Error).message}`);
+    }
   }
 
   /** Mirrors the job's files into the project folder and regenerates the Xcode project when the file set changes. */
