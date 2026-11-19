@@ -1,0 +1,191 @@
+// The simulator preview: shows streamed frames and forwards taps, swipes and typing.
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import type { InputEvent, PreviewState } from '../../shared/protocol';
+import { t } from './i18n';
+
+/** Delivers frames straight to the <img>, so a 15 fps stream doesn't re-render the page. */
+export class FrameBus {
+  private listener: ((frame: ArrayBuffer | null) => void) | null = null;
+  private last: ArrayBuffer | null = null;
+
+  push(frame: ArrayBuffer | null): void {
+    this.last = frame;
+    this.listener?.(frame);
+  }
+
+  subscribe(listener: (frame: ArrayBuffer | null) => void): () => void {
+    this.listener = listener;
+    if (this.last) listener(this.last);
+    return () => {
+      if (this.listener === listener) this.listener = null;
+    };
+  }
+}
+
+interface Props {
+  bus: FrameBus;
+  preview: PreviewState;
+  /** True while the agent is working. */
+  running: boolean;
+  onInput: (event: InputEvent) => void;
+  onStart: () => void;
+}
+
+const clamp = (n: number) => Math.min(1, Math.max(0, n));
+
+export function Phone({ bus, preview, running, onInput, onStart }: Props) {
+  const img = useRef<HTMLImageElement>(null);
+  const mime = useRef(preview.mime);
+  const [hasFrame, setHasFrame] = useState(false);
+  const down = useRef<{ x: number; y: number; at: number } | null>(null);
+  const typed = useRef<{ text: string; timer: number | null }>({ text: '', timer: null });
+  mime.current = preview.mime;
+
+  useEffect(() => {
+    let url: string | null = null;
+    const unsubscribe = bus.subscribe((frame) => {
+      const el = img.current;
+      if (!el) return;
+      if (!frame) {
+        setHasFrame(false);
+        return;
+      }
+      const next = URL.createObjectURL(new Blob([frame], { type: mime.current }));
+      const previous = url;
+      url = next;
+      el.onload = () => {
+        if (previous) URL.revokeObjectURL(previous);
+        // Match the frame to whichever iPhone model the simulator is.
+        if (el.naturalWidth && el.parentElement) {
+          el.parentElement.style.aspectRatio = `${el.naturalWidth} / ${el.naturalHeight}`;
+        }
+      };
+      el.src = next;
+      setHasFrame(true);
+    });
+    return () => {
+      unsubscribe();
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [bus]);
+
+  const interactive = hasFrame && preview.canInput;
+
+  function position(e: PointerEvent): { x: number; y: number } {
+    const r = img.current!.getBoundingClientRect();
+    return { x: clamp((e.clientX - r.left) / r.width), y: clamp((e.clientY - r.top) / r.height) };
+  }
+
+  function onPointerDown(e: PointerEvent) {
+    if (!interactive) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    down.current = { ...position(e), at: performance.now() };
+  }
+
+  function onPointerUp(e: PointerEvent) {
+    const start = down.current;
+    down.current = null;
+    if (!start || !interactive) return;
+    const end = position(e);
+    const r = img.current!.getBoundingClientRect();
+    const moved = Math.hypot((end.x - start.x) * r.width, (end.y - start.y) * r.height);
+    if (moved < 8) onInput({ kind: 'tap', x: start.x, y: start.y });
+    else {
+      const durationMs = Math.round(Math.min(Math.max(performance.now() - start.at, 80), 1500));
+      onInput({ kind: 'swipe', x1: start.x, y1: start.y, x2: end.x, y2: end.y, durationMs });
+    }
+  }
+
+  function flushTyped() {
+    const pending = typed.current;
+    if (pending.timer) clearTimeout(pending.timer);
+    pending.timer = null;
+    if (pending.text) onInput({ kind: 'text', text: pending.text });
+    pending.text = '';
+  }
+
+  // Letters typed in quick succession are sent together, since each event is a round trip to the simulator.
+  function onKeyDown(e: KeyboardEvent) {
+    if (!interactive || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 'Backspace' || e.key === 'Enter') {
+      e.preventDefault();
+      flushTyped();
+      onInput({ kind: 'key', key: e.key === 'Enter' ? 'enter' : 'backspace' });
+    } else if (e.key.length === 1) {
+      e.preventDefault();
+      const pending = typed.current;
+      pending.text += e.key;
+      if (pending.timer) clearTimeout(pending.timer);
+      pending.timer = window.setTimeout(flushTyped, 150);
+    }
+  }
+
+  const building = preview.status === 'building';
+  const stageText = building ? t.stage[preview.stage ?? 'queued'] : '';
+
+  let cover: JSX.Element | null = null;
+  if (!hasFrame) {
+    if (preview.status === 'unavailable') {
+      cover = (
+        <div className="phone-cover">
+          <strong>{t.previewUnavailable}</strong>
+          <span>{t.previewUnavailableSub}</span>
+        </div>
+      );
+    } else if (building || running || preview.status === 'running') {
+      cover = (
+        <div className="phone-cover">
+          <span className="spinner" />
+          <strong>{building ? stageText : running ? t.working : t.previewStarting}</strong>
+        </div>
+      );
+    } else {
+      cover = (
+        <div className="phone-cover">
+          <strong>{preview.status === 'failed' ? t.previewFailed : t.previewIdle}</strong>
+          <button className="btn primary" onClick={onStart}>
+            {preview.status === 'failed' ? t.retry : t.start}
+          </button>
+        </div>
+      );
+    }
+  }
+
+  let pill: string | null = null;
+  if (hasFrame) {
+    if (building) pill = stageText;
+    else if (preview.status === 'failed') pill = running ? t.previewFixing : t.previewFailed;
+  }
+
+  return (
+    <div className="phone-wrap">
+      <div className="phone" tabIndex={interactive ? 0 : -1} onKeyDown={onKeyDown} onBlur={flushTyped}>
+        <img
+          ref={img}
+          alt={t.preview}
+          draggable={false}
+          className={hasFrame ? (interactive ? 'interactive' : '') : 'hidden'}
+          onPointerDown={onPointerDown}
+          onPointerUp={onPointerUp}
+          onPointerCancel={() => (down.current = null)}
+        />
+        {cover}
+        {pill && (
+          <div className="phone-pill" role="status">
+            {building && <span className="spinner small" />}
+            {pill}
+          </div>
+        )}
+      </div>
+      <div className="phone-controls">
+        <button className="btn ghost" disabled={!interactive} onClick={() => onInput({ kind: 'button', button: 'home' })}>
+          {t.home}
+        </button>
+        <button className="btn ghost" disabled={running || building || preview.status === 'unavailable'} onClick={onStart}>
+          {t.restart}
+        </button>
+      </div>
+      {hasFrame && <p className="phone-hint muted">{preview.canInput ? t.typeHint : t.viewOnly}</p>}
+    </div>
+  );
+}

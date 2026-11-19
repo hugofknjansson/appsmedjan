@@ -1,0 +1,164 @@
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import http from 'node:http';
+import path from 'node:path';
+import express from 'express';
+import { WebSocketServer, type WebSocket } from 'ws';
+import { isValidProjectId, type ClientToServer, type InputEvent, type ServerToClient } from '../../shared/protocol';
+import { hasCredentials } from './agent';
+import { config } from './config';
+import * as db from './db';
+import { live } from './live';
+import { buildProject, syncViewers } from './preview';
+import { api, userFromRequest } from './routes';
+import * as workers from './workers';
+
+const app = express();
+app.disable('x-powered-by');
+if (config.trustProxy) app.set('trust proxy', 1);
+app.use(express.json({ limit: '256kb' }));
+app.use('/api', api);
+
+// In production the server also serves the built web client.
+if (fs.existsSync(config.webDist)) {
+  app.use(express.static(config.webDist, { index: false, maxAge: '1h' }));
+  app.use((req, res, next) => {
+    if (req.method !== 'GET') return next();
+    res.sendFile(path.join(config.webDist, 'index.html'));
+  });
+}
+
+const server = http.createServer(app);
+const clientWss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
+const workerWss = new WebSocketServer({ noServer: true, maxPayload: 32 * 1024 * 1024 });
+
+function sameToken(given: string, expected: string): boolean {
+  const a = crypto.createHash('sha256').update(given).digest();
+  const b = crypto.createHash('sha256').update(expected).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
+/** Browsers always send Origin on WebSocket handshakes; only our own pages may connect. */
+function originAllowed(req: http.IncomingMessage): boolean {
+  const origin = req.headers.origin;
+  if (!origin) return true; // Not a browser.
+  if (config.allowedOrigins.includes(origin)) return true;
+  let host: string;
+  try {
+    host = new URL(origin).host;
+  } catch {
+    return false;
+  }
+  if (host === req.headers.host) return true;
+  // Some reverse proxies replace Host with the upstream address and pass the public one here.
+  const forwarded = String(req.headers['x-forwarded-host'] ?? '').split(',')[0]!.trim();
+  return config.trustProxy && forwarded !== '' && host === forwarded;
+}
+
+server.on('upgrade', (req, socket, head) => {
+  const url = new URL(req.url ?? '/', 'http://localhost');
+  const reject = (status: string) => {
+    socket.write(`HTTP/1.1 ${status}\r\nConnection: close\r\n\r\n`);
+    socket.destroy();
+  };
+
+  if (url.pathname === '/worker') {
+    const given = (req.headers.authorization ?? '').replace(/^Bearer /, '');
+    if (!given || !sameToken(given, config.workerToken)) return reject('401 Unauthorized');
+    workerWss.handleUpgrade(req, socket, head, (ws) => workers.attachWorker(ws));
+    return;
+  }
+
+  if (url.pathname === '/ws') {
+    if (!originAllowed(req)) return reject('403 Forbidden');
+    const user = userFromRequest(req);
+    const projectId = url.searchParams.get('project');
+    const project = user && isValidProjectId(projectId) ? db.getProject(projectId) : null;
+    if (!user || !project || project.userId !== user.id) return reject('401 Unauthorized');
+    clientWss.handleUpgrade(req, socket, head, (ws) => attachClient(ws, project));
+    return;
+  }
+
+  reject('404 Not Found');
+});
+
+const unit = (n: unknown): n is number => typeof n === 'number' && n >= 0 && n <= 1;
+
+/** Input from the browser is untrusted: rebuild each event from validated fields. */
+function cleanInput(e: unknown): InputEvent | null {
+  const ev = e as Record<string, unknown> | null;
+  if (!ev || typeof ev !== 'object') return null;
+  switch (ev.kind) {
+    case 'tap':
+      return unit(ev.x) && unit(ev.y) ? { kind: 'tap', x: ev.x, y: ev.y } : null;
+    case 'swipe': {
+      if (!unit(ev.x1) || !unit(ev.y1) || !unit(ev.x2) || !unit(ev.y2)) return null;
+      const d = typeof ev.durationMs === 'number' ? Math.min(Math.max(ev.durationMs, 50), 3000) : 300;
+      return { kind: 'swipe', x1: ev.x1, y1: ev.y1, x2: ev.x2, y2: ev.y2, durationMs: d };
+    }
+    case 'text':
+      return typeof ev.text === 'string' && ev.text.length > 0 && ev.text.length <= 500
+        ? { kind: 'text', text: ev.text }
+        : null;
+    case 'key':
+      return ev.key === 'backspace' || ev.key === 'enter' ? { kind: 'key', key: ev.key } : null;
+    case 'button':
+      return ev.button === 'home' ? { kind: 'button', button: 'home' } : null;
+    default:
+      return null;
+  }
+}
+
+function attachClient(ws: WebSocket, project: db.Project): void {
+  const l = live(project.id);
+  l.clients.add(ws);
+  if (l.preview.status === 'unavailable' && workers.workerCount() > 0) l.preview = { ...l.preview, status: 'idle' };
+  if (l.preview.status === 'idle' && workers.workerCount() === 0) l.preview = { ...l.preview, status: 'unavailable' };
+
+  const state: ServerToClient = {
+    type: 'state',
+    project: { id: project.id, name: db.getProject(project.id)?.name ?? project.name },
+    messages: db.listMessages(project.id),
+    running: l.running,
+    parts: l.parts,
+    preview: l.preview,
+  };
+  ws.send(JSON.stringify(state));
+  if (l.lastFrame) ws.send(l.lastFrame, { binary: true });
+  syncViewers(project.id);
+
+  // A simple budget so a misbehaving page can't flood the simulator with input.
+  let budget = 40;
+  const refill = setInterval(() => (budget = 40), 1000);
+
+  ws.on('message', (data, isBinary) => {
+    if (isBinary) return;
+    let msg: ClientToServer;
+    try {
+      msg = JSON.parse(String(data)) as ClientToServer;
+    } catch {
+      return;
+    }
+    if (msg.type === 'input') {
+      const event = cleanInput(msg.event);
+      if (event && budget-- > 0) workers.sendInput(project.id, event);
+    } else if (msg.type === 'preview.start') {
+      // During a run the agent builds by itself.
+      if (!l.running && l.preview.status !== 'building') void buildProject(project.id);
+    }
+  });
+
+  ws.on('close', () => {
+    clearInterval(refill);
+    l.clients.delete(ws);
+    syncViewers(project.id);
+  });
+  ws.on('error', () => ws.close());
+}
+
+server.listen(config.port, () => {
+  console.log(`[server] listening on http://localhost:${config.port}`);
+  if (!hasCredentials()) {
+    console.warn('[server] ANTHROPIC_API_KEY is not set: the agent cannot build apps until it is.');
+  }
+});
