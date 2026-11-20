@@ -434,6 +434,8 @@ var 25:e sekund, annars kopplar Flys proxy ner en tyst arbetare efter ungefär e
 
 Appen är på svenska och engelska (`Sources/Localizable.xcstrings`). Ikonen, en dansande app-ruta, ritas av
 `scripts/ios-icon.swift`.
+Samma figur är appens maskot: `Sources/Mascot.swift` ritar den och låter den dansa när något arbetar, och
+`Sources/Look.swift` har färgerna, knapparna och de andra delarna som ger appen dess utseende.
 
 Bygg och kör i simulatorn (kräver Xcode 26 eller senare och XcodeGen):
 

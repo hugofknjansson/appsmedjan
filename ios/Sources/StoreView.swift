@@ -27,6 +27,7 @@ struct StoreView: View {
           ProgressView()
         }
       }
+      .paperBackground()
       .navigationTitle("App Store")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {

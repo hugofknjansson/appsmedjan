@@ -91,6 +91,26 @@
         }
       }
     },
+    "App Dance": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Dance"
+          }
+        }
+      }
+    },
+    "App Dance visar dem": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Dance shows them"
+          }
+        }
+      }
+    },
     "App Store": {
       "localizations": {
         "en": {
@@ -461,32 +481,22 @@
         }
       }
     },
-    "App Dance": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App Dance"
-          }
-        }
-      }
-    },
-    "App Dance visar dem": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "App Dance shows them"
-          }
-        }
-      }
-    },
     "Arbetar": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Working"
+          }
+        }
+      }
+    },
+    "Beskriv din första idé här ovanför, så dansar vi igång.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Describe your first idea above and we'll get dancing."
           }
         }
       }
@@ -607,6 +617,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Chat"
+          }
+        }
+      }
+    },
+    "Dansar fram din app": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dancing your app into shape"
           }
         }
       }
@@ -841,12 +861,12 @@
         }
       }
     },
-    "Du har inga appar än. Beskriv din första idé här ovanför.": {
+    "Du har inga appar än": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "You have no apps yet. Describe your first idea above."
+            "value": "You have no apps yet"
           }
         }
       }
@@ -1001,6 +1021,26 @@
         }
       }
     },
+    "En app där jag bockar av mina dagliga vanor och ser hur många dagar i rad jag har klarat": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An app where I tick off my daily habits and see how many days in a row I have managed"
+          }
+        }
+      }
+    },
+    "En app där jag håller koll på mina växter och när de ska vattnas": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An app where I keep track of my plants and when to water them"
+          }
+        }
+      }
+    },
     "En beskrivning": {
       "localizations": {
         "en": {
@@ -1047,6 +1087,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "A category"
+          }
+        }
+      }
+    },
+    "En packlista för resor där jag bockar av det jag har packat": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A packing list for trips where I tick off what I have packed"
+          }
+        }
+      }
+    },
+    "En poängräknare för spelkvällar med flera spelare och en topplista": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A score counter for game nights with several players and a leaderboard"
           }
         }
       }
@@ -1137,6 +1197,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Photo & Video"
+          }
+        }
+      }
+    },
+    "Fyller i ett förslag i textrutan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fills in a suggestion in the text box"
           }
         }
       }
@@ -2061,6 +2131,16 @@
         }
       }
     },
+    "Packlista": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Packing list"
+          }
+        }
+      }
+    },
     "Produktivitet": {
       "localizations": {
         "en": {
@@ -2377,6 +2457,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Saved as an App Store picture (%lld of 10)."
+          }
+        }
+      }
+    },
+    "Spelkväll": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Game night"
           }
         }
       }
@@ -2731,6 +2821,16 @@
         }
       }
     },
+    "Vanor": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Habits"
+          }
+        }
+      }
+    },
     "Verktyg": {
       "localizations": {
         "en": {
@@ -2787,16 +2887,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Show the support page"
-          }
-        }
-      }
-    },
-    "Vy": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "View"
           }
         }
       }
@@ -2907,6 +2997,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Waiting in line"
+          }
+        }
+      }
+    },
+    "Växter": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plants"
           }
         }
       }

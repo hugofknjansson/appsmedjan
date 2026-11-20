@@ -1,7 +1,6 @@
 import SwiftUI
 
 struct ProjectView: View {
-  private enum Pane: Hashable { case chat, preview, code }
   private enum Sheet: String, Identifiable {
     case install, store
     var id: String { rawValue }
@@ -20,14 +19,9 @@ struct ProjectView: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      Picker("Vy", selection: $pane) {
-        Text("Chatt").tag(Pane.chat)
-        Text("Förhandsvisning").tag(Pane.preview)
-        Text("Kod").tag(Pane.code)
-      }
-      .pickerStyle(.segmented)
-      .padding(.horizontal)
-      .padding(.vertical, 8)
+      PaneSwitcher(pane: $pane)
+        .padding(.horizontal)
+        .padding(.vertical, 8)
 
       switch pane {
       case .chat: ChatView(store: store)
@@ -35,6 +29,7 @@ struct ProjectView: View {
       case .code: CodeView(store: store, api: api)
       }
     }
+    .background(Color(.paper))
     .navigationTitle(store.name)
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
@@ -66,6 +61,76 @@ struct ProjectView: View {
   }
 }
 
+// MARK: - Panes
+
+private enum Pane: CaseIterable, Identifiable {
+  case chat, preview, code
+
+  var id: Self { self }
+
+  var title: LocalizedStringKey {
+    switch self {
+    case .chat: "Chatt"
+    case .preview: "Förhandsvisning"
+    case .code: "Kod"
+    }
+  }
+
+  var symbol: String {
+    switch self {
+    case .chat: "bubble.left.and.bubble.right.fill"
+    case .preview: "iphone"
+    case .code: "chevron.left.forwardslash.chevron.right"
+    }
+  }
+}
+
+/// Three pills, with an orange one that slides to the chosen pane.
+private struct PaneSwitcher: View {
+  @Binding var pane: Pane
+  @Namespace private var pills
+
+  var body: some View {
+    // The symbols are the first thing to go on a narrow phone, for all three pills at once.
+    ViewThatFits(in: .horizontal) {
+      row(withSymbols: true)
+      row(withSymbols: false)
+    }
+    .padding(4)
+    .background(Color(.card), in: .capsule)
+  }
+
+  private func row(withSymbols: Bool) -> some View {
+    HStack(spacing: 4) {
+      ForEach(Pane.allCases) { choice in
+        Button {
+          withAnimation(.bouncy(duration: 0.35)) { pane = choice }
+        } label: {
+          HStack(spacing: 6) {
+            if withSymbols { Image(systemName: choice.symbol) }
+            Text(choice.title)
+          }
+          .font(.subheadline.weight(.semibold))
+          .lineLimit(1)
+          // Never narrower than its words: the longest title takes the room it needs, the others share the rest.
+          .fixedSize()
+          .padding(.horizontal, 12)
+          .frame(maxWidth: .infinity, minHeight: 38)
+          .foregroundStyle(pane == choice ? .white : .primary)
+          .background {
+            if pane == choice {
+              Capsule().fill(.brandGradient).matchedGeometryEffect(id: "chosen", in: pills)
+            }
+          }
+          .contentShape(.capsule)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(pane == choice ? .isSelected : [])
+      }
+    }
+  }
+}
+
 // MARK: - Chat
 
 struct ChatView: View {
@@ -85,9 +150,11 @@ struct ChatView: View {
             switch message.role {
             case .user:
               Text(message.text)
-                .padding(.horizontal, 14)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 15)
                 .padding(.vertical, 10)
-                .background(Color.brand.opacity(0.15), in: .rect(cornerRadius: 16))
+                .background(.brandGradient, in: .rect(topLeadingRadius: 20, bottomLeadingRadius: 20, bottomTrailingRadius: 6, topTrailingRadius: 20, style: .continuous))
+                .padding(.leading, 44)
                 .frame(maxWidth: .infinity, alignment: .trailing)
             case .assistant:
               PartsView(parts: message.parts, isLive: false)
@@ -95,36 +162,44 @@ struct ChatView: View {
           }
           if store.isRunning {
             PartsView(parts: store.liveParts, isLive: true)
-            Label("Arbetar", systemImage: "hammer")
-              .font(.footnote)
-              .foregroundStyle(.secondary)
-              .symbolEffect(.pulse)
+            HStack(spacing: 10) {
+              MascotBadge(isDancing: true)
+                .frame(width: 38)
+              Text("Dansar fram din app")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+            }
+            .accessibilityElement(children: .combine)
           }
         }
         .padding()
       }
       // Follows new content, like a chat should.
       .defaultScrollAnchor(.bottom)
+      .scrollDismissesKeyboard(.interactively)
 
-      Divider()
       VStack(alignment: .leading, spacing: 6) {
         if let errorText {
           Text(errorText).font(.footnote).foregroundStyle(.red)
         }
-        HStack(alignment: .bottom) {
+        HStack(alignment: .bottom, spacing: 10) {
           TextField("Beskriv vad du vill ändra eller lägga till", text: $draft, axis: .vertical)
             .lineLimit(1...5)
-            .textFieldStyle(.roundedBorder)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 11)
+            .background(Color(.card), in: .rect(cornerRadius: 22, style: .continuous))
           if store.isRunning {
-            Button("Stoppa") { Task { await store.stop() } }
+            Button("Stoppa", systemImage: "stop.fill") { Task { await store.stop() } }
+              .buttonStyle(.round)
           } else {
-            Button("Skicka") { send() }
-              .buttonStyle(.borderedProminent)
+            Button("Skicka", systemImage: "arrow.up") { send() }
+              .buttonStyle(.round)
               .disabled(isSending || trimmedDraft.isEmpty)
           }
         }
       }
-      .padding()
+      .padding(.horizontal)
+      .padding(.vertical, 10)
     }
   }
 
@@ -189,11 +264,16 @@ private struct PartsView: View {
         switch block {
         case .text(_, let text):
           Text(text)
+            .padding(.horizontal, 15)
+            .padding(.vertical, 10)
+            .background(Color(.card), in: .rect(topLeadingRadius: 20, bottomLeadingRadius: 6, bottomTrailingRadius: 20, topTrailingRadius: 20, style: .continuous))
+            .padding(.trailing, 28)
         case .error(_, let text):
           Text(text)
             .font(.footnote)
-            .padding(10)
-            .background(Color.brand.opacity(0.12), in: .rect(cornerRadius: 10))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(Color.brand.opacity(0.14), in: .rect(cornerRadius: 16, style: .continuous))
         case .steps(_, let steps):
           // Finished work folds away so the conversation stays readable.
           if isLive || steps.count <= 2 {
@@ -220,7 +300,7 @@ private struct StepList: View {
         } icon: {
           switch step.status {
           case .running: ProgressView().controlSize(.mini)
-          case .done: Image(systemName: "checkmark").foregroundStyle(.green)
+          case .done: Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
           case .error: Image(systemName: "wrench.adjustable").foregroundStyle(.orange)
           }
         }

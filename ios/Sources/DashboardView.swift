@@ -20,16 +20,9 @@ struct DashboardView: View {
     NavigationStack(path: $path) {
       List {
         Section {
-          TextField("Till exempel: en app där jag kan hålla koll på mina växter", text: $prompt, axis: .vertical)
-            .lineLimit(3...8)
-          Button {
-            create()
-          } label: {
-            if isCreating { ProgressView() } else { Text("Bygg min app") }
-          }
-          .disabled(isCreating || trimmedPrompt.isEmpty)
-        } header: {
-          Text("Vad vill du bygga?")
+          promptCard
+            .listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
         } footer: {
           if let errorText {
             Text(errorText).foregroundStyle(.red)
@@ -46,8 +39,11 @@ struct DashboardView: View {
                 Text(request.bundleId).font(.footnote.monospaced()).textSelection(.enabled)
                 Text(request.email).font(.caption).foregroundStyle(.secondary)
               }
+              .listRowBackground(Color(.card))
             }
             Link("Öppna App Store Connect", destination: URL(string: "https://appstoreconnect.apple.com/apps")!)
+              .fontWeight(.semibold)
+              .listRowBackground(Color(.card))
           } header: {
             Text("Appar att skapa i App Store Connect")
           } footer: {
@@ -57,22 +53,29 @@ struct DashboardView: View {
 
         Section("Dina appar") {
           if hasLoaded && projects.isEmpty {
-            Text("Du har inga appar än. Beskriv din första idé här ovanför.")
-              .foregroundStyle(.secondary)
+            MascotNote(title: Text("Du har inga appar än"), message: Text("Beskriv din första idé här ovanför, så dansar vi igång."))
+              .frame(maxWidth: .infinity)
+              .listRowBackground(Color.clear)
           }
           ForEach(projects) { project in
             NavigationLink(value: project) {
-              VStack(alignment: .leading, spacing: 2) {
-                Text(project.name).font(.headline)
-                Text("Ändrad \(project.updated.formatted(date: .abbreviated, time: .omitted))")
-                  .font(.caption)
-                  .foregroundStyle(.secondary)
+              HStack(spacing: 14) {
+                AppTile(name: project.name, seed: project.id)
+                VStack(alignment: .leading, spacing: 2) {
+                  Text(project.name).font(.headline)
+                  Text("Ändrad \(project.updated.formatted(date: .abbreviated, time: .omitted))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
               }
+              .padding(.vertical, 4)
             }
+            .listRowBackground(Color(.card))
           }
           .onDelete(perform: delete)
         }
       }
+      .paperBackground()
       .navigationTitle("App Dance")
       .navigationDestination(for: ProjectSummary.self) { project in
         ProjectView(project: project, api: model.api)
@@ -100,6 +103,53 @@ struct DashboardView: View {
         if new.isEmpty { Task { await load() } }
       }
     }
+  }
+
+  private var promptCard: some View {
+    VStack(alignment: .leading, spacing: 14) {
+      HStack {
+        Text("Vad vill du bygga?")
+          .font(.title2.weight(.heavy))
+          .foregroundStyle(.white)
+        Spacer()
+        Mascot(tile: .white, eyes: .brandDeep, isDancing: isCreating)
+          .frame(width: 84)
+      }
+      TextField("Till exempel: en app där jag kan hålla koll på mina växter", text: $prompt, axis: .vertical)
+        .lineLimit(3...8)
+        .fieldBox()
+      ScrollView(.horizontal) {
+        HStack(spacing: 8) {
+          ForEach(Idea.all) { idea in
+            Button {
+              prompt = idea.prompt
+            } label: {
+              HStack(spacing: 6) {
+                Image(systemName: idea.symbol)
+                Text(idea.title)
+              }
+              .font(.footnote.weight(.semibold))
+              .padding(.horizontal, 12)
+              .padding(.vertical, 8)
+              .background(.white.opacity(0.22), in: .capsule)
+              .foregroundStyle(.white)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Fyller i ett förslag i textrutan")
+          }
+        }
+      }
+      .scrollIndicators(.hidden)
+      Button {
+        create()
+      } label: {
+        if isCreating { ProgressView().tint(.brandDeep) } else { Text("Bygg min app") }
+      }
+      .buttonStyle(.bouncyInverted)
+      .disabled(isCreating || trimmedPrompt.isEmpty)
+    }
+    .padding(18)
+    .background(.brandGradient, in: .rect(cornerRadius: 28, style: .continuous))
   }
 
   private func load() async {
@@ -146,4 +196,19 @@ struct DashboardView: View {
       }
     }
   }
+}
+
+/// Something to start from for a person who has no idea of their own yet.
+private struct Idea: Identifiable {
+  let title: String
+  let symbol: String
+  let prompt: String
+  var id: String { title }
+
+  static let all = [
+    Idea(title: String(localized: "Växter"), symbol: "leaf.fill", prompt: String(localized: "En app där jag håller koll på mina växter och när de ska vattnas")),
+    Idea(title: String(localized: "Vanor"), symbol: "checkmark.circle.fill", prompt: String(localized: "En app där jag bockar av mina dagliga vanor och ser hur många dagar i rad jag har klarat")),
+    Idea(title: String(localized: "Spelkväll"), symbol: "trophy.fill", prompt: String(localized: "En poängräknare för spelkvällar med flera spelare och en topplista")),
+    Idea(title: String(localized: "Packlista"), symbol: "suitcase.fill", prompt: String(localized: "En packlista för resor där jag bockar av det jag har packat")),
+  ]
 }

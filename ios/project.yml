@@ -33,7 +33,9 @@ targets:
         CFBundleLocalizations: [sv, en]
         # Only what iOS itself provides (https); saves a question at every upload.
         ITSAppUsesNonExemptEncryption: false
-        UILaunchScreen: {}
+        # The brand orange while the app starts; the first screen continues from it.
+        UILaunchScreen:
+          UIColorName: LaunchBackground
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         # Lets a development build talk to a server on this Mac over plain http. Other hosts need https.
         NSAppTransportSecurity:

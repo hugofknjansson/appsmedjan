@@ -67,6 +67,7 @@ struct InstallView: View {
           Section { Text(errorText).foregroundStyle(.red) }
         }
       }
+      .paperBackground()
       .navigationTitle("Installera appen")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {

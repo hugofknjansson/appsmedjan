@@ -18,7 +18,8 @@ struct CodeView: View {
       } else if !hasLoaded {
         ProgressView()
       } else if files.isEmpty {
-        ContentUnavailableView("Inga filer än", systemImage: "doc")
+        MascotNote(title: Text("Inga filer än"))
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else {
         List(paths, id: \.self) { path in
           NavigationLink(value: SourceFile(path: path, content: files[path] ?? "")) {
@@ -27,8 +28,10 @@ struct CodeView: View {
               Text(path).font(.caption).foregroundStyle(.secondary)
             }
           }
+          .listRowBackground(Color.clear)
         }
         .listStyle(.plain)
+        .scrollContentBackground(.hidden)
       }
     }
     // Read again when the agent has finished changing things.

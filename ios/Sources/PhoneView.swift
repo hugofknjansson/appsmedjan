@@ -22,7 +22,9 @@ struct PhoneView: View {
       if canInput {
         HStack {
           TextField("Skriv i appen", text: $typed)
-            .textFieldStyle(.roundedBorder)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .background(Color(.card), in: .capsule)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
             .onSubmit(sendTyped)
@@ -67,10 +69,16 @@ struct PhoneView: View {
         }
         .overlay(alignment: .top) {
           if store.preview.status == .building {
-            Label(Texts.buildStage(store.preview.stage), systemImage: "hammer")
-              .font(.footnote)
-              .padding(8)
-              .background(.regularMaterial, in: .capsule)
+            HStack(spacing: 8) {
+              MascotBadge(isDancing: true)
+                .frame(width: 26)
+              Text(Texts.buildStage(store.preview.stage))
+            }
+            .font(.footnote.weight(.semibold))
+            .padding(.leading, 6)
+            .padding(.trailing, 12)
+            .padding(.vertical, 6)
+            .background(.regularMaterial, in: .capsule)
               .padding(.top, 12)
           }
         }
@@ -84,29 +92,26 @@ struct PhoneView: View {
   private var placeholder: some View {
     switch store.preview.status {
     case .building:
-      ProgressView(Texts.buildStage(store.preview.stage))
+      MascotNote(title: Text(Texts.buildStage(store.preview.stage)), isDancing: true)
     case .unavailable:
-      ContentUnavailableView(
-        "Ingen simulator är tillgänglig just nu",
-        systemImage: "iphone.slash",
-        description: Text("Din app sparas. Förhandsvisningen startar när en byggserver är ansluten.")
+      MascotNote(
+        title: Text("Ingen simulator är tillgänglig just nu"),
+        message: Text("Din app sparas. Förhandsvisningen startar när en byggserver är ansluten.")
       )
     case .failed:
-      ContentUnavailableView {
-        Label("Den senaste ändringen gick inte att bygga", systemImage: "exclamationmark.triangle")
-      } actions: {
+      MascotNote(title: Text("Den senaste ändringen gick inte att bygga")) {
         Button("Försök igen") { store.startPreview() }
+          .buttonStyle(.bouncy)
       }
     case .idle:
-      ContentUnavailableView {
-        Label("Simulatorn är pausad", systemImage: "pause.circle")
-      } actions: {
+      MascotNote(title: Text("Simulatorn är pausad")) {
         Button("Starta") { store.startPreview() }
+          .buttonStyle(.bouncy)
           .disabled(store.isRunning)
       }
     case .running:
       // Frames are on their way.
-      ProgressView()
+      MascotNote(title: Text("Startar appen"), isDancing: true)
     }
   }
 

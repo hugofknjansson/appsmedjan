@@ -40,6 +40,7 @@ struct AppleAccountView: View {
           Section { Text(errorText).foregroundStyle(.red) }
         }
       }
+      .paperBackground()
       .navigationTitle("Apple-utvecklarkonto")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
