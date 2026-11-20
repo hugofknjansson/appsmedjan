@@ -464,8 +464,19 @@ directPages.get('/app/:token/:file', (req, res) => {
     return;
   }
   if (req.params.file === 'manifest.plist') {
+    // iOS reads the list once the phone's owner has said yes to installing.
+    direct.noteFetch(build, 'asked');
     res.set({ 'content-type': 'text/xml', 'cache-control': 'no-store' }).send(Buffer.from(direct.manifest(build, project.bundleId, baseOf(req))));
   } else if (req.params.file === 'app.ipa') {
+    direct.noteFetch(build, 'fetching');
+    const size = fs.statSync(file).size;
+    res.on('finish', () => {
+      // The file may be fetched in pieces; it has arrived when the piece that ends the file has been sent.
+      const range = /\/(\d+)$/.exec(String(res.getHeader('content-range') ?? ''));
+      const end = /-(\d+)\//.exec(String(res.getHeader('content-range') ?? ''));
+      const whole = res.statusCode === 200 || (res.statusCode === 206 && range !== null && end !== null && Number(end[1]) === Number(range[1]) - 1);
+      if (whole && size > 0) direct.noteFetch(build, 'fetched');
+    });
     res.set({ 'content-type': 'application/octet-stream', 'cache-control': 'no-store' }).sendFile(file);
   } else {
     res.status(404).send('Not found.');

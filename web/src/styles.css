@@ -560,6 +560,93 @@ textarea {
   width: 44px;
 }
 
+/* The way onto the phone: a bar and four steps, each waiting, under way or done. */
+.install-progress {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  background: var(--surface);
+}
+
+.install-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 1.05rem;
+}
+
+.install-head .mascot {
+  flex: none;
+  width: 52px;
+}
+
+.install-progress progress {
+  width: 100%;
+  height: 10px;
+  border: 0;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--sunken);
+  accent-color: var(--accent);
+}
+
+.install-progress progress::-webkit-progress-bar {
+  background: var(--sunken);
+}
+
+.install-progress progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: var(--grad);
+  transition: width 0.5s ease;
+}
+
+.install-progress progress::-moz-progress-bar {
+  background: var(--accent);
+}
+
+.install-progress ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.install-progress li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+}
+
+.install-progress li[data-mark='active'] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.install-progress li[data-mark='done'] {
+  color: var(--ink);
+}
+
+.install-progress li[data-mark='active'] .step-mark {
+  border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+
+.install-progress li[data-mark='done'] .step-mark {
+  border-color: var(--ok);
+  background: var(--ok);
+  box-shadow: inset 0 0 0 2px var(--surface);
+}
+
+/* The person's own phone as a pane of its own, beside the chat. */
+.phone-tab {
+  align-self: start;
+  width: min(560px, 100%);
+  margin: 8px auto;
+}
+
 .other-ways {
   margin: 4px 0 -6px;
   font-size: 0.85rem;

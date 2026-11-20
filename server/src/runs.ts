@@ -1,6 +1,7 @@
 // Starts and stops agent runs for a project and persists their results.
 import { runAgent } from './agent';
 import * as db from './db';
+import * as direct from './direct';
 import { live, send } from './live';
 import { syncViewers } from './preview';
 
@@ -39,6 +40,8 @@ export function startRun(projectId: string, userText: string): boolean {
       }
       send(projectId, { type: 'run.end' });
       syncViewers(projectId);
+      // The new version is made ready for the person's own phone, where they try it.
+      direct.buildAfterRun(projectId);
     });
   return true;
 }

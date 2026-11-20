@@ -191,6 +191,8 @@ nonisolated struct DirectInstall: Decodable, Equatable {
   var error: String?
   /// Path of the page with the install button, once a build is ready.
   var path: String?
+  /// How far this phone has come with fetching the ready build: asked, fetching or fetched.
+  var install: String?
 
   /// Whether there is anything to show: the server offers it, or the person has used it before.
   var isShown: Bool { available || phones > 0 || status != .idle }

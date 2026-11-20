@@ -10,7 +10,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { buildNumberFor, readPhoneAnswer, type AppleAccount, type DirectError, type DirectInstall, type Phone } from '../../shared/protocol';
+import { buildNumberFor, readPhoneAnswer, type AppleAccount, type DirectError, type DirectFetch, type DirectInstall, type Phone } from '../../shared/protocol';
 import { credentialsFor } from './apple';
 import { config } from './config';
 import * as db from './db';
@@ -24,6 +24,10 @@ fs.mkdirSync(DIR, { recursive: true });
 
 /** Builds in progress. Finished ones are read from the database. */
 const working = new Map<string, Pick<DirectInstall, 'stage' | 'build' | 'at'>>();
+
+/** How far a phone has come with fetching each project's ready build. Forgotten when a new build starts. */
+const fetches = new Map<string, { token: string; stage: DirectFetch }>();
+const FETCH_ORDER: DirectFetch[] = ['asked', 'fetching', 'fetched'];
 
 let changed: (projectId: string) => void = () => undefined;
 let phonesChanged: (userId: string) => void = () => undefined;
@@ -41,6 +45,7 @@ export function ipaPath(projectId: string): string {
 /** Call when a project is deleted: its app file goes with it. */
 export function forget(projectId: string): void {
   fs.rmSync(ipaPath(projectId), { force: true });
+  fetches.delete(projectId);
 }
 
 export function phonesOf(userId: string): Phone[] {
@@ -57,14 +62,48 @@ export function state(project: db.Project): DirectInstall {
   if (current) return { ...base, status: 'working', ...current };
   const saved = db.getDirectBuild(project.id);
   if (!saved) return { ...base, status: 'idle' };
+  const fetched = fetches.get(project.id);
   return {
     ...base,
     status: saved.status,
     error: saved.error ?? undefined,
     path: saved.status === 'ready' && saved.token ? `/d/i/${saved.token}` : undefined,
     build: saved.build,
+    install: saved.status === 'ready' && fetched?.token === saved.token ? fetched.stage : undefined,
     at: saved.updatedAt,
   };
+}
+
+/**
+ * A phone has asked for the list of what to install, or for the app file: the open project shows how
+ * far it has come. A phone asks more than once and in pieces, so this only ever moves forward.
+ */
+export function noteFetch(build: db.DirectBuild, stage: DirectFetch): void {
+  if (!build.token) return;
+  const current = fetches.get(build.projectId);
+  const before = current?.token === build.token ? FETCH_ORDER.indexOf(current.stage) : -1;
+  if (FETCH_ORDER.indexOf(stage) <= before) return;
+  fetches.set(build.projectId, { token: build.token, stage });
+  changed(build.projectId);
+}
+
+/**
+ * Builds for the person's phone without being asked, when the agent has finished changing the app:
+ * the phone is where they try it, so the new version should be waiting for them. Only when they
+ * have added a phone, the app builds, and something has changed since the last build for the phone.
+ */
+export function buildAfterRun(projectId: string): void {
+  const project = db.getProject(projectId);
+  const owner = project ? db.getUser(project.userId) : null;
+  if (!project || !owner) return;
+  const now = state(project);
+  if (!now.available || now.phones === 0 || now.status === 'working') return;
+  // Only an app that is known to build: it runs in the simulator, or there is no simulator to say otherwise.
+  const preview = live(projectId).preview.status;
+  if (preview !== 'running' && preview !== 'unavailable') return;
+  const last = db.getDirectBuild(projectId);
+  if (last && last.status === 'ready' && db.filesChangedAt(projectId) <= last.updatedAt) return;
+  start(project, owner);
 }
 
 export type StartResult = 'started' | 'forbidden' | 'unavailable' | 'busy' | 'no_phones';
@@ -86,6 +125,7 @@ export function start(project: db.Project, user: db.User): StartResult {
   }
 
   const build = buildNumberFor(new Date());
+  fetches.delete(project.id);
   working.set(project.id, { stage: 'queued', build, at: Date.now() });
   changed(project.id);
   void run(project, build, phones, account);

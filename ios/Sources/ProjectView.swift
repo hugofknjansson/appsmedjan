@@ -9,6 +9,14 @@ struct ProjectView: View {
   @State private var store: ProjectStore
   @State private var pane = Pane.chat
   @State private var sheet: Sheet?
+  /// The person has asked to see the streamed simulator, although their own phone is where apps are tried.
+  @State private var showsSimulator = false
+
+  /// The person's own phone comes first when apps can be installed straight onto it.
+  private var phone: DirectInstall? {
+    guard let direct = store.publish.direct, direct.isShown else { return nil }
+    return direct
+  }
   @Environment(\.dismiss) private var dismiss
   private let api: API
 
@@ -19,13 +27,24 @@ struct ProjectView: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      PaneSwitcher(pane: $pane)
+      PaneSwitcher(pane: $pane, isPhoneFirst: phone != nil)
         .padding(.horizontal)
         .padding(.vertical, 8)
 
       switch pane {
       case .chat: ChatView(store: store)
-      case .preview: PhoneView(store: store, api: api)
+      case .preview:
+        if let phone, !showsSimulator {
+          PhoneTestView(store: store, api: api, direct: phone) { showsSimulator = true }
+        } else {
+          if phone != nil {
+            Button("Tillbaka till min telefon", systemImage: "chevron.left") { showsSimulator = false }
+              .font(.footnote.weight(.semibold))
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .padding(.horizontal)
+          }
+          PhoneView(store: store, api: api)
+        }
       case .code: CodeView(store: store, api: api)
       }
     }
@@ -68,10 +87,11 @@ private enum Pane: CaseIterable, Identifiable {
 
   var id: Self { self }
 
-  var title: LocalizedStringKey {
+  /// The middle pane is the person's own phone when apps can be installed on it, otherwise the simulator.
+  func title(isPhoneFirst: Bool) -> LocalizedStringKey {
     switch self {
     case .chat: "Chatt"
-    case .preview: "Förhandsvisning"
+    case .preview: isPhoneFirst ? "Min telefon" : "Förhandsvisning"
     case .code: "Kod"
     }
   }
@@ -88,6 +108,7 @@ private enum Pane: CaseIterable, Identifiable {
 /// Three pills, with an orange one that slides to the chosen pane.
 private struct PaneSwitcher: View {
   @Binding var pane: Pane
+  let isPhoneFirst: Bool
   @Namespace private var pills
 
   var body: some View {
@@ -108,7 +129,7 @@ private struct PaneSwitcher: View {
         } label: {
           HStack(spacing: 6) {
             if withSymbols { Image(systemName: choice.symbol) }
-            Text(choice.title)
+            Text(choice.title(isPhoneFirst: isPhoneFirst))
           }
           .font(.subheadline.weight(.semibold))
           .lineLimit(1)

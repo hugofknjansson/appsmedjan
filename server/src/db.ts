@@ -376,6 +376,12 @@ export function putFile(projectId: string, filePath: string, content: string): v
   ).run(projectId, filePath, content, Date.now());
 }
 
+/** When any of the project's files was last written, or 0 for a project without files. */
+export function filesChangedAt(projectId: string): number {
+  const row = db.prepare('SELECT MAX(updated_at) AS at FROM files WHERE project_id = ?').get(projectId) as { at: number | null } | undefined;
+  return row?.at ?? 0;
+}
+
 export function deleteFile(projectId: string, filePath: string): boolean {
   const res = db.prepare('DELETE FROM files WHERE project_id = ? AND path = ?').run(projectId, filePath);
   return Number(res.changes) > 0;

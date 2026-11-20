@@ -334,6 +334,17 @@ för hand.
    hemskärmen. Första gången måste personen slå på Utvecklarläge under Inställningar, Integritet och
    säkerhet; det kräver Apple för appar som inte kommer från App Store eller TestFlight.
 
+När personen har lagt till en telefon är den platsen där appen provas. I iPhone-appen heter
+mittfliken då "Min telefon", och i webben finns en egen flik bredvid simulatorn. Servern bygger en
+ny version för telefonen av sig själv varje gång byggaren är klar med en ändring och appen går att
+bygga, så att den ligger och väntar. Vägen visas som fyra steg med en stapel: bygger, signerar,
+hämtas till telefonen, installeras på hemskärmen. De två första kommer från arbetaren. Det tredje
+ser servern själv, när telefonen ber om listan och sedan hämtar appfilen. Vad iOS gör därefter går
+inte att se utifrån; det tar några sekunder.
+
+Simulatorn finns kvar. Byggaren använder den för att kompilera, rätta fel och titta på skärmen, App
+Store-bilderna tas därifrån, och den är vad den som inte har lagt till en telefon ser.
+
 Det som begränsar:
 
 - Ett konto får registrera **100 iPhones per medlemsår**, och en plats frigörs först vid förnyelsen.

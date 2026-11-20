@@ -236,8 +236,28 @@ export interface DirectInstall {
   /** Path of the page with the install button, once a build is ready. Opened on the phone. */
   path?: string;
   build?: string;
+  /** How far a phone has come with fetching the ready build, once one has started. */
+  install?: DirectFetch;
   /** When the status last changed (ms since epoch). */
   at?: number;
+}
+
+/**
+ * What the server can see of an install: asked is the phone's owner saying yes to iOS's question,
+ * fetching and fetched are the app file on its way to the phone. What iOS does after that (putting
+ * the app on the home screen) takes a few seconds and cannot be seen from here.
+ */
+export type DirectFetch = 'asked' | 'fetching' | 'fetched';
+
+/**
+ * How far the whole way onto the phone has come, as one number between 0 and 1, for a progress bar.
+ * Null when nothing is on its way.
+ */
+export function directProgress(direct: Pick<DirectInstall, 'status' | 'stage' | 'install'>): number | null {
+  if (direct.status === 'working') return { queued: 0.05, preparing: 0.15, archiving: 0.4, signing: 0.65 }[direct.stage ?? 'queued'];
+  if (direct.status !== 'ready') return null;
+  if (!direct.install) return 0.75;
+  return { asked: 0.85, fetching: 0.92, fetched: 1 }[direct.install];
 }
 
 /** A phone the person has added. The identifier itself stays on the server. */

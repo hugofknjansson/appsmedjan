@@ -11,6 +11,7 @@ import type {
 import { STORE_SHOT } from '../../shared/protocol';
 import { ApiError, api } from './api';
 import { AppleAccountDialog } from './AppleAccount';
+import { DirectInstallSteps } from './Direct';
 import { OnPhoneDialog } from './OnPhone';
 import { StoreDialog } from './Store';
 import { Logo } from './Logo';
@@ -82,9 +83,11 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
   const [state, dispatch] = useReducer(reduce, null);
   const [connected, setConnected] = useState(true);
   const [missing, setMissing] = useState(false);
-  const [tab, setTab] = useState<'chat' | 'preview' | 'code'>(() =>
+  const [tab, setTab] = useState<'chat' | 'phone' | 'preview' | 'code'>(() =>
     window.matchMedia('(max-width: 820px)').matches ? 'chat' : 'preview',
   );
+  /** Whether the pane beside the chat has been chosen yet, by the person or for them. */
+  const paneChosen = useRef(false);
   const bus = useMemo(() => new FrameBus(), []);
   const socket = useRef<WebSocket | null>(null);
   const [appleOpen, setAppleOpen] = useState(false);
@@ -164,6 +167,25 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
     }
   }
 
+  // The person's own phone comes first when apps can be installed straight onto it and they have
+  // added one: that is where they try the app. The simulator stays one tab away.
+  const direct = state?.publish.direct;
+  const phone = direct && (direct.available || direct.phones > 0 || direct.status !== 'idle') ? direct : null;
+  const phoneFirst = Boolean(phone && phone.phones > 0);
+  useEffect(() => {
+    if (!phoneFirst || paneChosen.current) return;
+    paneChosen.current = true;
+    setTab((now) => (now === 'preview' ? 'phone' : now));
+  }, [phoneFirst]);
+  // A phone tab that is no longer offered falls back to the simulator.
+  useEffect(() => {
+    if (state && !phone) setTab((now) => (now === 'phone' ? 'preview' : now));
+  }, [state, phone]);
+  const choose = (next: 'phone' | 'preview' | 'code') => {
+    paneChosen.current = true;
+    setTab(next);
+  };
+
   if (missing) {
     return (
       <div className="page center">
@@ -199,10 +221,15 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
             <button role="tab" aria-selected={tab === 'chat'} className="only-narrow" onClick={() => setTab('chat')}>
               {t.chat}
             </button>
-            <button role="tab" aria-selected={tab === 'preview'} onClick={() => setTab('preview')}>
-              {t.preview}
+            {phone && (
+              <button role="tab" aria-selected={tab === 'phone'} onClick={() => choose('phone')}>
+                {t.myPhone}
+              </button>
+            )}
+            <button role="tab" aria-selected={tab === 'preview'} onClick={() => choose('preview')}>
+              {phone ? t.simulator : t.preview}
             </button>
-            <button role="tab" aria-selected={tab === 'code'} onClick={() => setTab('code')}>
+            <button role="tab" aria-selected={tab === 'code'} onClick={() => choose('code')}>
               {t.code}
             </button>
           </div>
@@ -236,7 +263,12 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
       <div className="workspace" data-tab={tab}>
         <section className="chat-pane">{state && <Chat id={id} state={state} />}</section>
         <section className="stage-pane">
-          {state && tab !== 'code' && (
+          {state && tab === 'phone' && phone && (
+            <div className="phone-tab">
+              <DirectInstallSteps id={id} direct={phone} running={state.running} />
+            </div>
+          )}
+          {state && tab !== 'code' && tab !== 'phone' && (
             <Phone
               bus={bus}
               preview={state.preview}

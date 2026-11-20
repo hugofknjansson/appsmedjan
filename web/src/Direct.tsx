@@ -1,7 +1,7 @@
 // Straight onto the phone, without TestFlight: the person adds their phone once, and after that every
 // build is signed for it and installed from a link.
 import { useEffect, useState } from 'react';
-import type { DirectInstall } from '../../shared/protocol';
+import { directProgress, type DirectInstall } from '../../shared/protocol';
 import { ApiError, api } from './api';
 import { apiErrorText, t } from './i18n';
 import { Mascot } from './Mascot';
@@ -55,6 +55,8 @@ export function DirectInstallSteps({ id, direct, running }: Props) {
       <h3>{text.title}</h3>
       <p>{text.intro}</p>
 
+      <InstallProgress direct={direct} />
+
       <ol className="guide">
         <li data-done={direct.phones > 0}>
           <h3>{text.addTitle}</h3>
@@ -89,10 +91,7 @@ export function DirectInstallSteps({ id, direct, running }: Props) {
           <p>{text.buildText}</p>
           {!direct.available && <p className="muted">{t.phone.noWorker}</p>}
           {working ? (
-            <p className="working" role="status">
-              <Mascot dancing />
-              {text.stage[direct.stage ?? 'queued']}
-            </p>
+            <p className="muted">{text.buildingNote}</p>
           ) : (
             <button
               className={installUrl ? 'btn' : 'btn primary'}
@@ -103,6 +102,7 @@ export function DirectInstallSteps({ id, direct, running }: Props) {
             </button>
           )}
           {running && !working && <p className="muted">{t.phone.waitForAgent}</p>}
+          {!running && !working && direct.phones > 0 && <p className="muted fine">{text.autoNote}</p>}
           {direct.status === 'failed' && (
             <p className="form-error" role="alert">
               {text.error[direct.error ?? 'internal']}
@@ -137,5 +137,51 @@ export function DirectInstallSteps({ id, direct, running }: Props) {
         </p>
       )}
     </section>
+  );
+}
+
+/** How many of the four steps are done, and which one is under way (-1 when none is). */
+function position(direct: DirectInstall): { done: number; active: number } {
+  if (direct.status === 'working') return direct.stage === 'signing' ? { done: 1, active: 1 } : { done: 0, active: 0 };
+  if (direct.status !== 'ready') return { done: 0, active: -1 };
+  if (direct.install === 'asked' || direct.install === 'fetching') return { done: 2, active: 2 };
+  // What iOS does with the file cannot be seen from here; it takes a few seconds.
+  if (direct.install === 'fetched') return { done: 4, active: -1 };
+  return { done: 2, active: -1 };
+}
+
+function headline(direct: DirectInstall): string {
+  const text = t.direct;
+  if (direct.status === 'working') return direct.stage === 'signing' ? text.steps[1]! : text.building;
+  if (direct.install === 'asked' || direct.install === 'fetching') return text.steps[2]!;
+  if (direct.install === 'fetched') return text.fetched;
+  return text.ready;
+}
+
+/**
+ * The whole way onto the phone, from the build to the app file arriving: a bar and four steps, each
+ * one waiting, under way or done. Shown from the moment a build starts.
+ */
+export function InstallProgress({ direct }: { direct: DirectInstall }) {
+  const progress = directProgress(direct);
+  if (progress === null) return null;
+  const { done, active } = position(direct);
+  const moving = direct.status === 'working' || active >= 0;
+  return (
+    <div className="install-progress" role="status">
+      <div className="install-head">
+        <Mascot dancing={moving} />
+        <strong>{headline(direct)}</strong>
+      </div>
+      <progress value={progress} max={1} aria-label={t.direct.progressLabel} />
+      <ol>
+        {t.direct.steps.map((step, index) => (
+          <li key={step} data-mark={index < done ? 'done' : index === active ? 'active' : 'waiting'}>
+            <span className="step-mark" aria-hidden="true" />
+            {step}
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }

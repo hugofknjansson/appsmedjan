@@ -18,6 +18,7 @@ import {
   contactProblem,
   copyrightLine,
   decodeFrame,
+  directProgress,
   encodeFrame,
   fitWords,
   isUdid,
@@ -45,6 +46,24 @@ assert.ok(!isUdid('00008110-000A1B2C3D4E5F6') && !isUdid('g'.repeat(40)) && !isU
   assert.equal(readPhoneAnswer(answer('00008110-000A1B2C3D4E5F60', 'weird/model"'))?.model, 'iPhone');
   assert.equal(readPhoneAnswer(answer('not a udid', 'iPhone19,2')), null);
   assert.equal(readPhoneAnswer(Buffer.from('nothing here')), null);
+}
+
+// The way onto the phone as one number: it only grows from the build to the app file arriving
+{
+  const way = [
+    directProgress({ status: 'working', stage: 'queued' }),
+    directProgress({ status: 'working', stage: 'preparing' }),
+    directProgress({ status: 'working', stage: 'archiving' }),
+    directProgress({ status: 'working', stage: 'signing' }),
+    directProgress({ status: 'ready' }),
+    directProgress({ status: 'ready', install: 'asked' }),
+    directProgress({ status: 'ready', install: 'fetching' }),
+    directProgress({ status: 'ready', install: 'fetched' }),
+  ] as number[];
+  assert.ok(way.every((value, index) => index === 0 || value > way[index - 1]!), 'grows at every step');
+  assert.equal(way.at(-1), 1);
+  assert.equal(directProgress({ status: 'idle' }), null);
+  assert.equal(directProgress({ status: 'failed' }), null);
 }
 
 // JPEG splitting across arbitrary chunk boundaries
