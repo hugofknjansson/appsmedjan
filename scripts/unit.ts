@@ -4,12 +4,13 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { AppStoreConnect, StoreError, bundleIdName, signToken, waitForApp } from '../shared/appstore';
+import { AppStoreConnect, StoreError, StoreLocked, bundleIdName, signToken, waitForApp } from '../shared/appstore';
+import { pngInfo } from '../shared/png';
 import { iconPng } from '../worker/src/icon';
-import { classifyPublishFailure, publishConfigFromEnv } from '../worker/src/publish';
+import { Publisher, classifyPublishFailure, publishConfigFromEnv } from '../worker/src/publish';
 import { listFolders, pruneAfterDays, staleIds, touch } from '../worker/src/prune';
 import { extractErrors, projectSpec } from '../worker/src/xcode';
-import { buildNumberFor, decodeFrame, encodeFrame, isValidSourcePath } from '../shared/protocol';
+import { EMPTY_LISTING, buildNumberFor, decodeFrame, encodeFrame, isValidSourcePath, listingProblems, type StoreListing } from '../shared/protocol';
 import { keepAlive } from '../shared/keepalive';
 import { EventEmitter } from 'node:events';
 import type { WebSocket } from 'ws';
@@ -268,6 +269,143 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
   const pings = sock.pings;
   await wait(30);
   assert.equal(sock.pings, pings, 'nothing is sent after it closed');
+}
+
+// The App Store page: what counts as ready, and what is sent to Apple
+{
+  const listing: StoreListing = {
+    name: 'Borstkoll',
+    subtitle: 'Två minuter, varje gång',
+    promo: '',
+    description: 'En timer som hjälper dig att borsta tänderna i två minuter.',
+    keywords: 'tandborste,timer,barn',
+    supportUrl: 'https://example.com/support',
+    marketingUrl: '',
+    privacyUrl: 'https://example.com/privacy',
+    category: 'HEALTH_AND_FITNESS',
+  };
+  assert.deepEqual(listingProblems(listing, 1), []);
+  assert.deepEqual(listingProblems(listing, 0), ['screenshots']);
+  assert.deepEqual(listingProblems({ ...EMPTY_LISTING }, 0), [
+    'name_missing', 'description_missing', 'keywords_missing', 'support_url', 'privacy_url', 'category', 'screenshots',
+  ]);
+  assert.deepEqual(listingProblems({ ...listing, name: 'x'.repeat(31), marketingUrl: 'example.com', supportUrl: 'http://example.com' }, 1), [
+    'name_long', 'support_url', 'marketing_url',
+  ]);
+  // Thirty emoji are thirty characters to Apple, though sixty to JavaScript.
+  assert.deepEqual(listingProblems({ ...listing, name: '🪥'.repeat(30) }, 1), []);
+
+  const placeholder = pngInfo(iconPng('app.appsmedjan.pabc'));
+  assert.deepEqual(placeholder && { width: placeholder.width, height: placeholder.height, alpha: placeholder.alpha }, { width: 1024, height: 1024, alpha: false });
+  assert.equal(pngInfo(Buffer.from('not a png at all, just some text that is long enough')), null);
+
+  // A small stand-in for App Store Connect that remembers what it was told.
+  interface Row { id: string; attributes?: Record<string, unknown> }
+  const fakeStore = (start: { versions: Row[]; builds: Row[] }) => {
+    const calls: Array<{ method: string; path: string; body?: any }> = [];
+    const uploads: number[] = [];
+    const state = { ...start, shots: [{ id: 'old1' }, { id: 'old2' }] as Row[], sets: [] as Row[], next: 1 };
+    const fetchImpl = (async (url: string, init: RequestInit) => {
+      if (url.startsWith('https://upload.example/')) {
+        uploads.push((init.body as Uint8Array).length);
+        return new Response(null, { status: 200 });
+      }
+      const path = url.replace('https://api.example', '');
+      const method = init.method!;
+      const body = init.body ? JSON.parse(String(init.body)) : undefined;
+      calls.push({ method, path, body });
+      const ok = (data: unknown, status = 200) => new Response(JSON.stringify({ data }), { status });
+      const bare = path.split('?')[0]!;
+      if (method === 'GET' && bare === '/v1/apps/app1/appStoreVersions') return ok(state.versions);
+      if (method === 'POST' && bare === '/v1/appStoreVersions') return ok({ id: 'vNew', attributes: { appVersionState: 'PREPARE_FOR_SUBMISSION' } }, 201);
+      if (method === 'GET' && bare === '/v1/apps/app1') return ok({ id: 'app1', attributes: { primaryLocale: 'sv' } });
+      if (method === 'GET' && bare.endsWith('/appStoreVersionLocalizations')) return ok([{ id: 'vl-en', attributes: { locale: 'en-US' } }, { id: 'vl-sv', attributes: { locale: 'sv' } }]);
+      if (method === 'GET' && bare === '/v1/apps/app1/appInfos') return ok([{ id: 'info1', attributes: { state: 'PREPARE_FOR_SUBMISSION' } }]);
+      if (method === 'GET' && bare.endsWith('/appInfoLocalizations')) return ok([]);
+      if (method === 'GET' && bare.endsWith('/appScreenshotSets')) return ok(state.sets);
+      if (method === 'POST' && bare === '/v1/appScreenshotSets') return ok({ id: 'set1' }, 201);
+      if (method === 'GET' && bare.endsWith('/appScreenshots')) return ok(state.shots);
+      if (method === 'POST' && bare === '/v1/appScreenshots') {
+        const size = body.data.attributes.fileSize as number;
+        const half = Math.floor(size / 2);
+        return ok({
+          id: `shot${state.next++}`,
+          attributes: {
+            uploadOperations: [
+              { method: 'PUT', url: 'https://upload.example/a', offset: 0, length: half, requestHeaders: [{ name: 'Content-Type', value: 'image/jpeg' }] },
+              { method: 'PUT', url: 'https://upload.example/b', offset: half, length: size - half, requestHeaders: [] },
+            ],
+          },
+        }, 201);
+      }
+      if (method === 'GET' && bare === '/v1/builds') return ok(state.builds);
+      if (method === 'DELETE' || bare.endsWith('/relationships/build')) return new Response(null, { status: 204 });
+      if (method === 'PATCH' || method === 'POST') return ok({ id: 'x' });
+      return new Response(JSON.stringify({ errors: [{ detail: `unexpected ${method} ${path}` }] }), { status: 404 });
+    }) as typeof fetch;
+    return { calls, uploads, store: new AppStoreConnect({ keyId: 'KEY1234567', issuerId: 'issuer', key: pem }, fetchImpl, 'https://api.example') };
+  };
+  const editable = { id: 'v1', attributes: { appVersionState: 'PREPARE_FOR_SUBMISSION' } };
+  const build = { id: 'b1', attributes: { version: '202611200729', processingState: 'VALID' } };
+  const shot = Buffer.alloc(1001, 7);
+
+  const full = fakeStore({ versions: [{ id: 'v0', attributes: { appVersionState: 'READY_FOR_SALE' } }, editable], builds: [build] });
+  const stages: string[] = [];
+  assert.deepEqual(await full.store.syncListing('app1', { listing, screenshots: [shot, shot], build: '202611200729' }, (s) => stages.push(s)), { attached: 'attached' });
+  assert.deepEqual(stages, ['version', 'texts', 'screenshots', 'build']);
+  const did = (method: string, path: string) => full.calls.filter((c) => c.method === method && c.path.split('?')[0] === path);
+  // The texts go into the app's own language, not the first one in the list.
+  assert.deepEqual(did('PATCH', '/v1/appStoreVersionLocalizations/vl-sv')[0]!.body.data.attributes, {
+    description: listing.description, keywords: listing.keywords, promotionalText: null, supportUrl: listing.supportUrl, marketingUrl: null,
+  });
+  // The name had no entry in that language yet, so one is created.
+  assert.deepEqual(did('POST', '/v1/appInfoLocalizations')[0]!.body.data.attributes, {
+    locale: 'sv', name: 'Borstkoll', subtitle: listing.subtitle, privacyPolicyUrl: listing.privacyUrl,
+  });
+  assert.equal(did('PATCH', '/v1/appInfos/info1')[0]!.body.data.relationships.primaryCategory.data.id, 'HEALTH_AND_FITNESS');
+  // Old pictures go, new ones are reserved, sent in the parts Apple asked for, and confirmed with a checksum.
+  assert.equal(did('DELETE', '/v1/appScreenshots/old1').length + did('DELETE', '/v1/appScreenshots/old2').length, 2);
+  assert.equal(did('POST', '/v1/appScreenshotSets')[0]!.body.data.attributes.screenshotDisplayType, 'APP_IPHONE_67');
+  assert.deepEqual(full.uploads, [500, 501, 500, 501]);
+  assert.deepEqual(did('PATCH', '/v1/appScreenshots/shot1')[0]!.body.data.attributes, {
+    uploaded: true, sourceFileChecksum: crypto.createHash('md5').update(shot).digest('hex'),
+  });
+  assert.deepEqual(did('PATCH', '/v1/appStoreVersions/v1/relationships/build')[0]!.body, { data: { type: 'builds', id: 'b1' } });
+
+  // A brand-new app has no version yet: one is created. A build Apple has not finished is not selected.
+  const fresh = fakeStore({ versions: [], builds: [] });
+  assert.deepEqual(await fresh.store.syncListing('app1', { listing, screenshots: [shot], build: '202611200729' }), { attached: 'processing' });
+  assert.deepEqual(fresh.calls.find((c) => c.method === 'POST' && c.path === '/v1/appStoreVersions')!.body.data.attributes, { platform: 'IOS', versionString: '1.0' });
+  assert.deepEqual(await fakeStore({ versions: [editable], builds: [] }).store.syncListing('app1', { listing, screenshots: [shot] }), { attached: 'none' });
+
+  // A released or reviewed version is left alone.
+  const released = fakeStore({ versions: [{ id: 'v0', attributes: { appVersionState: 'WAITING_FOR_REVIEW' } }], builds: [] });
+  await assert.rejects(released.store.syncListing('app1', { listing, screenshots: [shot] }), StoreLocked);
+  assert.equal(released.calls.length, 1, 'nothing is changed once the version turns out to be locked');
+
+  // What the worker tells the server, by what Apple answered
+  const job = { projectId: 'abcdefgh1234', bundleId: 'app.appsmedjan.pabcdefgh1234', listing, screenshots: [shot.toString('base64')] };
+  const account = { teamId: 'ABCDE12345', keyId: 'KEY1234567', issuerId: '69a6de70-03db-47e3-e053-5b8c7c11a4d1', key: pem };
+  const worker = (appId: string | null, sync: () => Promise<{ attached: 'attached' }>) =>
+    new Publisher(null, os.tmpdir(), {
+      storeFor: () => ({
+        ensureBundleId: async () => 'exists' as const,
+        ensureAccountHolderTests: async () => true,
+        appId: async () => appId,
+        syncListing: sync,
+      }),
+    });
+  const never = async () => { throw new Error('must not be called'); };
+  assert.deepEqual(await worker('app1', async () => ({ attached: 'attached' })).syncStore({ ...job, account }, () => undefined), { ok: true, attached: 'attached' });
+  assert.equal((await worker(null, never).syncStore({ ...job, account }, () => undefined)).error, 'no_app_record');
+  assert.equal((await worker('app1', never).syncStore(job, () => undefined)).error, 'unavailable', 'no account in the job and none on the worker');
+  assert.equal((await worker('app1', never).syncStore({ ...job, account, listing: { ...listing, name: '' } }, () => undefined)).error, 'internal');
+  assert.equal((await worker('app1', async () => { throw new StoreLocked('in review'); }).syncStore({ ...job, account }, () => undefined)).error, 'locked');
+  assert.equal((await worker('app1', async () => { throw new StoreError(401, 'bad token'); }).syncStore({ ...job, account }, () => undefined)).error, 'auth');
+  assert.deepEqual(
+    await worker('app1', async () => { throw new StoreError(409, 'App Store Connect answered 409', 'The app name is already being used.'); }).syncStore({ ...job, account }, () => undefined),
+    { ok: false, error: 'rejected', detail: 'The app name is already being used.' },
+  );
 }
 
 console.log('Unit checks passed.');

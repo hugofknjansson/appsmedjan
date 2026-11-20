@@ -29,11 +29,14 @@ interface Props {
   running: boolean;
   onInput: (event: InputEvent) => void;
   onStart: () => void;
+  /** Saves what is showing as a screenshot for the App Store; resolves to a line to show afterwards. */
+  onCapture: () => Promise<{ ok: boolean; text: string }>;
 }
 
 const clamp = (n: number) => Math.min(1, Math.max(0, n));
 
-export function Phone({ bus, preview, running, onInput, onStart }: Props) {
+export function Phone({ bus, preview, running, onInput, onStart, onCapture }: Props) {
+  const [capture, setCapture] = useState<{ busy: boolean; ok: boolean; text: string }>({ busy: false, ok: true, text: '' });
   const img = useRef<HTMLImageElement>(null);
   const mime = useRef(preview.mime);
   const [hasFrame, setHasFrame] = useState(false);
@@ -184,7 +187,23 @@ export function Phone({ bus, preview, running, onInput, onStart }: Props) {
         <button className="btn ghost" disabled={running || building || preview.status === 'unavailable'} onClick={onStart}>
           {t.restart}
         </button>
+        <button
+          className="btn ghost"
+          title={t.storeShotHint}
+          disabled={capture.busy || building || preview.status !== 'running' || !hasFrame}
+          onClick={() => {
+            setCapture({ busy: true, ok: true, text: '' });
+            void onCapture().then((result) => setCapture({ busy: false, ...result }));
+          }}
+        >
+          {t.storeShot}
+        </button>
       </div>
+      {capture.text && (
+        <p className={capture.ok ? 'phone-note muted' : 'phone-note form-error'} role="status">
+          {capture.text}
+        </p>
+      )}
       {hasFrame && <p className="phone-hint muted">{preview.canInput ? t.typeHint : t.viewOnly}</p>}
     </div>
   );

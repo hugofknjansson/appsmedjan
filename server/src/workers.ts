@@ -10,6 +10,10 @@ import {
   type PublishStage,
   type PublishTester,
   type ServerToWorker,
+  type StoreBuild,
+  type StoreListing,
+  type StoreSyncError,
+  type StoreSyncStage,
   type WorkerToServer,
 } from '../../shared/protocol';
 import { randomId } from './db';
@@ -53,6 +57,8 @@ const SCREENSHOT_TIMEOUT_MS = 30_000;
 // Archiving, signing and the upload to Apple can each take many minutes, and before that the worker
 // may wait a quarter of an hour for the person to create the app in App Store Connect.
 const PUBLISH_TIMEOUT_MS = 60 * 60_000;
+// A handful of API calls and up to ten picture uploads.
+const STORE_TIMEOUT_MS = 10 * 60_000;
 
 const listeners = new Set<() => void>();
 
@@ -147,6 +153,7 @@ export async function publish(
   files: Record<string, string>,
   buildNumber: string,
   account: AppleAccount | undefined,
+  icon: string | undefined,
   onProgress: (stage: PublishStage) => void,
 ): Promise<{ ok: boolean; error?: PublishError; detail?: string; tester?: PublishTester }> {
   const worker = publisher(account ? 'own' : 'operator');
@@ -162,6 +169,7 @@ export async function publish(
       buildNumber,
       files,
       account,
+      icon,
     },
     PUBLISH_TIMEOUT_MS,
     onProgress as (stage: string) => void,
@@ -170,10 +178,36 @@ export async function publish(
   return { ok: res.ok, error: res.error, detail: res.detail, tester: res.tester };
 }
 
-export async function screenshot(projectId: string): Promise<{ mime: string; data: string } | null> {
+/**
+ * Fills in the app's page in App Store Connect, through the same worker (and the same key) that
+ * uploads to that account.
+ */
+export async function store(
+  project: { id: string; bundleId: string },
+  page: { listing: StoreListing; screenshots: string[]; build?: string },
+  account: AppleAccount | undefined,
+  onProgress: (stage: StoreSyncStage) => void,
+): Promise<{ ok: boolean; error?: StoreSyncError; detail?: string; attached?: StoreBuild }> {
+  const worker = publisher(account ? 'own' : 'operator');
+  if (!worker) throw new WorkerUnavailable('no publishing worker connected');
+  const res = await request(
+    worker,
+    { type: 'store', jobId: randomId(16), projectId: project.id, bundleId: project.bundleId, ...page, account },
+    STORE_TIMEOUT_MS,
+    onProgress as (stage: string) => void,
+  );
+  if (res.type !== 'store.result') throw new Error('unexpected worker reply');
+  return { ok: res.ok, error: res.error, detail: res.detail, attached: res.attached };
+}
+
+/**
+ * A picture of the project's simulator. `store` asks for one in App Store size; that kind also
+ * comes from the mock worker (its drawn placeholder), so the flow can be tried without a Mac.
+ */
+export async function screenshot(projectId: string, store = false): Promise<{ mime: string; data: string } | null> {
   const worker = assignment.get(projectId);
-  if (!worker || worker.mock) return null;
-  const res = await request(worker, { type: 'screenshot', jobId: randomId(16), projectId }, SCREENSHOT_TIMEOUT_MS);
+  if (!worker || (worker.mock && !store)) return null;
+  const res = await request(worker, { type: 'screenshot', jobId: randomId(16), projectId, store }, SCREENSHOT_TIMEOUT_MS);
   if (res.type !== 'screenshot.result' || !res.ok || !res.mime || !res.data) return null;
   return { mime: res.mime, data: res.data };
 }
@@ -255,6 +289,7 @@ export function attachWorker(ws: WebSocket): void {
         );
         break;
       case 'build.progress':
+      case 'store.progress':
       case 'publish.progress': {
         const p = pending.get(msg.jobId);
         if (p?.worker === worker) p.onProgress?.(msg.stage);
@@ -262,6 +297,7 @@ export function attachWorker(ws: WebSocket): void {
       }
       case 'build.result':
       case 'publish.result':
+      case 'store.result':
       case 'screenshot.result': {
         const p = pending.get(msg.jobId);
         if (!p || p.worker !== worker) break;

@@ -14,11 +14,17 @@ import {
   isTeamId,
   isValidBundleId,
   isValidProjectId,
+  type AppleAccount,
   type PublishError,
   type PublishStage,
+  type StoreSyncStage,
+  STORE_ICON_SIZE,
+  STORE_SHOT,
+  listingProblems,
 } from '../../shared/protocol';
-import { AppStoreConnect, StoreError, bundleIdName, waitForApp, type StoreKey } from '../../shared/appstore';
-import type { PublishJob, PublishResult } from './driver';
+import { AppStoreConnect, StoreError, StoreLocked, bundleIdName, waitForApp, type StoreKey } from '../../shared/appstore';
+import { pngInfo } from '../../shared/png';
+import type { PublishJob, PublishResult, StoreJob, StoreResult } from './driver';
 import { exec, mustExec } from './exec';
 import { iconPng } from './icon';
 import { extractErrors, mirrorSources, projectSpec } from './xcode';
@@ -101,12 +107,37 @@ export async function preparePublishProject(dir: string, job: PublishJob, teamId
   await fs.mkdir(iconSet, { recursive: true });
   await fs.writeFile(path.join(assets, 'Contents.json'), ASSET_INFO);
   await fs.writeFile(path.join(iconSet, 'Contents.json'), ICON_SET);
-  await fs.writeFile(path.join(iconSet, 'icon.png'), iconPng(job.bundleId));
+  await writeIcon(path.join(iconSet, 'icon.png'), job);
   await fs.writeFile(path.join(dir, 'project.yml'), projectSpec(job, { teamId, buildNumber: job.buildNumber }));
   await mustExec('xcodegen', ['generate', '--spec', 'project.yml', '--quiet'], { cwd: dir, timeoutMs: 60_000 });
 }
 
-type Store = Pick<AppStoreConnect, 'ensureBundleId' | 'appId' | 'ensureAccountHolderTests'>;
+/**
+ * The person's own icon when they have given one, otherwise a drawn placeholder. Apple refuses icons
+ * with transparency, so an alpha channel is flattened onto white.
+ */
+async function writeIcon(file: string, job: PublishJob): Promise<void> {
+  const own = job.icon ? Buffer.from(job.icon, 'base64') : null;
+  const info = own ? pngInfo(own) : null;
+  if (!own || !info || info.width !== STORE_ICON_SIZE || info.height !== STORE_ICON_SIZE) {
+    if (own) console.warn(`[publish] ignoring the icon for ${job.projectId}: it is not a ${STORE_ICON_SIZE} px PNG`);
+    await fs.writeFile(file, iconPng(job.bundleId));
+    return;
+  }
+  await fs.writeFile(file, own);
+  if (!info.alpha) return;
+  // Through JPEG and back: sips has no "remove alpha", but a JPEG cannot hold one.
+  const flat = `${file}.jpg`;
+  const toJpeg = await exec('sips', ['-s', 'format', 'jpeg', '-s', 'formatOptions', '100', file, '--out', flat]);
+  const toPng = toJpeg.code === 0 ? await exec('sips', ['-s', 'format', 'png', flat, '--out', file]) : toJpeg;
+  await fs.rm(flat, { force: true });
+  if (toPng.code !== 0) {
+    console.warn(`[publish] could not flatten the icon for ${job.projectId}; using the placeholder`);
+    await fs.writeFile(file, iconPng(job.bundleId));
+  }
+}
+
+type Store = Pick<AppStoreConnect, 'ensureBundleId' | 'appId' | 'ensureAccountHolderTests' | 'syncListing'>;
 
 const PEM = /^-----BEGIN PRIVATE KEY-----[A-Za-z0-9+/=\s]{50,2000}-----END PRIVATE KEY-----\s*$/;
 
@@ -157,29 +188,14 @@ export class Publisher {
     if (!isValidProjectId(job.projectId) || !isValidBundleId(job.bundleId) || !/^\d{1,18}$/.test(job.buildNumber)) {
       return { ok: false, error: 'internal', detail: 'Invalid publish job.' };
     }
-    let target: Target;
-    if (job.account) {
-      // The person's own account. Its values end up in a project file and on a command line: check them.
-      const { teamId, keyId, issuerId, key } = job.account;
-      if (!isTeamId(teamId) || !isKeyId(keyId) || !isIssuerId(issuerId) || typeof key !== 'string' || !PEM.test(key)) {
-        return { ok: false, error: 'auth', detail: 'The account details in the job are malformed.' };
-      }
-      target = { teamId, keyId, issuerId, key };
-    } else if (this.own) {
-      target = this.own;
-    } else {
-      return { ok: false, error: 'unavailable', detail: 'This worker has no account of its own.' };
-    }
+    const resolved = this.targetFor(job.account);
+    if ('stop' in resolved) return resolved.stop;
+    const target = resolved.target;
 
     // Talking to Apple, and waiting for the person to create the app, happens outside the queue:
     // it is light, and a wait of many minutes must not hold up other people's uploads.
     progress('preparing');
-    const keyPath = 'keyPath' in target ? target.keyPath : null;
-    const store = this.storeFor({
-      keyId: target.keyId,
-      issuerId: target.issuerId,
-      key: keyPath ? () => fs.readFile(keyPath, 'utf8') : (target as { key: string }).key,
-    });
+    const store = this.storeOf(target);
     const checked = await this.checkStore(job, store, progress);
     if ('stop' in checked) return checked.stop;
 
@@ -187,6 +203,67 @@ export class Publisher {
     this.chain = next;
     const result = await next;
     return result.ok ? { ...result, tester: checked.tester } : result;
+  }
+
+  /** The account a job runs under: the person's own when the job brings one, otherwise the worker's. */
+  private targetFor(account: AppleAccount | undefined): { target: Target } | { stop: { ok: false; error: 'auth' | 'unavailable'; detail: string } } {
+    if (account) {
+      // The person's own account. Its values end up in a project file and on a command line: check them.
+      const { teamId, keyId, issuerId, key } = account;
+      if (!isTeamId(teamId) || !isKeyId(keyId) || !isIssuerId(issuerId) || typeof key !== 'string' || !PEM.test(key)) {
+        return { stop: { ok: false, error: 'auth', detail: 'The account details in the job are malformed.' } };
+      }
+      return { target: { teamId, keyId, issuerId, key } };
+    }
+    if (this.own) return { target: this.own };
+    return { stop: { ok: false, error: 'unavailable', detail: 'This worker has no account of its own.' } };
+  }
+
+  private storeOf(target: Target): Store {
+    const keyPath = 'keyPath' in target ? target.keyPath : null;
+    return this.storeFor({
+      keyId: target.keyId,
+      issuerId: target.issuerId,
+      key: keyPath ? () => fs.readFile(keyPath, 'utf8') : (target as { key: string }).key,
+    });
+  }
+
+  /**
+   * Fills in the app's page in App Store Connect: texts, category, screenshots and the build to
+   * release. Only API calls, no Xcode, so it does not wait in the archive queue. Nothing is submitted
+   * for review; that stays with the account's owner.
+   */
+  async syncStore(job: StoreJob, progress: (stage: StoreSyncStage) => void): Promise<StoreResult> {
+    const screenshots = Array.isArray(job.screenshots) ? job.screenshots.map((s) => Buffer.from(String(s), 'base64')) : [];
+    if (
+      !isValidProjectId(job.projectId) ||
+      !isValidBundleId(job.bundleId) ||
+      screenshots.length > STORE_SHOT.max ||
+      (job.build !== undefined && !/^\d{1,18}$/.test(job.build)) ||
+      listingProblems(job.listing, screenshots.length).length > 0
+    ) {
+      return { ok: false, error: 'internal', detail: 'Invalid store job.' };
+    }
+    const resolved = this.targetFor(job.account);
+    if ('stop' in resolved) return resolved.stop;
+    const store = this.storeOf(resolved.target);
+    try {
+      progress('version');
+      const appId = await store.appId(job.bundleId);
+      if (!appId) return { ok: false, error: 'no_app_record', detail: `No app with bundle id ${job.bundleId} exists in App Store Connect yet.` };
+      const { attached } = await store.syncListing(appId, { listing: job.listing, screenshots, build: job.build }, progress);
+      return { ok: true, attached };
+    } catch (err) {
+      const message = (err as Error).message;
+      console.warn(`[store] ${job.projectId}: ${message}`);
+      if (err instanceof StoreLocked) return { ok: false, error: 'locked', detail: message };
+      if (err instanceof StoreError) {
+        if (err.status === 401) return { ok: false, error: 'auth', detail: message };
+        // Apple explains what it did not accept (a word in the name, a link it cannot open): pass that on.
+        if (err.detail && err.status >= 400 && err.status < 500) return { ok: false, error: 'rejected', detail: err.detail };
+      }
+      return { ok: false, error: 'internal', detail: message };
+    }
   }
 
   /** xcodebuild wants the key as a file. A person's key is one only while their archive and upload run. */

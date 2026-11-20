@@ -28,7 +28,7 @@ export function userMayPublish(email: string): boolean {
  * Whose developer account an upload from this person goes to. Their own, once connected, always wins:
  * that is the account the app should live in.
  */
-function route(owner: db.User | null): Pick<PublishState, 'account' | 'available' | 'canConnect'> {
+export function route(owner: db.User | null): Pick<PublishState, 'account' | 'available' | 'canConnect'> {
   const own = owner ? accountStatus(owner.id) : { enabled: false, connected: false };
   if (own.connected) return { account: 'own', available: workers.canPublish('own'), canConnect: true };
   if (owner && userMayPublish(owner.email)) {
@@ -102,7 +102,9 @@ export function startPublish(project: db.Project, user: db.User): StartResult {
 async function run(project: db.Project, build: string, account: AppleAccount | undefined): Promise<void> {
   let outcome: { ok: boolean; error?: PublishError; detail?: string; tester?: PublishTester };
   try {
-    outcome = await workers.publish(project, db.getFiles(project.id), build, account, (stage) => {
+    const icon = db.getIcon(project.id);
+    const iconText = icon ? Buffer.from(icon).toString('base64') : undefined;
+    outcome = await workers.publish(project, db.getFiles(project.id), build, account, iconText, (stage) => {
       const current = working.get(project.id);
       if (!current) return;
       working.set(project.id, { ...current, stage });

@@ -9,8 +9,10 @@ import {
   type BuildStage,
   type InputEvent,
   type PublishStage,
+  STORE_SHOT,
+  type StoreSyncStage,
 } from '../../shared/protocol';
-import type { BuildJob, Driver, Emit, PublishJob, PublishResult } from './driver';
+import type { BuildJob, Driver, Emit, PublishJob, PublishResult, StoreJob, StoreResult } from './driver';
 import { exec, mustExec } from './exec';
 import { Publisher, publishConfigFromEnv } from './publish';
 import { listFolders, pruneAfterDays, staleIds, touch } from './prune';
@@ -256,6 +258,12 @@ export class XcodeDriver implements Driver {
     return this.publisher.publish(job, progress);
   }
 
+  async store(job: StoreJob, progress: (stage: StoreSyncStage) => void): Promise<StoreResult> {
+    if (!this.publisher) return { ok: false, error: 'unavailable' };
+    if (job.account && process.env.PUBLISH_FOR_USERS !== '1') return { ok: false, error: 'unavailable' };
+    return this.publisher.syncStore(job, progress);
+  }
+
   /**
    * Deletes simulators and build folders of projects that have not been used for PRUNE_AFTER_DAYS
    * (default 14, 0 to keep everything). A project that comes back is simply built from scratch again.
@@ -318,9 +326,10 @@ export class XcodeDriver implements Driver {
 
   // --- Preview ----------------------------------------------------------------
 
-  async screenshot(projectId: string): Promise<{ mime: string; data: Buffer }> {
+  async screenshot(projectId: string, opts: { store?: boolean } = {}): Promise<{ mime: string; data: Buffer }> {
     const s = this.sessions.get(projectId);
     if (!s?.booted) throw new Error('No simulator is running for this project.');
+    if (opts.store) return this.serial(s, () => this.storeScreenshot(s.udid));
     return this.serial(s, async () => {
       const file = path.join(os.tmpdir(), `appsmedjan-shot-${s.udid}.jpg`);
       await mustExec('xcrun', ['simctl', 'io', s.udid, 'screenshot', '--type=jpeg', file], { timeoutMs: 20_000 });
@@ -330,6 +339,36 @@ export class XcodeDriver implements Driver {
       await fs.rm(file, { force: true });
       return { mime: 'image/jpeg', data };
     });
+  }
+
+  /**
+   * A picture of the screen in the size the App Store asks for on the largest iPhone. Today's iPhones
+   * all have the same shape, so the picture from a smaller model is scaled up by a few percent
+   * instead of running a second, larger simulator just for this.
+   */
+  private async storeScreenshot(udid: string): Promise<{ mime: string; data: Buffer }> {
+    const png = path.join(os.tmpdir(), `appsmedjan-store-${udid}.png`);
+    const jpg = path.join(os.tmpdir(), `appsmedjan-store-${udid}.jpg`);
+    try {
+      await mustExec('xcrun', ['simctl', 'io', udid, 'screenshot', '--type=png', png], { timeoutMs: 20_000 });
+      const size = await mustExec('sips', ['-g', 'pixelWidth', '-g', 'pixelHeight', png]);
+      const width = Number(/pixelWidth: (\d+)/.exec(size)?.[1]);
+      const height = Number(/pixelHeight: (\d+)/.exec(size)?.[1]);
+      const shape = width / height;
+      const wanted = STORE_SHOT.width / STORE_SHOT.height;
+      if (!(Math.abs(shape - wanted) / wanted < 0.02)) {
+        throw new Error(`The simulator's screen (${width} x ${height}) does not have the shape App Store screenshots need.`);
+      }
+      if (width !== STORE_SHOT.width || height !== STORE_SHOT.height) {
+        await mustExec('sips', ['-z', String(STORE_SHOT.height), String(STORE_SHOT.width), png]);
+      }
+      // JPEG keeps each picture around half a megabyte; ten of them travel in one message.
+      await mustExec('sips', ['-s', 'format', 'jpeg', '-s', 'formatOptions', '90', png, '--out', jpg]);
+      return { mime: 'image/jpeg', data: await fs.readFile(jpg) };
+    } finally {
+      await fs.rm(png, { force: true });
+      await fs.rm(jpg, { force: true });
+    }
   }
 
   setViewers(projectId: string, count: number): void {

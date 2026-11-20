@@ -9,7 +9,9 @@ import * as db from './db';
 import { forget } from './live';
 import { STARTER_FILES } from './prompt';
 import { accountStatus, connectAccount, disconnectAccount } from './apple';
+import { draftListing } from './listing';
 import { accountChanged, startPublish } from './publish';
+import { capture, listingFrom, saveIcon, startSync, storeState } from './store';
 import { isRunning, startRun, stopRun } from './runs';
 import * as workers from './workers';
 
@@ -274,6 +276,133 @@ api.post('/projects/:id/testflight', requireUser, (req, res) => {
     default:
       res.status(202).json({ ok: true });
   }
+});
+
+// --- The app's App Store page ---------------------------------------------------
+
+api.get('/projects/:id/store', requireUser, (req, res) => {
+  const project = ownProject(req, res);
+  if (!project) return;
+  res.json(storeState(project, (req as Authed).user));
+});
+
+api.put('/projects/:id/store/listing', requireUser, (req, res) => {
+  const project = ownProject(req, res);
+  if (!project) return;
+  const listing = listingFrom(req.body);
+  if (!listing) {
+    res.status(400).json({ error: 'bad_listing' });
+    return;
+  }
+  db.setListing(project.id, listing);
+  res.json(storeState(project, (req as Authed).user));
+});
+
+/** Suggests the page's texts from the app's code. Nothing is saved: the person reads them through first. */
+api.post('/projects/:id/store/draft', requireUser, async (req, res) => {
+  const project = ownProject(req, res);
+  if (!project) return;
+  if (!hasCredentials()) {
+    res.status(503).json({ error: 'no_api_key' });
+    return;
+  }
+  // It is a model request like a chat message, and counts as one.
+  if (!db.consumeMessage((req as Authed).user.id)) {
+    res.status(429).json({ error: 'daily_limit' });
+    return;
+  }
+  const result = await draftListing(project.name, db.getFiles(project.id));
+  if (!result.ok) {
+    res.status(result.error === 'rate_limited' || result.error === 'overloaded' ? 503 : 502).json({ error: result.error });
+    return;
+  }
+  res.json({ draft: result.draft });
+});
+
+/** Saves what the simulator shows right now as a screenshot for the App Store. */
+api.post('/projects/:id/store/screenshots', requireUser, async (req, res) => {
+  const project = ownProject(req, res);
+  if (!project) return;
+  const result = await capture(project);
+  if (result !== 'saved') {
+    const status = { no_preview: 409, full: 409, failed: 502 }[result];
+    res.status(status).json({ error: `screenshot_${result}` });
+    return;
+  }
+  res.status(201).json(storeState(project, (req as Authed).user));
+});
+
+/** An image the service produced itself is still never allowed to run anything when opened directly. */
+function sendImage(res: Response, mime: string, data: Uint8Array): void {
+  res.set({
+    'content-type': mime,
+    'cache-control': 'private, max-age=3600',
+    'x-content-type-options': 'nosniff',
+    'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'",
+  });
+  res.send(Buffer.from(data));
+}
+
+api.get('/projects/:id/store/screenshots/:shot', requireUser, (req, res) => {
+  const project = ownProject(req, res);
+  if (!project) return;
+  const shot = db.getScreenshot(project.id, String(req.params.shot));
+  if (!shot) {
+    res.status(404).json({ error: 'not_found' });
+    return;
+  }
+  sendImage(res, shot.mime, shot.data);
+});
+
+api.delete('/projects/:id/store/screenshots/:shot', requireUser, (req, res) => {
+  const project = ownProject(req, res);
+  if (!project) return;
+  db.deleteScreenshot(project.id, String(req.params.shot));
+  res.json(storeState(project, (req as Authed).user));
+});
+
+/** The app's own icon, used for the next TestFlight upload. Sent as the PNG file itself. */
+api.put('/projects/:id/store/icon', requireUser, express.raw({ type: 'image/png', limit: '4mb' }), (req, res) => {
+  const project = ownProject(req, res);
+  if (!project) return;
+  const result = Buffer.isBuffer(req.body) ? saveIcon(project, req.body) : 'not_png';
+  if (result !== 'saved') {
+    res.status(400).json({ error: `icon_${result}` });
+    return;
+  }
+  res.json(storeState(project, (req as Authed).user));
+});
+
+api.get('/projects/:id/store/icon', requireUser, (req, res) => {
+  const project = ownProject(req, res);
+  if (!project) return;
+  const icon = db.getIcon(project.id);
+  if (!icon) {
+    res.status(404).json({ error: 'not_found' });
+    return;
+  }
+  sendImage(res, 'image/png', icon);
+});
+
+api.delete('/projects/:id/store/icon', requireUser, (req, res) => {
+  const project = ownProject(req, res);
+  if (!project) return;
+  db.deleteIcon(project.id);
+  res.json(storeState(project, (req as Authed).user));
+});
+
+/** Sends the page to App Store Connect. The browser follows the progress by asking for the state again. */
+api.post('/projects/:id/store/sync', requireUser, (req, res) => {
+  const project = ownProject(req, res);
+  if (!project) return;
+  const user = (req as Authed).user;
+  const started = startSync(project, user);
+  if (started !== 'started') {
+    const status = { forbidden: 403, unavailable: 503, busy: 409, incomplete: 400 }[started];
+    res.status(status).json({ error: started === 'busy' ? 'busy' : `store_${started}` });
+    return;
+  }
+  res.status(202).json(storeState(project, user));
 });
 
 api.use((_req, res) => {

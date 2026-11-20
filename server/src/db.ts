@@ -2,7 +2,16 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import type { ChatMessage, Part, PublishError, PublishTester } from '../../shared/protocol';
+import {
+  EMPTY_LISTING,
+  type ChatMessage,
+  type Part,
+  type PublishError,
+  type PublishTester,
+  type StoreBuild,
+  type StoreListing,
+  type StoreSyncError,
+} from '../../shared/protocol';
 import { config } from './config';
 
 fs.mkdirSync(config.dataDir, { recursive: true });
@@ -64,6 +73,31 @@ db.exec(`
     status TEXT NOT NULL,
     error TEXT,
     build TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS store_listings (
+    project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+    data TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS store_screenshots (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    mime TEXT NOT NULL,
+    data BLOB NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS store_icons (
+    project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+    data BLOB NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS store_syncs (
+    project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+    status TEXT NOT NULL,
+    error TEXT,
+    detail TEXT,
+    attached TEXT,
     updated_at INTEGER NOT NULL
   );
 `);
@@ -352,6 +386,97 @@ export function setPublish(
        status = excluded.status, error = excluded.error, build = excluded.build,
        tester = excluded.tester, updated_at = excluded.updated_at`,
   ).run(projectId, outcome.status, outcome.error, outcome.build, outcome.tester, Date.now());
+}
+
+// --- App Store page ------------------------------------------------------------
+
+export function getListing(projectId: string): StoreListing {
+  const row = db.prepare('SELECT data FROM store_listings WHERE project_id = ?').get(projectId) as { data: string } | undefined;
+  if (!row) return { ...EMPTY_LISTING };
+  // Fields added later are filled in from the empty listing.
+  return { ...EMPTY_LISTING, ...(JSON.parse(row.data) as Partial<StoreListing>) };
+}
+
+export function setListing(projectId: string, listing: StoreListing): void {
+  db.prepare(
+    `INSERT INTO store_listings (project_id, data, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT (project_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`,
+  ).run(projectId, JSON.stringify(listing), Date.now());
+}
+
+/** Ids of the project's App Store screenshots, oldest first: the order they are shown in. */
+export function listScreenshots(projectId: string): string[] {
+  const rows = db.prepare('SELECT id FROM store_screenshots WHERE project_id = ? ORDER BY created_at, id').all(projectId) as unknown as { id: string }[];
+  return rows.map((r) => r.id);
+}
+
+export function addScreenshot(projectId: string, mime: string, data: Uint8Array): string {
+  const id = randomId(12);
+  db.prepare('INSERT INTO store_screenshots (id, project_id, mime, data, created_at) VALUES (?, ?, ?, ?, ?)').run(id, projectId, mime, data, Date.now());
+  return id;
+}
+
+export function getScreenshot(projectId: string, id: string): { mime: string; data: Uint8Array } | null {
+  const row = db.prepare('SELECT mime, data FROM store_screenshots WHERE project_id = ? AND id = ?').get(projectId, id) as
+    | { mime: string; data: Uint8Array }
+    | undefined;
+  return row ?? null;
+}
+
+export function deleteScreenshot(projectId: string, id: string): boolean {
+  return db.prepare('DELETE FROM store_screenshots WHERE project_id = ? AND id = ?').run(projectId, id).changes > 0;
+}
+
+export function getIcon(projectId: string): Uint8Array | null {
+  const row = db.prepare('SELECT data FROM store_icons WHERE project_id = ?').get(projectId) as { data: Uint8Array } | undefined;
+  return row?.data ?? null;
+}
+
+export function hasIcon(projectId: string): boolean {
+  return db.prepare('SELECT 1 FROM store_icons WHERE project_id = ?').get(projectId) !== undefined;
+}
+
+export function setIcon(projectId: string, data: Uint8Array): void {
+  db.prepare(
+    `INSERT INTO store_icons (project_id, data, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT (project_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`,
+  ).run(projectId, data, Date.now());
+}
+
+export function deleteIcon(projectId: string): void {
+  db.prepare('DELETE FROM store_icons WHERE project_id = ?').run(projectId);
+}
+
+export interface StoreSync {
+  status: 'done' | 'failed';
+  error: StoreSyncError | null;
+  detail: string | null;
+  attached: StoreBuild | null;
+  updatedAt: number;
+}
+
+/** The outcome of the latest attempt to send the page to App Store Connect, if there has been one. */
+export function getStoreSync(projectId: string): StoreSync | null {
+  const row = db.prepare('SELECT status, error, detail, attached, updated_at FROM store_syncs WHERE project_id = ?').get(projectId) as
+    | { status: string; error: string | null; detail: string | null; attached: string | null; updated_at: number }
+    | undefined;
+  if (!row) return null;
+  return {
+    status: row.status === 'done' ? 'done' : 'failed',
+    error: row.error as StoreSyncError | null,
+    detail: row.detail,
+    attached: row.attached as StoreBuild | null,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function setStoreSync(projectId: string, outcome: Omit<StoreSync, 'updatedAt'>): void {
+  db.prepare(
+    `INSERT INTO store_syncs (project_id, status, error, detail, attached, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT (project_id) DO UPDATE SET
+       status = excluded.status, error = excluded.error, detail = excluded.detail,
+       attached = excluded.attached, updated_at = excluded.updated_at`,
+  ).run(projectId, outcome.status, outcome.error, outcome.detail, outcome.attached, Date.now());
 }
 
 // --- Messages ----------------------------------------------------------------

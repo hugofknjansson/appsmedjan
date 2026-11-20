@@ -8,8 +8,10 @@ import type {
   ServerToClient,
   Step,
 } from '../../shared/protocol';
+import { STORE_SHOT } from '../../shared/protocol';
 import { ApiError, api } from './api';
 import { AppleAccountDialog } from './AppleAccount';
+import { StoreDialog } from './Store';
 import { Logo } from './Logo';
 import { FrameBus, Phone } from './Phone';
 import { apiErrorText, stepText, t } from './i18n';
@@ -85,6 +87,7 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
   const socket = useRef<WebSocket | null>(null);
   const [publishError, setPublishError] = useState('');
   const [appleOpen, setAppleOpen] = useState(false);
+  const [storeOpen, setStoreOpen] = useState(false);
 
   useEffect(() => {
     let closed = false;
@@ -149,6 +152,16 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
   };
 
+  async function captureForStore(): Promise<{ ok: boolean; text: string }> {
+    try {
+      const store = await api.captureScreenshot(id);
+      const text = t.storeShotSaved.replace('{n}', String(store.screenshots.length)).replace('{max}', String(STORE_SHOT.max));
+      return { ok: true, text };
+    } catch (err) {
+      return { ok: false, text: apiErrorText(err instanceof ApiError ? err.code : 'internal') };
+    }
+  }
+
   async function sendToTestFlight() {
     if (!state) return;
     // Without an account to upload to, the first step is connecting one.
@@ -194,6 +207,11 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
             {state.publish.status === 'working' ? `${t.publishStage[state.publish.stage ?? 'queued']}…` : t.testflight}
           </button>
         )}
+        {state && (state.publish.account !== 'none' || state.publish.canConnect) && (
+          <button className="btn publish-btn" title={t.appStoreHint} onClick={() => setStoreOpen(true)}>
+            {t.appStore}
+          </button>
+        )}
         <div className="topbar-right">
           {!connected && <span className="muted">{t.reconnecting}…</span>}
           <div className="tabs" role="tablist">
@@ -211,6 +229,16 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
       </header>
       {state && <PublishNote publish={state.publish} requestError={publishError} />}
       {appleOpen && <AppleAccountDialog onClose={() => setAppleOpen(false)} />}
+      {storeOpen && (
+        <StoreDialog
+          id={id}
+          onClose={() => setStoreOpen(false)}
+          onConnect={() => {
+            setStoreOpen(false);
+            setAppleOpen(true);
+          }}
+        />
+      )}
 
       <div className="workspace" data-tab={tab}>
         <section className="chat-pane">{state && <Chat id={id} state={state} />}</section>
@@ -222,6 +250,7 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
               running={state.running}
               onInput={(event: InputEvent) => sendSocket({ type: 'input', event })}
               onStart={() => sendSocket({ type: 'preview.start' })}
+              onCapture={captureForStore}
             />
           )}
           {state && tab === 'code' && <CodeView id={id} version={state.filesVersion} />}

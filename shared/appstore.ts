@@ -1,7 +1,9 @@
 // The App Store Connect API calls the service needs: checking that a key works, registering an app's
-// bundle id, and checking that the app itself exists. Apple offers no API for creating the app; that
-// step stays manual. Node only (server and worker); the web client never loads this file.
+// bundle id, checking that the app itself exists, and filling in its App Store page. Apple offers no
+// API for creating the app; that step stays manual. Node only (server and worker); the web client
+// never loads this file.
 import crypto from 'node:crypto';
+import type { StoreBuild, StoreListing, StoreSyncStage } from './protocol';
 
 const DEFAULT_API = 'https://api.appstoreconnect.apple.com';
 const TOKEN_LIFETIME_S = 10 * 60;
@@ -10,9 +12,36 @@ export class StoreError extends Error {
   constructor(
     public readonly status: number,
     message: string,
+    /** Apple's own explanation, when it gave one. Safe to show to the account's owner. */
+    public readonly detail?: string,
   ) {
     super(message);
   }
+}
+
+/** The app's current version is in review or already on the App Store, so its page cannot be changed. */
+export class StoreLocked extends Error {}
+
+/** A version in one of these states can still have its page edited. */
+const EDITABLE = new Set(['PREPARE_FOR_SUBMISSION', 'DEVELOPER_REJECTED', 'REJECTED', 'METADATA_REJECTED', 'INVALID_BINARY']);
+
+/** The screenshot slot for the largest iPhones (6.7 and 6.9 inch share it). */
+const SCREENSHOT_TYPE = 'APP_IPHONE_67';
+
+/** The version number the generated projects carry (MARKETING_VERSION in the project spec). */
+const FIRST_VERSION = '1.0';
+
+interface Item {
+  id: string;
+  attributes?: Record<string, unknown>;
+}
+
+interface UploadOperation {
+  method?: string;
+  url?: string;
+  offset?: number;
+  length?: number;
+  requestHeaders?: Array<{ name?: string; value?: string }>;
 }
 
 const base64url = (data: Buffer | string) => Buffer.from(data).toString('base64url');
@@ -91,6 +120,185 @@ export class AppStoreConnect {
     }
     const data = json.data === undefined ? [] : Array.isArray(json.data) ? json.data : [json.data];
     return { status: res.status, data };
+  }
+
+  /** Like `call`, for the App Store page: any method, any attributes, and every refusal is an error. */
+  private async send(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<Item[]> {
+    const res = await this.fetchImpl(this.api + path, {
+      method,
+      headers: { authorization: `Bearer ${await this.token()}`, ...(body ? { 'content-type': 'application/json' } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(30_000),
+    });
+    const json = (await res.json().catch(() => ({}))) as {
+      data?: Item | Item[];
+      errors?: Array<{ title?: string; detail?: string }>;
+    };
+    if (!res.ok) {
+      const detail = (json.errors ?? [])
+        .map((e) => e.detail ?? e.title)
+        .filter(Boolean)
+        .join(' ')
+        .slice(0, 600);
+      throw new StoreError(res.status, `App Store Connect answered ${res.status} to ${method} ${path.split('?')[0]}: ${detail || 'no details'}`, detail || undefined);
+    }
+    return json.data === undefined ? [] : Array.isArray(json.data) ? json.data : [json.data];
+  }
+
+  /**
+   * Fills in the app's App Store page: texts and links in the app's primary language, the category,
+   * the screenshots, and the build to release. Everything here can be changed again in App Store
+   * Connect; nothing is submitted for review.
+   */
+  async syncListing(
+    appId: string,
+    input: { listing: StoreListing; screenshots: Buffer[]; build?: string },
+    onStage: (stage: StoreSyncStage) => void = () => undefined,
+  ): Promise<{ attached: StoreBuild }> {
+    const app = encodeURIComponent(appId);
+    const { listing } = input;
+
+    onStage('version');
+    const versions = await this.send('GET', `/v1/apps/${app}/appStoreVersions?filter[platform]=IOS&limit=20`);
+    const stateOf = (v: Item) => String(v.attributes?.appVersionState ?? v.attributes?.appStoreState ?? '');
+    let version = versions.find((v) => EDITABLE.has(stateOf(v)));
+    if (!version && versions.length > 0) {
+      throw new StoreLocked(`No version of the app can be edited (states: ${versions.map(stateOf).join(', ')}).`);
+    }
+    if (!version) {
+      [version] = await this.send('POST', '/v1/appStoreVersions', {
+        data: {
+          type: 'appStoreVersions',
+          attributes: { platform: 'IOS', versionString: FIRST_VERSION },
+          relationships: { app: { data: { type: 'apps', id: appId } } },
+        },
+      });
+      if (!version) throw new StoreError(500, 'App Store Connect created no version.');
+    }
+    const versionId = version.id;
+
+    onStage('texts');
+    const [appInfo] = await this.send('GET', `/v1/apps/${app}?fields[apps]=primaryLocale`);
+    const locale = String(appInfo?.attributes?.primaryLocale ?? 'en-US');
+
+    const versionTexts = {
+      description: listing.description,
+      keywords: listing.keywords,
+      promotionalText: listing.promo || null,
+      supportUrl: listing.supportUrl,
+      marketingUrl: listing.marketingUrl || null,
+    };
+    const versionLocs = await this.send('GET', `/v1/appStoreVersions/${encodeURIComponent(versionId)}/appStoreVersionLocalizations?limit=50`);
+    let versionLoc = versionLocs.find((l) => l.attributes?.locale === locale);
+    if (versionLoc) {
+      await this.send('PATCH', `/v1/appStoreVersionLocalizations/${encodeURIComponent(versionLoc.id)}`, {
+        data: { type: 'appStoreVersionLocalizations', id: versionLoc.id, attributes: versionTexts },
+      });
+    } else {
+      [versionLoc] = await this.send('POST', '/v1/appStoreVersionLocalizations', {
+        data: {
+          type: 'appStoreVersionLocalizations',
+          attributes: { locale, ...versionTexts },
+          relationships: { appStoreVersion: { data: { type: 'appStoreVersions', id: versionId } } },
+        },
+      });
+      if (!versionLoc) throw new StoreError(500, 'App Store Connect created no localization.');
+    }
+
+    // The name, subtitle, privacy policy and category belong to the app, not to one version.
+    const infos = await this.send('GET', `/v1/apps/${app}/appInfos?limit=10`);
+    const info = infos.find((i) => EDITABLE.has(String(i.attributes?.state ?? i.attributes?.appStoreState ?? ''))) ?? infos[0];
+    if (info) {
+      const infoTexts = { name: listing.name, subtitle: listing.subtitle || null, privacyPolicyUrl: listing.privacyUrl };
+      const infoLocs = await this.send('GET', `/v1/appInfos/${encodeURIComponent(info.id)}/appInfoLocalizations?limit=50`);
+      const infoLoc = infoLocs.find((l) => l.attributes?.locale === locale);
+      if (infoLoc) {
+        await this.send('PATCH', `/v1/appInfoLocalizations/${encodeURIComponent(infoLoc.id)}`, {
+          data: { type: 'appInfoLocalizations', id: infoLoc.id, attributes: infoTexts },
+        });
+      } else {
+        await this.send('POST', '/v1/appInfoLocalizations', {
+          data: {
+            type: 'appInfoLocalizations',
+            attributes: { locale, ...infoTexts },
+            relationships: { appInfo: { data: { type: 'appInfos', id: info.id } } },
+          },
+        });
+      }
+      if (listing.category) {
+        await this.send('PATCH', `/v1/appInfos/${encodeURIComponent(info.id)}`, {
+          data: {
+            type: 'appInfos',
+            id: info.id,
+            relationships: { primaryCategory: { data: { type: 'appCategories', id: listing.category } } },
+          },
+        });
+      }
+    }
+
+    onStage('screenshots');
+    await this.replaceScreenshots(versionLoc.id, input.screenshots);
+
+    onStage('build');
+    return { attached: input.build ? await this.attachBuild(appId, versionId, input.build) : 'none' };
+  }
+
+  /** Replaces the phone screenshots of one language with the given ones, in order. */
+  private async replaceScreenshots(localizationId: string, screenshots: Buffer[]): Promise<void> {
+    const sets = await this.send('GET', `/v1/appStoreVersionLocalizations/${encodeURIComponent(localizationId)}/appScreenshotSets?limit=50`);
+    let set = sets.find((s) => s.attributes?.screenshotDisplayType === SCREENSHOT_TYPE);
+    if (!set) {
+      [set] = await this.send('POST', '/v1/appScreenshotSets', {
+        data: {
+          type: 'appScreenshotSets',
+          attributes: { screenshotDisplayType: SCREENSHOT_TYPE },
+          relationships: { appStoreVersionLocalization: { data: { type: 'appStoreVersionLocalizations', id: localizationId } } },
+        },
+      });
+      if (!set) throw new StoreError(500, 'App Store Connect created no screenshot set.');
+    }
+    const old = await this.send('GET', `/v1/appScreenshotSets/${encodeURIComponent(set.id)}/appScreenshots?limit=50`);
+    for (const shot of old) await this.send('DELETE', `/v1/appScreenshots/${encodeURIComponent(shot.id)}`);
+
+    for (const [index, image] of screenshots.entries()) {
+      // Apple hands out where to put the bytes, takes them, and is then told that they are all there.
+      const [reserved] = await this.send('POST', '/v1/appScreenshots', {
+        data: {
+          type: 'appScreenshots',
+          attributes: { fileName: `screenshot-${index + 1}.jpg`, fileSize: image.length },
+          relationships: { appScreenshotSet: { data: { type: 'appScreenshotSets', id: set.id } } },
+        },
+      });
+      if (!reserved) throw new StoreError(500, 'App Store Connect reserved no screenshot.');
+      for (const op of (reserved.attributes?.uploadOperations ?? []) as UploadOperation[]) {
+        if (!op.url) continue;
+        const offset = op.offset ?? 0;
+        const part = image.subarray(offset, offset + (op.length ?? image.length));
+        const headers: Record<string, string> = {};
+        for (const h of op.requestHeaders ?? []) if (h.name && h.value) headers[h.name] = h.value;
+        const res = await this.fetchImpl(op.url, { method: op.method ?? 'PUT', headers, body: new Uint8Array(part), signal: AbortSignal.timeout(120_000) });
+        if (!res.ok) throw new StoreError(res.status, `Uploading screenshot ${index + 1} failed with ${res.status}.`);
+      }
+      await this.send('PATCH', `/v1/appScreenshots/${encodeURIComponent(reserved.id)}`, {
+        data: {
+          type: 'appScreenshots',
+          id: reserved.id,
+          attributes: { uploaded: true, sourceFileChecksum: crypto.createHash('md5').update(image).digest('hex') },
+        },
+      });
+    }
+  }
+
+  /** Selects an uploaded build for the version. Apple needs some minutes after an upload before it can be. */
+  private async attachBuild(appId: string, versionId: string, build: string): Promise<StoreBuild> {
+    const query = `filter[app]=${encodeURIComponent(appId)}&filter[version]=${encodeURIComponent(build)}&fields[builds]=version,processingState&limit=5`;
+    const found = (await this.send('GET', `/v1/builds?${query}`)).find((b) => b.attributes?.version === build);
+    if (!found) return 'processing';
+    if (found.attributes?.processingState !== 'VALID') return found.attributes?.processingState === 'PROCESSING' ? 'processing' : 'none';
+    await this.send('PATCH', `/v1/appStoreVersions/${encodeURIComponent(versionId)}/relationships/build`, {
+      data: { type: 'builds', id: found.id },
+    });
+    return 'attached';
   }
 
   /**

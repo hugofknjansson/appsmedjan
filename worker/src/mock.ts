@@ -1,7 +1,7 @@
 // A stand-in driver for development on machines without Xcode (Linux, CI).
 // It "builds" instantly and streams a drawn placeholder screen so the whole flow can be exercised.
-import type { BuildStage, InputEvent, PublishStage } from '../../shared/protocol';
-import type { BuildJob, Driver, Emit, PublishJob, PublishResult } from './driver';
+import type { BuildStage, InputEvent, PublishStage, StoreSyncStage } from '../../shared/protocol';
+import type { BuildJob, Driver, Emit, PublishJob, PublishResult, StoreJob, StoreResult } from './driver';
 
 interface MockSession {
   appName: string;
@@ -70,8 +70,29 @@ export class MockDriver implements Driver {
     return { ok: true, tester: has('MOCK_TESTER_MANUAL') ? 'manual' : 'added' };
   }
 
-  async screenshot(): Promise<{ mime: string; data: Buffer }> {
-    throw new Error('Screenshots are not available in the mock driver.');
+  /** Pretends to fill in the App Store page. Markers in the description exercise the failure paths. */
+  async store(job: StoreJob, progress: (stage: StoreSyncStage) => void): Promise<StoreResult> {
+    console.log(`[mock] App Store page for ${job.projectId}: "${job.listing.name}", ${job.screenshots.length} screenshot(s), build ${job.build ?? 'none'}`);
+    const has = (marker: string) => job.listing.description.includes(marker);
+    progress('version');
+    await sleep(300);
+    if (has('MOCK_NO_APP_RECORD')) return { ok: false, error: 'no_app_record' };
+    if (has('MOCK_LOCKED')) return { ok: false, error: 'locked' };
+    progress('texts');
+    await sleep(300);
+    if (has('MOCK_REJECTED')) return { ok: false, error: 'rejected', detail: 'The app name is already being used.' };
+    progress('screenshots');
+    await sleep(200 * job.screenshots.length);
+    progress('build');
+    await sleep(200);
+    return { ok: true, attached: job.build ? (has('MOCK_PROCESSING') ? 'processing' : 'attached') : 'none' };
+  }
+
+  /** Only the App Store kind exists here: the drawn placeholder screen, so the flow can be tried. */
+  async screenshot(projectId: string, opts: { store?: boolean } = {}): Promise<{ mime: string; data: Buffer }> {
+    const s = this.sessions.get(projectId);
+    if (!opts.store || !s) throw new Error('Screenshots are not available in the mock driver.');
+    return { mime: 'image/svg+xml', data: Buffer.from(this.svg(s)) };
   }
 
   input(projectId: string, event: InputEvent): void {
@@ -105,13 +126,16 @@ export class MockDriver implements Driver {
 
   private draw(projectId: string): void {
     const s = this.sessions.get(projectId);
-    if (!s) return;
+    if (s) this.emit.frame(projectId, Buffer.from(this.svg(s)));
+  }
+
+  private svg(s: MockSession): string {
     const W = 393;
     const H = 852;
     const taps = s.taps
       .map((t, i) => `<circle cx="${(t.x * W).toFixed(1)}" cy="${(t.y * H).toFixed(1)}" r="${14 + i * 2}" fill="#ff7a1a" fill-opacity="${0.15 + i * 0.12}"/>`)
       .join('');
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="-apple-system, Helvetica, Arial, sans-serif">
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="-apple-system, Helvetica, Arial, sans-serif">
   <rect width="${W}" height="${H}" fill="#f2f2f7"/>
   <text x="32" y="38" font-size="15" font-weight="600" fill="#111">9:41</text>
   <text x="24" y="120" font-size="34" font-weight="700" fill="#111">${escapeXml(s.appName)}</text>
@@ -123,6 +147,5 @@ export class MockDriver implements Driver {
   ${taps}
   <rect x="${W / 2 - 67}" y="${H - 14}" width="134" height="5" rx="2.5" fill="#111"/>
 </svg>`;
-    this.emit.frame(projectId, Buffer.from(svg));
   }
 }

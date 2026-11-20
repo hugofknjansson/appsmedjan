@@ -267,10 +267,40 @@ simulatorer, och servern skickar förhandsvisningarna till de andra arbetarna.
 
 Mot Apple med en riktig nyckel är det här kört: registrering av bundle-id, signering och en uppladdning
 som gick hela vägen till TestFlight. Väntan på att appen skapas och det automatiska tillägget av testare
-är provade mot låtsasarbetaren och enhetstestade, och läsanropen de bygger på är prövade mot Apple, men
-själva tillägget av testgrupp och testare har **inte körts mot Apple**. Räkna med justeringar där, och i
+är provade mot låtsasarbetaren och enhetstestade. Tillägget av testare har gått igenom mot Apple utan
+fel vid en riktig uppladdning, men loggen visar inte om det då skapade en ny testgrupp eller använde en
+som redan fanns, så den grenen kan vara oprövad. Räkna med justeringar där, och i
 hur fel från `xcodebuild` tolkas (`classifyPublishFailure` i `worker/src/publish.ts`); arbetarens logg
 visar alltid verktygens egna felutskrifter.
+
+### Appens sida i App Store
+
+Knappen **App Store** i ett projekt öppnar en guide som förbereder det som syns i butiken och skickar
+det till App Store Connect, till samma konto som TestFlight-uppladdningarna går till:
+
+- **Texter**: namn, underrubrik, kampanjtext, beskrivning, sökord, kategori och länkar, med Apples
+  teckengränser. "Föreslå texter från appen" låter Claude skriva ett förslag utifrån appens kod, på
+  appens eget språk. Förslaget sparas inte förrän personen har läst det och tryckt Spara.
+- **Skärmbilder**: knappen "App Store-bild" under förhandsvisningen sparar det som visas just då.
+  Bilden tas i simulatorn och skalas till storleken Apple kräver för den största iPhonen
+  (1320 × 2868), så ingen större simulator behöver köras. Högst tio.
+- **Ikon**: en egen PNG på 1024 × 1024 används från nästa TestFlight-uppladdning. Genomskinlighet
+  fylls med vitt, eftersom Apple inte godkänner den.
+- **Skicka**: arbetaren som har kontots nyckel fyller i versionens texter på appens primära språk,
+  byter ut skärmbilderna, sätter kategorin och väljer det senast uppladdade bygget.
+
+Inget skickas in för granskning härifrån. Det som Apple inte har något API för, eller som den som
+äger kontot själv måste stå för, görs i App Store Connect: integritetsfrågorna, åldersgräns, pris,
+kontaktuppgifter för granskningen och själva inskicket. Guiden listar de stegen.
+
+Begränsningar i den här versionen: bara appens primära språk, bara en första version (en app som
+redan är släppt eller granskas lämnas orörd), och bara iPhone-skärmbilder.
+
+Anropen mot App Store Connect för butikssidan är skrivna mot Apples dokumentation och enhetstestade
+mot en ersättare, men har **inte körts mot Apple**. Textförslaget, skärmbilden i rätt storlek och
+ikonen är körda på riktigt; flödet i webbläsaren är kört mot låtsasarbetaren. Räkna med justeringar
+första gången en sida skickas, troligast i hur skärmbilderna laddas upp. iPhone-klienten har inte
+den här guiden.
 
 ### Användarens eget Apple-konto
 
@@ -361,12 +391,13 @@ eller motsvarande).
 
 ### Vad som inte är testat
 
-Koden i `worker/src/xcode.ts`, `stream.ts` (delen som pratar med `idb` och `simctl`) har **inte körts på
-en riktig Mac**. Den är skriven mot dokumenterade kommandon i `xcodebuild`, `xcrun simctl`, XcodeGen och
-`idb`, och hjälpfunktionerna är enhetstestade, men räkna med justeringar första gången den körs.
-Troligaste ställena: flaggorna till `idb video-stream` (arbetaren faller automatiskt tillbaka på
-skärmbilder om strömmen inte ger bilder), och hur fel plockas ur `xcodebuild`-utskriften.
-Agenten har inte heller körts mot det riktiga Claude-API:t, bara mot ersättaren.
+Bygge, simulator, bildström, tryck och text samt uppladdning till TestFlight är körda på riktiga Macar,
+både en egen och en hyrd (se "Hyrda Macar"). Det här är **inte kört på riktigt**:
+
+- Att skicka appens sida till App Store Connect (se "Appens sida i App Store").
+- Uppladdning med en användares eget kopplade Apple-konto.
+- `scripts/e2e.mjs` (Playwright är inte installerat här).
+- En omstart av den hyrda Macen.
 
 ## Säkerhet
 

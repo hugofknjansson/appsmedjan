@@ -1,3 +1,5 @@
+import type { StoreListing, StoreState } from '../../shared/protocol';
+
 export interface User {
   id: string;
   email: string;
@@ -27,10 +29,12 @@ export class ApiError extends Error {
 async function call<T>(method: string, url: string, body?: unknown): Promise<T> {
   let res: Response;
   try {
+    // A file goes as it is (the app icon); everything else is JSON.
+    const file = body instanceof Blob;
     res = await fetch(url, {
       method,
-      headers: body === undefined ? undefined : { 'content-type': 'application/json' },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: body === undefined ? undefined : { 'content-type': file ? 'image/png' : 'application/json' },
+      body: body === undefined ? undefined : file ? body : JSON.stringify(body),
       credentials: 'same-origin',
     });
   } catch {
@@ -60,4 +64,12 @@ export const api = {
     call<AppleStatus>('PUT', '/api/apple-account', body),
   disconnectApple: () => call<AppleStatus>('DELETE', '/api/apple-account'),
   testflight: (id: string) => call<{ ok: true }>('POST', `/api/projects/${id}/testflight`, {}),
+  store: (id: string) => call<StoreState>('GET', `/api/projects/${id}/store`),
+  saveListing: (id: string, listing: StoreListing) => call<StoreState>('PUT', `/api/projects/${id}/store/listing`, listing),
+  draftListing: (id: string) => call<{ draft: Partial<StoreListing> }>('POST', `/api/projects/${id}/store/draft`, {}),
+  captureScreenshot: (id: string) => call<StoreState>('POST', `/api/projects/${id}/store/screenshots`, {}),
+  deleteScreenshot: (id: string, shot: string) => call<StoreState>('DELETE', `/api/projects/${id}/store/screenshots/${shot}`),
+  uploadIcon: (id: string, file: Blob) => call<StoreState>('PUT', `/api/projects/${id}/store/icon`, file),
+  deleteIcon: (id: string) => call<StoreState>('DELETE', `/api/projects/${id}/store/icon`),
+  syncStore: (id: string) => call<StoreState>('POST', `/api/projects/${id}/store/sync`, {}),
 };

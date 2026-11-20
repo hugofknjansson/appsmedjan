@@ -5,7 +5,7 @@
  * about. Workers on rented Macs are updated separately from the server; the server says so in its
  * log when one of them is behind (or ahead).
  */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 // ---------------------------------------------------------------------------
 // Project files
@@ -151,6 +151,150 @@ export function buildNumberFor(date: Date): string {
 }
 
 // ---------------------------------------------------------------------------
+// App Store page
+// ---------------------------------------------------------------------------
+
+/** The texts and links of the app's page on the App Store. They go into the app's primary language. */
+export interface StoreListing {
+  name: string;
+  subtitle: string;
+  /** A short line above the description that can be changed without a new version. */
+  promo: string;
+  description: string;
+  /** Comma-separated search words. */
+  keywords: string;
+  supportUrl: string;
+  marketingUrl: string;
+  privacyUrl: string;
+  /** One of STORE_CATEGORIES, or empty for "not chosen". */
+  category: string;
+}
+
+export const EMPTY_LISTING: StoreListing = {
+  name: '',
+  subtitle: '',
+  promo: '',
+  description: '',
+  keywords: '',
+  supportUrl: '',
+  marketingUrl: '',
+  privacyUrl: '',
+  category: '',
+};
+
+/** Apple's own limits, in characters. */
+export const STORE_LIMITS = { name: 30, subtitle: 30, promo: 170, description: 4000, keywords: 100 } as const;
+
+/** Apple's ids for the primary category of an app (games have their own tree and are left out). */
+export const STORE_CATEGORIES = [
+  'BOOKS',
+  'BUSINESS',
+  'DEVELOPER_TOOLS',
+  'EDUCATION',
+  'ENTERTAINMENT',
+  'FINANCE',
+  'FOOD_AND_DRINK',
+  'GRAPHICS_AND_DESIGN',
+  'HEALTH_AND_FITNESS',
+  'LIFESTYLE',
+  'MEDICAL',
+  'MUSIC',
+  'NAVIGATION',
+  'NEWS',
+  'PHOTO_AND_VIDEO',
+  'PRODUCTIVITY',
+  'REFERENCE',
+  'SHOPPING',
+  'SOCIAL_NETWORKING',
+  'SPORTS',
+  'TRAVEL',
+  'UTILITIES',
+  'WEATHER',
+] as const;
+
+/**
+ * Screenshots are stored in the size Apple asks for on the largest iPhone (the "6.9 inch" slot);
+ * the App Store scales them down for smaller phones.
+ */
+export const STORE_SHOT = { width: 1320, height: 2868, min: 1, max: 10 } as const;
+export const STORE_ICON_SIZE = 1024;
+
+export type ListingProblem =
+  | 'name_missing'
+  | 'name_long'
+  | 'subtitle_long'
+  | 'promo_long'
+  | 'description_missing'
+  | 'description_long'
+  | 'keywords_missing'
+  | 'keywords_long'
+  | 'support_url'
+  | 'marketing_url'
+  | 'privacy_url'
+  | 'category'
+  | 'screenshots';
+
+const isWebUrl = (s: string) => /^https:\/\/[^\s/]+\.[^\s]+$/.test(s) && s.length <= 255;
+
+/** What stops the page from being sent to App Store Connect. Empty when it is ready. */
+export function listingProblems(listing: StoreListing, screenshots: number): ListingProblem[] {
+  const out: ListingProblem[] = [];
+  // Apple counts characters the way people do, not UTF-16 units.
+  const len = (s: string) => [...s].length;
+  if (len(listing.name.trim()) < 2) out.push('name_missing');
+  if (len(listing.name) > STORE_LIMITS.name) out.push('name_long');
+  if (len(listing.subtitle) > STORE_LIMITS.subtitle) out.push('subtitle_long');
+  if (len(listing.promo) > STORE_LIMITS.promo) out.push('promo_long');
+  if (len(listing.description.trim()) < 10) out.push('description_missing');
+  if (len(listing.description) > STORE_LIMITS.description) out.push('description_long');
+  if (!listing.keywords.trim()) out.push('keywords_missing');
+  if (len(listing.keywords) > STORE_LIMITS.keywords) out.push('keywords_long');
+  // Apple requires a support address and, for every app, a privacy policy.
+  if (!isWebUrl(listing.supportUrl)) out.push('support_url');
+  if (listing.marketingUrl && !isWebUrl(listing.marketingUrl)) out.push('marketing_url');
+  if (!isWebUrl(listing.privacyUrl)) out.push('privacy_url');
+  if (!(STORE_CATEGORIES as readonly string[]).includes(listing.category)) out.push('category');
+  if (screenshots < STORE_SHOT.min) out.push('screenshots');
+  return out;
+}
+
+export type StoreSyncStage = 'queued' | 'version' | 'texts' | 'screenshots' | 'build';
+
+/**
+ * no_app_record: the app does not exist in App Store Connect yet (send it to TestFlight first).
+ * locked: the version is in review or already released, so its page cannot be changed here.
+ * rejected: Apple did not accept something on the page; `detail` holds Apple's own words.
+ */
+export type StoreSyncError = 'no_app_record' | 'auth' | 'locked' | 'rejected' | 'unavailable' | 'internal';
+
+/** attached: the latest upload is selected for the version. processing: Apple is still working on it. */
+export type StoreBuild = 'attached' | 'processing' | 'none';
+
+export interface StoreState {
+  listing: StoreListing;
+  /** Ids of the saved screenshots, in the order they are shown on the App Store. */
+  screenshots: string[];
+  hasIcon: boolean;
+  /** Whether a screenshot can be taken right now (the app is running in a simulator). */
+  canCapture: boolean;
+  /** Whether the page can be sent to App Store Connect right now, and to whose account. */
+  available: boolean;
+  account: PublishState['account'];
+  problems: ListingProblem[];
+  /** Build number of the latest successful TestFlight upload, if any. */
+  build?: string;
+  sync: {
+    status: 'idle' | 'working' | 'done' | 'failed';
+    stage?: StoreSyncStage;
+    error?: StoreSyncError;
+    /** Apple's explanation when it rejected something. */
+    detail?: string;
+    attached?: StoreBuild;
+    at?: number;
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Browser <-> server (JSON text frames; simulator frames arrive as binary)
 // ---------------------------------------------------------------------------
 
@@ -201,8 +345,23 @@ export type ServerToWorker =
       files: Record<string, string>;
       /** Present when the upload goes to the person's own account; otherwise the worker uses its own key. */
       account?: AppleAccount;
+      /** The person's own app icon as a base64 PNG; without it a placeholder is drawn. */
+      icon?: string;
     }
-  | { type: 'screenshot'; jobId: string; projectId: string }
+  | {
+      type: 'store';
+      jobId: string;
+      projectId: string;
+      bundleId: string;
+      listing: StoreListing;
+      /** Base64 JPEGs in App Store size, in display order. */
+      screenshots: string[];
+      /** Build number to select for the version, when one has been uploaded. */
+      build?: string;
+      account?: AppleAccount;
+    }
+  /** `store`: a full-size picture for the App Store page instead of a small one for the agent. */
+  | { type: 'screenshot'; jobId: string; projectId: string; store?: boolean }
   | { type: 'input'; projectId: string; event: InputEvent }
   | { type: 'viewers'; projectId: string; count: number }
   | { type: 'release'; projectId: string };
@@ -238,6 +397,8 @@ export type WorkerToServer =
       tester?: PublishTester;
       durationMs: number;
     }
+  | { type: 'store.progress'; jobId: string; stage: StoreSyncStage }
+  | { type: 'store.result'; jobId: string; ok: boolean; error?: StoreSyncError; detail?: string; attached?: StoreBuild }
   | { type: 'screenshot.result'; jobId: string; ok: boolean; mime?: string; data?: string; error?: string }
   | { type: 'stream.info'; projectId: string; mime: string }
   | { type: 'sim.stopped'; projectId: string };

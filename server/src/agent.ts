@@ -30,7 +30,7 @@ const SNAPSHOT_CHAR_BUDGET = 300_000;
 const HISTORY_MESSAGES = 30;
 
 let client: Anthropic | null = null;
-function anthropic(): Anthropic {
+export function anthropic(): Anthropic {
   client ??= new Anthropic();
   return client;
 }

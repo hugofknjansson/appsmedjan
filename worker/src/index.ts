@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import WebSocket from 'ws';
 import { keepAlive } from '../../shared/keepalive';
 import { PROTOCOL_VERSION, encodeFrame, type ServerToWorker, type WorkerToServer } from '../../shared/protocol';
-import type { Driver, Emit, PublishResult } from './driver';
+import type { Driver, Emit, PublishResult, StoreResult } from './driver';
 import { MockDriver } from './mock';
 import { XcodeDriver } from './xcode';
 
@@ -101,9 +101,23 @@ async function handle(msg: ServerToWorker): Promise<void> {
       });
       break;
     }
+    case 'store': {
+      const started = Date.now();
+      let result: StoreResult;
+      try {
+        result = await driver.store(msg, (stage) => send({ type: 'store.progress', jobId: msg.jobId, stage }));
+      } catch (err) {
+        result = { ok: false, error: 'internal', detail: (err as Error).message };
+      }
+      console.log(
+        `[worker] App Store page ${msg.projectId}: ${result.ok ? `sent, build ${result.attached}` : `failed, ${result.error}`} in ${((Date.now() - started) / 1000).toFixed(1)}s`,
+      );
+      send({ type: 'store.result', jobId: msg.jobId, ok: result.ok, error: result.error, detail: result.detail, attached: result.attached });
+      break;
+    }
     case 'screenshot':
       try {
-        const shot = await driver.screenshot(msg.projectId);
+        const shot = await driver.screenshot(msg.projectId, { store: msg.store === true });
         send({ type: 'screenshot.result', jobId: msg.jobId, ok: true, mime: shot.mime, data: shot.data.toString('base64') });
       } catch (err) {
         send({ type: 'screenshot.result', jobId: msg.jobId, ok: false, error: (err as Error).message });

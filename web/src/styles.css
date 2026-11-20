@@ -344,6 +344,10 @@ textarea {
   flex: none;
 }
 
+.publish-btn + .publish-btn {
+  margin-left: 0;
+}
+
 .publish-btn + .topbar-right {
   margin-left: 0;
 }
@@ -389,6 +393,8 @@ textarea {
 .sheet-head {
   position: sticky;
   top: 0;
+  /* Above the form's own positioned parts, which otherwise show through while scrolling. */
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -488,6 +494,125 @@ textarea {
 
 .fine {
   font-size: 0.85rem;
+}
+
+/* --- App Store page ------------------------------------------------------------- */
+
+.sheet.wide {
+  width: min(680px, calc(100vw - 32px));
+}
+
+.guide-form textarea,
+.guide-form select {
+  width: 100%;
+  font-weight: 400;
+}
+
+.guide-form select {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: inherit;
+  font: inherit;
+}
+
+.guide-form textarea {
+  resize: vertical;
+  min-height: 140px;
+}
+
+.guide-form label > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.counter {
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.counter[data-over='true'] {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.shots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.shots li {
+  position: relative;
+}
+
+.shots img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1320 / 2868;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--sunken);
+}
+
+.shots .btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 28px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  line-height: 1.3;
+}
+
+.icon-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.icon-preview {
+  width: 72px;
+  height: 72px;
+  flex: none;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--sunken);
+  object-fit: cover;
+}
+
+.icon-preview.empty {
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  font-size: 0.68rem;
+  text-align: center;
+  color: var(--muted);
+}
+
+.plain-list {
+  margin: 6px 0 0;
+  padding-left: 20px;
+  list-style: disc;
+  display: grid;
+  gap: 4px;
+}
+
+.phone-note {
+  font-size: 0.82rem;
+  text-align: center;
+  max-width: 320px;
 }
 
 /* --- Dashboard ----------------------------------------------------------------- */
