@@ -171,6 +171,16 @@
         }
       }
     },
+    "Appen gick inte att bygga. Be om en rättning i chatten och försök igen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app could not be built. Ask for a fix in the chat and try again."
+          }
+        }
+      }
+    },
     "Appen går inte att bygga just nu. Be om en rättning i chatten och försök igen.": {
       "localizations": {
         "en": {
@@ -351,6 +361,16 @@
         }
       }
     },
+    "Apple godkände inte nyckeln till utvecklarkontot.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple did not accept the key to the developer account."
+          }
+        }
+      }
+    },
     "Apple godkände inte nyckeln. Kontrollera App Store Connect-nyckeln.": {
       "localizations": {
         "en": {
@@ -397,6 +417,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Apple has sent an invitation to %@. Open the email and accept. The app then reaches TestFlight within a few minutes."
+          }
+        }
+      }
+    },
+    "Apple har tagit emot telefonen men släpper inte in den i appar än. Det kan ta upp till tre dygn i ett nytt konto. Försök igen senare.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple has taken the phone in but does not let it into apps yet. That can take up to three days in a new account. Try again later."
           }
         }
       }
@@ -561,6 +591,26 @@
         }
       }
     },
+    "Bygg en ny version": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Build a new version"
+          }
+        }
+      }
+    },
+    "Bygg för den här telefonen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Build for this phone"
+          }
+        }
+      }
+    },
     "Bygg min app": {
       "localizations": {
         "en": {
@@ -701,6 +751,16 @@
         }
       }
     },
+    "Det gick inte att bygga appen för telefonen. Försök igen om en stund.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app could not be built for the phone. Try again in a moment."
+          }
+        }
+      }
+    },
     "Det gick inte att nå Apple just nu. Försök igen om en stund.": {
       "localizations": {
         "en": {
@@ -811,6 +871,16 @@
         }
       }
     },
+    "Det tar ett par minuter att bygga appen för telefonen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It takes a couple of minutes to build the app for the phone."
+          }
+        }
+      }
+    },
     "Det är många som bygger just nu. Vänta en liten stund och försök igen.": {
       "localizations": {
         "en": {
@@ -847,6 +917,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Your apps are uploaded to your own account and published in your name."
+          }
+        }
+      }
+    },
+    "Direkt på telefonen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Straight onto the phone"
           }
         }
       }
@@ -1541,6 +1621,16 @@
         }
       }
     },
+    "Ingen byggserver som kan signera är ansluten just nu.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No build server that can sign is connected right now."
+          }
+        }
+      }
+    },
     "Ingen byggserver är ansluten, så förhandsvisningen är avstängd just nu.": {
       "localizations": {
         "en": {
@@ -1571,6 +1661,16 @@
         }
       }
     },
+    "Installation direkt på telefonen är inte påslagen för ditt konto.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installing straight onto the phone is not turned on for your account."
+          }
+        }
+      }
+    },
     "Installation på telefonen är inte påslagen för ditt konto. Hör av dig till den som driver tjänsten.": {
       "localizations": {
         "en": {
@@ -1587,6 +1687,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Install the app"
+          }
+        }
+      }
+    },
+    "Installera på den här telefonen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install on this phone"
           }
         }
       }
@@ -1941,6 +2051,46 @@
         }
       }
     },
+    "Lägg till den här telefonen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add this phone"
+          }
+        }
+      }
+    },
+    "Lägg till din telefon först.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add your phone first."
+          }
+        }
+      }
+    },
+    "Lägg till en telefon till": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add another phone"
+          }
+        }
+      }
+    },
+    "Lägg till telefonen en gång. Sedan byggs appen för just den och installeras med ett tryck, utan TestFlight.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add the phone once. After that the app is built for this very phone and installs with one tap, without TestFlight."
+          }
+        }
+      }
+    },
     "Läser %@": {
       "localizations": {
         "en": {
@@ -2211,6 +2361,16 @@
         }
       }
     },
+    "Safari öppnas med stegen. Telefonen lämnar bara sitt id, och ingenting blir kvar på den.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Safari opens with the steps. The phone only hands over its identifier, and nothing stays on it."
+          }
+        }
+      }
+    },
     "Shopping": {
       "localizations": {
         "en": {
@@ -2227,6 +2387,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pages"
+          }
+        }
+      }
+    },
+    "Signerar för din telefon": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signing for your phone"
+          }
+        }
+      }
+    },
+    "Signeringen misslyckades. Den som driver tjänsten har fått veta varför.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signing failed. Whoever runs the service has been told why."
           }
         }
       }
@@ -2801,6 +2981,16 @@
         }
       }
     },
+    "Utvecklarkontot har inte plats för fler telefoner i år. Hör av dig till den som driver tjänsten.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The developer account has no room for more phones this year. Get in touch with whoever runs the service."
+          }
+        }
+      }
+    },
     "Utvecklarverktyg": {
       "localizations": {
         "en": {
@@ -2857,6 +3047,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Version %@ is uploaded. Add yourself as a tester under TestFlight in App Store Connect, and it shows up in the TestFlight app."
+          }
+        }
+      }
+    },
+    "Via TestFlight": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Through TestFlight"
           }
         }
       }
@@ -3037,6 +3237,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "a part of the app"
+          }
+        }
+      }
+    },
+    "iOS frågar om du vill installera. Första gången ber appen dig slå på Utvecklarläge under Inställningar, Integritet och säkerhet.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOS asks whether you want to install. The first time, the app asks you to turn on Developer Mode under Settings, Privacy & Security."
           }
         }
       }

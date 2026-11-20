@@ -10,10 +10,15 @@
   --accent-soft: #fbe6d8;
   --danger: #b42318;
   --ok: #2f7d4f;
-  --radius: 14px;
+  /* The logo's background: light orange at the top left, deep orange at the bottom right. */
+  --grad: linear-gradient(135deg, #f57a24, #c74005);
+  --radius: 18px;
   --shadow: 0 1px 2px rgb(40 30 20 / 6%), 0 8px 24px rgb(40 30 20 / 7%);
+  /* How a control springs back when it is let go. */
+  --bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   color-scheme: light dark;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* The rounded system face where there is one (Apple's devices), the plain one elsewhere. */
+  font-family: ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 16px;
   line-height: 1.5;
 }
@@ -61,7 +66,7 @@ h2 {
 
 h1 {
   font-size: clamp(2rem, 5vw, 3rem);
-  font-weight: 700;
+  font-weight: 800;
   text-wrap: balance;
 }
 
@@ -108,6 +113,22 @@ textarea {
   white-space: nowrap;
 }
 
+/* Controls give a little when pressed and spring back. */
+@media (prefers-reduced-motion: no-preference) {
+  .btn,
+  .chip,
+  .tabs button,
+  .app-icon {
+    transition: transform 0.25s var(--bounce);
+  }
+
+  .btn:active:not(:disabled),
+  .chip:active {
+    transform: scale(0.95);
+    transition-duration: 0.08s;
+  }
+}
+
 .btn:hover:not(:disabled) {
   border-color: var(--muted);
 }
@@ -118,14 +139,14 @@ textarea {
 }
 
 .btn.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-ink);
+  background: var(--grad);
+  border-color: transparent;
+  color: #fff;
 }
 
 .btn.primary:hover:not(:disabled) {
   filter: brightness(1.06);
-  border-color: var(--accent);
+  border-color: transparent;
 }
 
 .btn.ghost {
@@ -158,9 +179,9 @@ textarea {
 input,
 textarea {
   width: 100%;
-  padding: 10px 12px;
+  padding: 11px 14px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 14px;
   background: var(--surface);
 }
 
@@ -171,8 +192,8 @@ textarea {
 
 .form-error,
 .notice {
-  padding: 10px 12px;
-  border-radius: 10px;
+  padding: 10px 14px;
+  border-radius: 14px;
   font-size: 0.92rem;
 }
 
@@ -189,23 +210,58 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  font-weight: 700;
+  white-space: nowrap;
+  font-weight: 800;
   font-size: 1.35rem;
   letter-spacing: -0.02em;
 }
 
-.logo svg {
+.logo .mascot-badge {
   width: 34px;
-  height: 34px;
 }
 
 .logo.small {
   font-size: 1.05rem;
 }
 
-.logo.small svg {
+.logo.small .mascot-badge {
   width: 26px;
-  height: 26px;
+}
+
+/* --- The mascot ------------------------------------------------------------------ */
+
+.mascot {
+  display: block;
+  aspect-ratio: 1;
+}
+
+.mascot.big {
+  width: 120px;
+}
+
+.mascot-badge {
+  flex: none;
+  display: block;
+  aspect-ratio: 1;
+  border-radius: 28%;
+  background: var(--grad);
+}
+
+.mascot-badge .mascot {
+  width: 100%;
+}
+
+/* The mascot with a line or two under it: nothing to show yet. */
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 20px 16px 8px;
+  text-align: center;
+}
+
+.empty .mascot {
+  width: 110px;
 }
 
 .spinner {
@@ -242,16 +298,38 @@ textarea {
   width: min(400px, 100%);
   display: grid;
   gap: 14px;
-  padding: 28px;
+  padding: 0 28px 28px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: 32px;
   box-shadow: var(--shadow);
+  overflow: hidden;
 }
 
-.auth-tagline {
-  color: var(--muted);
-  margin-bottom: 6px;
+/* The orange top of the card, with the mascot dancing in it. */
+.auth-hero {
+  margin: 0 -28px 8px;
+  padding: 22px 24px 26px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  border-radius: 0 0 32px 32px;
+  background: var(--grad);
+  color: #fff;
+  text-align: center;
+}
+
+.auth-hero .mascot {
+  width: 150px;
+}
+
+.auth-hero h1 {
+  font-size: 2.2rem;
+}
+
+.auth-hero p {
+  font-weight: 500;
+  opacity: 0.92;
 }
 
 .auth-card label {
@@ -329,9 +407,8 @@ textarea {
 }
 
 .tabs button[aria-selected='true'] {
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 12%);
+  background: var(--grad);
+  color: #fff;
 }
 
 .only-narrow {
@@ -452,6 +529,44 @@ textarea {
   color: var(--accent);
   font-weight: 700;
   font-size: 0.9rem;
+}
+
+/* The fast way onto the phone, set apart at the top of the dialog. */
+.direct {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 22px;
+  background: var(--accent-soft);
+}
+
+.direct > h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.direct .guide > li::before {
+  background: var(--surface);
+}
+
+.direct .guide > li[data-done='true']::before {
+  content: '✓';
+  background: var(--ok);
+  color: #fff;
+}
+
+.direct .working .mascot {
+  width: 44px;
+}
+
+.other-ways {
+  margin: 4px 0 -6px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
 }
 
 .guide h3 {
@@ -707,9 +822,59 @@ ol.plain-list {
   gap: 48px;
 }
 
+/* The orange card that asks what to build, with the mascot in its corner. */
 .hero {
   display: grid;
   gap: 16px;
+  padding: 28px;
+  border-radius: 32px;
+  background: var(--grad);
+  color: #fff;
+}
+
+.hero-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.hero-head p {
+  margin-top: 8px;
+  font-weight: 500;
+  opacity: 0.92;
+}
+
+.hero-head .mascot {
+  flex: none;
+  width: 116px;
+}
+
+.hero .composer {
+  border-color: transparent;
+  color: var(--ink);
+}
+
+.hero .notice {
+  background: rgb(255 255 255 / 20%);
+}
+
+.hero .form-error {
+  background: #fff;
+  color: #b42318;
+}
+
+.hero .chip {
+  border-color: transparent;
+  background: rgb(255 255 255 / 22%);
+  color: #fff;
+  font-weight: 600;
+}
+
+.hero .chip:hover {
+  background: rgb(255 255 255 / 34%);
+  border-color: transparent;
+  color: #fff;
 }
 
 .composer {
@@ -718,7 +883,7 @@ ol.plain-list {
   padding: 10px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: 22px;
 }
 
 .composer:focus-within {
@@ -804,17 +969,49 @@ ol.plain-list {
   color: var(--accent);
 }
 
+/* A tilted tile in a colour of the app's own, like the mascot's body. It straightens up when pointed at. */
 .app-icon {
+  --tile: #ed6b1a;
   flex: none;
-  width: 44px;
-  height: 44px;
+  width: 46px;
+  height: 46px;
+  margin: 2px 4px;
   display: grid;
   place-items: center;
-  border-radius: 11px;
-  background: linear-gradient(145deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #7a1d00));
+  border-radius: 13px;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--tile) 78%, #fff), var(--tile));
   color: #fff;
-  font-weight: 700;
-  font-size: 1.2rem;
+  font-weight: 800;
+  font-size: 1.25rem;
+  transform: rotate(-7deg);
+}
+
+.app-icon[data-tilt='right'] {
+  transform: rotate(7deg);
+}
+
+.app-card:hover .app-icon {
+  transform: rotate(0deg) scale(1.08);
+}
+
+.app-icon[data-color='1'] {
+  --tile: #e34578;
+}
+
+.app-icon[data-color='2'] {
+  --tile: #8c5cde;
+}
+
+.app-icon[data-color='3'] {
+  --tile: #29999e;
+}
+
+.app-icon[data-color='4'] {
+  --tile: #3880e6;
+}
+
+.app-icon[data-color='5'] {
+  --tile: #4fa654;
 }
 
 .app-meta {
@@ -871,14 +1068,24 @@ ol.plain-list {
 .msg.user {
   align-self: flex-end;
   max-width: 88%;
-  padding: 10px 14px;
-  border-radius: 18px 18px 4px 18px;
-  background: var(--accent-soft);
+  padding: 10px 15px;
+  border-radius: 20px 20px 6px 20px;
+  background: var(--grad);
+  color: #fff;
 }
 
 .msg.assistant {
   display: grid;
   gap: 10px;
+}
+
+/* What the builder says, in a bubble of its own. */
+.bubble {
+  justify-self: start;
+  max-width: 94%;
+  padding: 10px 15px;
+  border-radius: 20px 20px 20px 6px;
+  background: var(--surface);
 }
 
 .steps {
@@ -935,40 +1142,14 @@ ol.plain-list {
 .working {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   font-size: 0.9rem;
+  font-weight: 600;
   color: var(--muted);
 }
 
-.dots {
-  display: inline-flex;
-  gap: 3px;
-}
-
-.dots i {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--accent);
-  animation: pulse 1.2s ease-in-out infinite;
-}
-
-.dots i:nth-child(2) {
-  animation-delay: 0.15s;
-}
-
-.dots i:nth-child(3) {
-  animation-delay: 0.3s;
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 0.25;
-  }
-  50% {
-    opacity: 1;
-  }
+.working .mascot-badge {
+  width: 36px;
 }
 
 .stage-pane {
@@ -1044,6 +1225,14 @@ ol.plain-list {
   gap: 12px;
   padding: 24px;
   text-align: center;
+}
+
+.phone-cover .mascot {
+  width: 110px;
+}
+
+.phone-pill .mascot-badge {
+  width: 22px;
 }
 
 .phone-cover span:not(.spinner) {
@@ -1142,8 +1331,17 @@ ol.plain-list {
   }
 
   .dash {
-    padding-top: 28px;
+    padding-top: 20px;
     gap: 36px;
+  }
+
+  .hero {
+    padding: 20px;
+    border-radius: 28px;
+  }
+
+  .hero-head .mascot {
+    width: 84px;
   }
 
   .project .topbar {
@@ -1204,7 +1402,6 @@ ol.plain-list {
 
 @media (prefers-reduced-motion: reduce) {
   .spinner,
-  .dots i,
   .steps li[data-status='running'] .step-mark {
     animation-duration: 2.4s;
   }

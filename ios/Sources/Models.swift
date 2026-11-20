@@ -168,8 +168,32 @@ nonisolated struct PublishState: Decodable, Equatable {
   var fast: FastTrack?
   /// True when the signed-in person runs the service, and so creates apps in App Store Connect.
   var `operator`: Bool?
+  /// Installing straight onto the person's own phone. Missing from servers before it existed.
+  var direct: DirectInstall?
 
   static let none = PublishState(available: false, account: .none, canConnect: false, status: .idle)
+}
+
+/// Straight onto the phone, without TestFlight: the person adds their phone once, and after that
+/// every build is signed for it and installed from a link.
+nonisolated struct DirectInstall: Decodable, Equatable {
+  nonisolated enum Status: String, LenientEnum {
+    case idle, working, ready, failed
+    static let fallback = Status.idle
+  }
+
+  var available: Bool
+  /// How many phones the person has added, and how many they may add.
+  var phones: Int
+  var maxPhones: Int
+  var status: Status
+  var stage: String?
+  var error: String?
+  /// Path of the page with the install button, once a build is ready.
+  var path: String?
+
+  /// Whether there is anything to show: the server offers it, or the person has used it before.
+  var isShown: Bool { available || phones > 0 || status != .idle }
 }
 
 /// A public TestFlight link: anyone who opens it can install the app, without a developer account.

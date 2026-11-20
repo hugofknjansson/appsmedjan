@@ -11,6 +11,7 @@ import {
   type TesterPerson,
 } from '../../shared/protocol';
 import { ApiError, api } from './api';
+import { DirectInstallSteps } from './Direct';
 import { apiErrorText, t } from './i18n';
 
 const TESTFLIGHT_APP = 'https://apps.apple.com/app/testflight/id899247664';
@@ -120,6 +121,12 @@ export function OnPhoneDialog({ id, publish, running, onClose, onConnect }: Prop
       </header>
 
       <div className="sheet-body">
+        {publish.direct && (publish.direct.available || publish.direct.phones > 0 || publish.direct.status !== 'idle') && (
+          <>
+            <DirectInstallSteps id={id} direct={publish.direct} running={running} />
+            <h3 className="other-ways">{t.phone.otherWays}</h3>
+          </>
+        )}
         <ol className="guide">
           <li>
             <h3>{t.phone.install}</h3>

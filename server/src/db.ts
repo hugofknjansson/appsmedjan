@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import {
+  type DirectError,
   DEFAULT_CHOICES,
   DEFAULT_PAGES,
   EMPTY_CONTACT,
@@ -119,6 +120,23 @@ db.exec(`
     error TEXT,
     detail TEXT,
     checked_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS phones (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    udid TEXT NOT NULL,
+    model TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    UNIQUE (user_id, udid)
+  );
+  CREATE TABLE IF NOT EXISTS direct_builds (
+    project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+    status TEXT NOT NULL,
+    error TEXT,
+    build TEXT NOT NULL,
+    token TEXT,
+    app_name TEXT NOT NULL,
     updated_at INTEGER NOT NULL
   );
   CREATE TABLE IF NOT EXISTS app_requests (
@@ -678,6 +696,78 @@ export function setFastTrack(
 }
 
 // --- Apps the operator has to create in App Store Connect ---------------------------
+
+// --- Straight onto the phone ----------------------------------------------------
+
+export interface PhoneRow {
+  id: string;
+  userId: string;
+  udid: string;
+  model: string;
+  createdAt: number;
+}
+
+const toPhone = (r: Record<string, unknown>): PhoneRow => ({
+  id: r.id as string,
+  userId: r.user_id as string,
+  udid: r.udid as string,
+  model: r.model as string,
+  createdAt: r.created_at as number,
+});
+
+export function listPhones(userId: string): PhoneRow[] {
+  const rows = db.prepare('SELECT * FROM phones WHERE user_id = ? ORDER BY created_at').all(userId) as unknown as Record<string, unknown>[];
+  return rows.map(toPhone);
+}
+
+/** Adds the phone to the person's own. Adding one they already have changes nothing. */
+export function addPhone(userId: string, udid: string, model: string): void {
+  db.prepare('INSERT OR IGNORE INTO phones (id, user_id, udid, model, created_at) VALUES (?, ?, ?, ?, ?)').run(randomId(12), userId, udid, model, Date.now());
+}
+
+export function deletePhone(userId: string, id: string): boolean {
+  return db.prepare('DELETE FROM phones WHERE user_id = ? AND id = ?').run(userId, id).changes > 0;
+}
+
+export interface DirectBuild {
+  projectId: string;
+  status: 'ready' | 'failed';
+  error: DirectError | null;
+  build: string;
+  /** The secret in the install link. A new build gets a new one, so an old link stops working. */
+  token: string | null;
+  appName: string;
+  updatedAt: number;
+}
+
+const toDirectBuild = (r: Record<string, unknown>): DirectBuild => ({
+  projectId: r.project_id as string,
+  status: r.status as DirectBuild['status'],
+  error: (r.error as DirectError | null) ?? null,
+  build: r.build as string,
+  token: (r.token as string | null) ?? null,
+  appName: r.app_name as string,
+  updatedAt: r.updated_at as number,
+});
+
+export function getDirectBuild(projectId: string): DirectBuild | null {
+  const row = db.prepare('SELECT * FROM direct_builds WHERE project_id = ?').get(projectId) as Record<string, unknown> | undefined;
+  return row ? toDirectBuild(row) : null;
+}
+
+export function directBuildByToken(token: string): DirectBuild | null {
+  const row = db.prepare("SELECT * FROM direct_builds WHERE token = ? AND status = 'ready'").get(token) as Record<string, unknown> | undefined;
+  return row ? toDirectBuild(row) : null;
+}
+
+export function setDirectBuild(projectId: string, outcome: Omit<DirectBuild, 'projectId' | 'updatedAt'>): void {
+  db.prepare(
+    `INSERT INTO direct_builds (project_id, status, error, build, token, app_name, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (project_id) DO UPDATE SET status = excluded.status, error = excluded.error, build = excluded.build,
+       token = excluded.token, app_name = excluded.app_name, updated_at = excluded.updated_at`,
+  ).run(projectId, outcome.status, outcome.error, outcome.build, outcome.token, outcome.appName, Date.now());
+}
+
 
 export function requestApp(projectId: string): void {
   db.prepare('INSERT OR IGNORE INTO app_requests (project_id, requested_at) VALUES (?, ?)').run(projectId, Date.now());

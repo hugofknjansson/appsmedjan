@@ -10,6 +10,8 @@ enum Texts {
     case "email_taken": String(localized: "Det finns redan ett konto med den e-postadressen.")
     case "invalid_credentials_format": String(localized: "Ange en giltig e-postadress och ett lösenord på minst 8 tecken.")
     case "bad_invite": String(localized: "Inbjudningskoden stämmer inte.")
+    case "direct_not_offered": String(localized: "Installation direkt på telefonen är inte påslagen för ditt konto.")
+    case "no_phones": String(localized: "Lägg till din telefon först.")
     case "too_many_attempts": String(localized: "För många försök. Vänta en stund och försök igen.")
     case "daily_limit": String(localized: "Du har nått dagens gräns för meddelanden. Välkommen tillbaka i morgon.")
     case "project_limit": String(localized: "Du har nått gränsen för antal appar. Ta bort en app för att skapa en ny.")
@@ -95,6 +97,28 @@ enum Texts {
     case "installing": String(localized: "Installerar")
     case "launching": String(localized: "Startar appen")
     default: String(localized: "Startar simulatorn")
+    }
+  }
+
+  static func directStage(_ stage: String?) -> String {
+    switch stage {
+    case "preparing": String(localized: "Förbereder")
+    case "archiving": String(localized: "Bygger appen")
+    case "signing": String(localized: "Signerar för din telefon")
+    default: String(localized: "Väntar på tur")
+    }
+  }
+
+  static func directError(_ code: String?) -> String {
+    switch code {
+    case "no_phones": String(localized: "Lägg till din telefon först.")
+    case "phone_processing": String(localized: "Apple har tagit emot telefonen men släpper inte in den i appar än. Det kan ta upp till tre dygn i ett nytt konto. Försök igen senare.")
+    case "phone_limit": String(localized: "Utvecklarkontot har inte plats för fler telefoner i år. Hör av dig till den som driver tjänsten.")
+    case "compile": String(localized: "Appen gick inte att bygga. Be om en rättning i chatten och försök igen.")
+    case "signing": String(localized: "Signeringen misslyckades. Den som driver tjänsten har fått veta varför.")
+    case "auth": String(localized: "Apple godkände inte nyckeln till utvecklarkontot.")
+    case "unavailable": String(localized: "Ingen byggserver som kan signera är ansluten just nu.")
+    default: String(localized: "Det gick inte att bygga appen för telefonen. Försök igen om en stund.")
     }
   }
 

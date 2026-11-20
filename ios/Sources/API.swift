@@ -163,6 +163,33 @@ extension API {
     try await send("POST", "api/projects/\(id)/testflight")
   }
 
+  /// A page for adding this phone, to open in Safari: the profile that hands over the phone's
+  /// identifier can only be fetched there. The link lets a phone in without a sign-in, for half an hour.
+  func addPhoneURL() async throws(APIError) -> URL {
+    struct Ticket: Decodable { let path: String }
+    let ticket: Ticket = try await send("POST", "api/phones/ticket", body: Empty())
+    return baseURL.appending(path: ticket.path)
+  }
+
+  /// Builds the app for the person's own phones. The outcome arrives with the publish state.
+  func buildForPhone(_ id: String) async throws(APIError) {
+    try await send("POST", "api/projects/\(id)/direct")
+  }
+
+  /// What makes iOS install a finished build: a link to the list of what to install.
+  func installURL(forPagePath path: String) -> URL? {
+    guard let token = path.split(separator: "/").last else { return nil }
+    let manifest = baseURL.appending(path: "d/app/\(token)/manifest.plist").absoluteString
+    var allowed = CharacterSet.alphanumerics
+    allowed.insert(charactersIn: "-._~")
+    guard let encoded = manifest.addingPercentEncoding(withAllowedCharacters: allowed) else { return nil }
+    return URL(string: "itms-services://?action=download-manifest&url=\(encoded)")
+  }
+
+  func url(forPath path: String) -> URL {
+    baseURL.appending(path: path)
+  }
+
   func files(_ id: String) async throws(APIError) -> [String: String] {
     struct Files: Decodable { let files: [String: String] }
     let answer: Files = try await get("api/projects/\(id)/files")

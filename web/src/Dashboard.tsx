@@ -2,12 +2,20 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError, api, type AppRequest, type ProjectSummary, type User } from './api';
 import { AppleAccountDialog } from './AppleAccount';
 import { Logo } from './Logo';
+import { Mascot } from './Mascot';
 import { apiErrorText, lang, t } from './i18n';
 
 interface Props {
   user: User;
   navigate: (to: string) => void;
   onLogout: () => void;
+}
+
+/** Decides an app's colour and tilt from its id, the same way as the iPhone app, so it looks the same in both. */
+function tileNumber(id: string): number {
+  let n = 0;
+  for (const byte of new TextEncoder().encode(id)) n = (n * 31 + byte) & 0xffff;
+  return n;
 }
 
 export function Dashboard({ user, navigate, onLogout }: Props) {
@@ -77,8 +85,13 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
 
       <main className="dash">
         <section className="hero">
-          <h1>{t.heroTitle}</h1>
-          <p className="muted">{t.heroSub}</p>
+          <div className="hero-head">
+            <div>
+              <h1>{t.heroTitle}</h1>
+              <p>{t.heroSub}</p>
+            </div>
+            <Mascot dancing={busy} tile="#fff" eyes="#c74005" />
+          </div>
           {notice && <p className="notice">{notice}</p>}
           <form className="composer big" onSubmit={create}>
             <textarea
@@ -133,12 +146,18 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
 
         <section>
           <h2>{t.yourApps}</h2>
-          {projects !== null && projects.length === 0 && <p className="muted">{t.noApps}</p>}
+          {projects !== null && projects.length === 0 && (
+            <div className="empty">
+              <Mascot />
+              <strong>{t.noApps}</strong>
+              <p className="muted">{t.noAppsSub}</p>
+            </div>
+          )}
           <ul className="apps">
             {projects?.map((p) => (
               <li key={p.id}>
                 <button className="app-card" onClick={() => navigate(`/p/${p.id}`)}>
-                  <span className="app-icon" aria-hidden="true">
+                  <span className="app-icon" aria-hidden="true" data-color={tileNumber(p.id) % 6} data-tilt={tileNumber(p.id) % 2 === 0 ? 'left' : 'right'}>
                     {p.name.slice(0, 1).toUpperCase()}
                   </span>
                   <span className="app-meta">

@@ -710,6 +710,40 @@ export class AppStoreConnect {
     return created.status === 409 ? 'exists' : 'created';
   }
 
+  /**
+   * Makes sure these phones are registered in the developer account, which is what lets an app be
+   * signed for them. Says how Apple regards each one: only an ENABLED phone gets into a build
+   * (PROCESSING means registered but held back for up to three days, as new accounts are).
+   * A phone that takes the account past its yearly limit makes Apple answer 409, which is thrown.
+   */
+  async ensurePhones(phones: Array<{ udid: string; name: string }>): Promise<Array<{ udid: string; status: string }>> {
+    const known = new Map<string, { id: string; status: string }>();
+    // Asked for in one go; Apple matches identifiers without regard to case.
+    const query = `filter[udid]=${phones.map((p) => encodeURIComponent(p.udid)).join(',')}&fields[devices]=udid,status&limit=200`;
+    for (const device of await this.send('GET', `/v1/devices?${query}`)) {
+      known.set(String(device.attributes?.udid ?? '').toLowerCase(), { id: device.id, status: String(device.attributes?.status ?? '') });
+    }
+    const out: Array<{ udid: string; status: string }> = [];
+    for (const phone of phones) {
+      const found = known.get(phone.udid.toLowerCase());
+      if (!found) {
+        const created = await this.send('POST', '/v1/devices', {
+          data: { type: 'devices', attributes: { name: phone.name.slice(0, 50), platform: 'IOS', udid: phone.udid } },
+        });
+        out.push({ udid: phone.udid, status: String(created[0]?.attributes?.status ?? 'PROCESSING') });
+      } else if (found.status === 'DISABLED') {
+        // Switched off by hand at some point; it still holds its place in the account, so it is switched back on.
+        const enabled = await this.send('PATCH', `/v1/devices/${encodeURIComponent(found.id)}`, {
+          data: { type: 'devices', id: found.id, attributes: { status: 'ENABLED' } },
+        });
+        out.push({ udid: phone.udid, status: String(enabled[0]?.attributes?.status ?? 'ENABLED') });
+      } else {
+        out.push({ udid: phone.udid, status: found.status });
+      }
+    }
+    return out;
+  }
+
   /** The id of the app with exactly this bundle id, or null when it has not been created in App Store Connect. */
   async appId(bundleId: string): Promise<string | null> {
     const query = `filter[bundleId]=${encodeURIComponent(bundleId)}&fields[apps]=bundleId&limit=200`;

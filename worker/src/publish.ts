@@ -14,7 +14,10 @@ import {
   isTeamId,
   isValidBundleId,
   isValidProjectId,
+  isUdid,
+  DIRECT_LIMITS,
   type AppleAccount,
+  type DirectStage,
   type PublishError,
   type PublishStage,
   type StoreSyncStage,
@@ -26,7 +29,7 @@ import {
 } from '../../shared/protocol';
 import { AppStoreConnect, StoreError, StoreLocked, bundleIdName, waitForApp, type StoreKey } from '../../shared/appstore';
 import { pngInfo } from '../../shared/png';
-import type { InviteJob, InviteResult, PublishJob, PublishResult, ShareJob, ShareResult, StoreJob, StoreResult, SubmitJob } from './driver';
+import type { DirectJob, DirectResult, InviteJob, InviteResult, PublishJob, PublishResult, ShareJob, ShareResult, StoreJob, StoreResult, SubmitJob } from './driver';
 import { exec, mustExec } from './exec';
 import { iconPng } from './icon';
 import { extractErrors, mirrorSources, projectSpec } from './xcode';
@@ -85,6 +88,23 @@ const ICON_SET = `{
 }
 `;
 
+/** For installing on registered phones: the app file is written to disk instead of being sent to Apple. */
+function directExportOptions(teamId: string): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>method</key><string>release-testing</string>
+  <key>destination</key><string>export</string>
+  <key>teamID</key><string>${teamId}</string>
+  <key>signingStyle</key><string>automatic</string>
+  <key>thinning</key><string>&lt;none&gt;</string>
+  <key>stripSwiftSymbols</key><true/>
+</dict>
+</plist>
+`;
+}
+
 function exportOptions(teamId: string): string {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -141,7 +161,7 @@ async function writeIcon(file: string, job: PublishJob): Promise<void> {
 
 type Store = Pick<
   AppStoreConnect,
-  'ensureBundleId' | 'appId' | 'ensureAccountHolderTests' | 'syncListing' | 'submitForReview' | 'shareBuild' | 'shareStatus' | 'inviteAsTester'
+  'ensureBundleId' | 'ensurePhones' | 'appId' | 'ensureAccountHolderTests' | 'syncListing' | 'submitForReview' | 'shareBuild' | 'shareStatus' | 'inviteAsTester'
 >;
 
 const PEM = /^-----BEGIN PRIVATE KEY-----[A-Za-z0-9+/=\s]{50,2000}-----END PRIVATE KEY-----\s*$/;
@@ -359,23 +379,21 @@ export class Publisher {
     }
   }
 
-  private async upload(job: PublishJob, cfg: PublishConfig, progress: (stage: PublishStage) => void): Promise<PublishResult> {
-    const dir = path.join(this.workDir, 'publish', job.projectId);
-    const archivePath = path.join(dir, 'build', 'App.xcarchive');
-    const exportPath = path.join(dir, 'build', 'export');
-    const auth = [
-      '-allowProvisioningUpdates',
-      '-authenticationKeyPath', cfg.keyPath,
-      '-authenticationKeyID', cfg.keyId,
-      '-authenticationKeyIssuerID', cfg.issuerId,
-    ];
+  private paths(projectId: string) {
+    const dir = path.join(this.workDir, 'publish', projectId);
+    return { dir, archivePath: path.join(dir, 'build', 'App.xcarchive'), exportPath: path.join(dir, 'build', 'export') };
+  }
 
-    progress('preparing');
+  private auth(cfg: PublishConfig): string[] {
+    return ['-allowProvisioningUpdates', '-authenticationKeyPath', cfg.keyPath, '-authenticationKeyID', cfg.keyId, '-authenticationKeyIssuerID', cfg.issuerId];
+  }
+
+  /** Writes the project and builds a signed Release archive of it. Returns the tools' output when that fails. */
+  private async archive(job: PublishJob, cfg: PublishConfig): Promise<string | null> {
+    const { dir, archivePath, exportPath } = this.paths(job.projectId);
     await preparePublishProject(dir, job, cfg.teamId);
     await fs.rm(archivePath, { recursive: true, force: true });
     await fs.rm(exportPath, { recursive: true, force: true });
-
-    progress('archiving');
     const archive = await exec(
       'xcodebuild',
       [
@@ -385,21 +403,29 @@ export class Publisher {
         '-destination', 'generic/platform=iOS',
         '-archivePath', archivePath,
         '-derivedDataPath', 'build/derived',
-        ...auth,
+        ...this.auth(cfg),
         '-quiet',
         'COMPILER_INDEX_STORE_ENABLE=NO',
         'archive',
       ],
       { cwd: dir, timeoutMs: ARCHIVE_TIMEOUT_MS },
     );
-    if (archive.code !== 0) return this.failure(archive.stdout + '\n' + archive.stderr, 'archive', dir);
+    return archive.code === 0 ? null : archive.stdout + '\n' + archive.stderr;
+  }
+
+  private async upload(job: PublishJob, cfg: PublishConfig, progress: (stage: PublishStage) => void): Promise<PublishResult> {
+    const { dir, archivePath, exportPath } = this.paths(job.projectId);
+    progress('preparing');
+    progress('archiving');
+    const failed = await this.archive(job, cfg);
+    if (failed !== null) return this.failure(failed, 'archive', dir);
 
     progress('uploading');
     const optionsPath = path.join(dir, 'ExportOptions.plist');
     await fs.writeFile(optionsPath, exportOptions(cfg.teamId));
     const upload = await exec(
       'xcodebuild',
-      ['-exportArchive', '-archivePath', archivePath, '-exportOptionsPlist', optionsPath, '-exportPath', exportPath, ...auth],
+      ['-exportArchive', '-archivePath', archivePath, '-exportOptionsPlist', optionsPath, '-exportPath', exportPath, ...this.auth(cfg)],
       { cwd: dir, timeoutMs: UPLOAD_TIMEOUT_MS },
     );
     if (upload.code !== 0) return this.failure(upload.stdout + '\n' + upload.stderr, 'upload', dir);
@@ -407,6 +433,103 @@ export class Publisher {
     // The archive is large and no longer needed once Apple has the build.
     await fs.rm(archivePath, { recursive: true, force: true });
     return { ok: true };
+  }
+
+  /**
+   * Signs the app for the person's own phones and hands back the app file, which their phone then
+   * installs from a link: no TestFlight, no review, no app in App Store Connect. The phones are
+   * registered in the developer account first; Apple only lets a registered phone run the app.
+   */
+  async direct(job: DirectJob, progress: (stage: DirectStage) => void): Promise<DirectResult> {
+    const phones = Array.isArray(job.phones) ? job.phones : [];
+    if (
+      !isValidProjectId(job.projectId) ||
+      !isValidBundleId(job.bundleId) ||
+      !/^\d{1,18}$/.test(job.buildNumber) ||
+      phones.length > DIRECT_LIMITS.phones ||
+      phones.some((p) => !isUdid(p?.udid) || typeof p.name !== 'string')
+    ) {
+      return { ok: false, error: 'internal', detail: 'Invalid direct job.' };
+    }
+    if (phones.length === 0) return { ok: false, error: 'no_phones', detail: 'The job names no phones.' };
+    const resolved = this.targetFor(job.account);
+    if ('stop' in resolved) return resolved.stop;
+    const target = resolved.target;
+
+    progress('preparing');
+    const store = this.storeOf(target);
+    try {
+      const outcome = await store.ensureBundleId(job.bundleId, bundleIdName(job.appName, job.projectId));
+      if (outcome === 'created') console.log(`[direct] registered bundle id ${job.bundleId}`);
+    } catch (err) {
+      const stop = this.storeProblem(err, 'register the bundle id');
+      if (stop) return { ok: false, error: 'auth', detail: stop.detail };
+    }
+    try {
+      const held = (await store.ensurePhones(phones)).filter((p) => p.status !== 'ENABLED');
+      if (held.length > 0) {
+        const detail = `Apple holds ${held.length} phone(s) back: ${held.map((p) => p.status).join(', ')}.`;
+        console.warn(`[direct] ${job.projectId}: ${detail}`);
+        return { ok: false, error: 'phone_processing', detail };
+      }
+    } catch (err) {
+      const message = (err as Error).message;
+      console.warn(`[direct] ${job.projectId}: could not register the phones: ${message}`);
+      if (err instanceof StoreError && err.status === 401) return { ok: false, error: 'auth', detail: message };
+      // Apple answers 409 when the account has no room for more phones this membership year.
+      if (err instanceof StoreError && err.status === 409 && /maximum|limit/i.test(message)) return { ok: false, error: 'phone_limit', detail: message };
+      return { ok: false, error: 'internal', detail: message };
+    }
+
+    const next = this.chain.catch(() => undefined).then(() => this.withKeyFile(target, (cfg) => this.exportForPhones(job, cfg, progress)));
+    this.chain = next;
+    return next;
+  }
+
+  private async exportForPhones(job: DirectJob, cfg: PublishConfig, progress: (stage: DirectStage) => void): Promise<DirectResult> {
+    const { dir, archivePath, exportPath } = this.paths(job.projectId);
+    const failure = (output: string, phase: 'archive' | 'upload'): DirectResult => {
+      const found = classifyPublishFailure(output, phase);
+      const error = found === 'no_app_record' ? 'internal' : found;
+      const detail = extractErrors(output, dir).slice(-2000);
+      console.warn(`[direct] ${phase === 'archive' ? 'archive' : 'signing'} failed (${error}):\n${detail}`);
+      return { ok: false, error, detail };
+    };
+
+    progress('archiving');
+    const failed = await this.archive(job, cfg);
+    if (failed !== null) return failure(failed, 'archive');
+
+    progress('signing');
+    const optionsPath = path.join(dir, 'ExportOptions.plist');
+    await fs.writeFile(optionsPath, directExportOptions(cfg.teamId));
+    const signed = await exec(
+      'xcodebuild',
+      ['-exportArchive', '-archivePath', archivePath, '-exportOptionsPlist', optionsPath, '-exportPath', exportPath, ...this.auth(cfg)],
+      { cwd: dir, timeoutMs: UPLOAD_TIMEOUT_MS },
+    );
+    if (signed.code !== 0) return failure(signed.stdout + '\n' + signed.stderr, 'upload');
+    await fs.rm(archivePath, { recursive: true, force: true });
+
+    const name = (await fs.readdir(exportPath)).find((f) => f.endsWith('.ipa'));
+    if (!name) return { ok: false, error: 'internal', detail: 'The export produced no app file.' };
+    const ipaPath = path.join(exportPath, name);
+
+    // The profile inside the app says which phones may run it. One registered a moment ago can be
+    // missing from it; better to say so now than to hand over an app that refuses to install.
+    const profile = await exec('/bin/sh', ['-c', 'unzip -p "$1" "Payload/*.app/embedded.mobileprovision" | security cms -D', 'sh', ipaPath], { timeoutMs: 30_000 });
+    const allowed = profile.stdout.toLowerCase();
+    const missing = job.phones.filter((p) => !allowed.includes(p.udid.toLowerCase()));
+    if (profile.code !== 0 || missing.length > 0) {
+      const detail = profile.code !== 0 ? `Could not read the app's profile: ${profile.stderr.slice(-300)}` : `${missing.length} phone(s) are not in the app's profile yet.`;
+      console.warn(`[direct] ${job.projectId}: ${detail}`);
+      return { ok: false, error: profile.code !== 0 ? 'internal' : 'phone_processing', detail };
+    }
+
+    const ipa = await fs.readFile(ipaPath);
+    await fs.rm(exportPath, { recursive: true, force: true });
+    if (ipa.length > DIRECT_LIMITS.ipaBytes) return { ok: false, error: 'internal', detail: `The app file is ${ipa.length} bytes, more than can be handed over.` };
+    return { ok: true, ipa };
   }
 
   /**

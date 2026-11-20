@@ -8,11 +8,12 @@ import {
   isValidSourcePath,
   type BuildStage,
   type InputEvent,
+  type DirectStage,
   type PublishStage,
   STORE_SHOT,
   type StoreSyncStage,
 } from '../../shared/protocol';
-import type { BuildJob, Driver, Emit, InviteJob, InviteResult, PublishJob, PublishResult, ShareJob, ShareResult, StoreJob, StoreResult, SubmitJob } from './driver';
+import type { BuildJob, DirectJob, DirectResult, Driver, Emit, InviteJob, InviteResult, PublishJob, PublishResult, ShareJob, ShareResult, StoreJob, StoreResult, SubmitJob } from './driver';
 import { exec, mustExec } from './exec';
 import { Publisher, publishConfigFromEnv } from './publish';
 import { listFolders, pruneAfterDays, staleIds, touch } from './prune';
@@ -256,6 +257,12 @@ export class XcodeDriver implements Driver {
     // Someone else's key is only handled when the operator has said this machine may.
     if (job.account && process.env.PUBLISH_FOR_USERS !== '1') return { ok: false, error: 'unavailable' };
     return this.publisher.publish(job, progress);
+  }
+
+  async direct(job: DirectJob, progress: (stage: DirectStage) => void): Promise<DirectResult> {
+    if (!this.publisher) return { ok: false, error: 'unavailable' };
+    if (job.account && process.env.PUBLISH_FOR_USERS !== '1') return { ok: false, error: 'unavailable' };
+    return this.publisher.direct(job, progress);
   }
 
   async store(job: StoreJob, progress: (stage: StoreSyncStage) => void): Promise<StoreResult> {

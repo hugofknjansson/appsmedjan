@@ -20,14 +20,32 @@ import {
   decodeFrame,
   encodeFrame,
   fitWords,
+  isUdid,
   isValidSourcePath,
   listingProblems,
+  readPhoneAnswer,
   parseContact,
   type StoreListing,
 } from '../shared/protocol';
 import { keepAlive } from '../shared/keepalive';
 import { EventEmitter } from 'node:events';
 import type { WebSocket } from 'ws';
+
+// Phones: what an identifier looks like, and reading one out of what a phone posts when it is added
+assert.ok(isUdid('00008110-000A1B2C3D4E5F60') && isUdid('a'.repeat(40)));
+assert.ok(!isUdid('00008160-0014042E1E40003') && !isUdid('g'.repeat(40)) && !isUdid('') && !isUdid(42));
+{
+  const answer = (udid: string, product: string) =>
+    Buffer.concat([
+      Buffer.from([0x30, 0x82, 0x0a, 0xff, 0x00]),
+      Buffer.from(`<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict><key>PRODUCT</key><string>${product}</string><key>UDID</key>\n\t<string>${udid}</string></dict></plist>`),
+      Buffer.from([0xa0, 0x82, 0x00, 0x01]),
+    ]);
+  assert.deepEqual(readPhoneAnswer(answer('00008110-000a1b2c3d4e5f60', 'iPhone19,2')), { udid: '00008110-000A1B2C3D4E5F60', model: 'iPhone19,2' });
+  assert.equal(readPhoneAnswer(answer('00008110-000A1B2C3D4E5F60', 'weird/model"'))?.model, 'iPhone');
+  assert.equal(readPhoneAnswer(answer('not a udid', 'iPhone19,2')), null);
+  assert.equal(readPhoneAnswer(Buffer.from('nothing here')), null);
+}
 
 // JPEG splitting across arbitrary chunk boundaries
 const jpg = (n: number) => Buffer.concat([Buffer.from([0xff, 0xd8]), Buffer.alloc(n, 7), Buffer.from([0xff, 0xd9])]);
@@ -228,6 +246,36 @@ try {
       { status: 409, json: { errors: [{ detail: 'Tester(s) cannot be assigned' }] } },
     ]).ensureAccountHolderTests('app1'),
     (err: unknown) => err instanceof StoreError && err.status === 409 && err.message.includes('cannot be assigned'),
+  );
+  // Phones for installing without TestFlight: a known one is left alone, a new one is registered, a disabled one switched on.
+  calls.length = 0;
+  const device = (id: string, udid: string, status: string) => ({ id, attributes: { udid, status } });
+  assert.deepEqual(
+    await scripted([
+      { status: 200, json: { data: [device('d1', '00008110-000A1B2C3D4E5F60', 'ENABLED'), device('d2', '00008120-AAAAAAAAAAAAAAAA', 'DISABLED')] } },
+      { status: 201, json: { data: device('d3', '00008110-BBBBBBBBBBBBBBBB', 'PROCESSING') } },
+      { status: 200, json: { data: device('d2', '00008120-AAAAAAAAAAAAAAAA', 'ENABLED') } },
+    ]).ensurePhones([
+      { udid: '00008110-000a1b2c3d4e5f60', name: 'One' },
+      { udid: '00008110-BBBBBBBBBBBBBBBB', name: 'Two' },
+      { udid: '00008120-AAAAAAAAAAAAAAAA', name: 'Three' },
+    ]),
+    [
+      { udid: '00008110-000a1b2c3d4e5f60', status: 'ENABLED' },
+      { udid: '00008110-BBBBBBBBBBBBBBBB', status: 'PROCESSING' },
+      { udid: '00008120-AAAAAAAAAAAAAAAA', status: 'ENABLED' },
+    ],
+  );
+  assert.ok(calls[0]!.url.includes('/v1/devices?filter[udid]=00008110-000a1b2c3d4e5f60,00008110-BBBBBBBBBBBBBBBB,00008120-AAAAAAAAAAAAAAAA'));
+  assert.deepEqual(calls[1]!.body, { data: { type: 'devices', attributes: { name: 'Two', platform: 'IOS', udid: '00008110-BBBBBBBBBBBBBBBB' } } });
+  assert.equal(calls[2]!.method, 'PATCH');
+  assert.ok(calls[2]!.url.endsWith('/v1/devices/d2'));
+  // An account with no room for more phones: Apple's refusal is an error, not a registered phone.
+  await assert.rejects(
+    scripted([{ status: 200, json: { data: [] } }, { status: 409, json: { errors: [{ detail: 'You have already reached the maximum allowed number of registered devices.' }] } }]).ensurePhones([
+      { udid: '00008110-BBBBBBBBBBBBBBBB', name: 'Two' },
+    ]),
+    (err: unknown) => err instanceof StoreError && err.status === 409 && err.message.includes('maximum'),
   );
   // A key that cannot list users: nothing is changed and the person is told to add themselves.
   assert.equal(await scripted([{ status: 200, json: { data: [] } }]).ensureAccountHolderTests('app1'), false);
@@ -625,6 +673,24 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
         shareStatus: async () => ({ state: 'approved' as const, url: 'https://testflight.apple.com/join/x' }),
       }),
     });
+  // Signing for the person's own phones: what is wrong is said before any archive is built.
+  {
+    const directJob = { projectId: 'abcdefgh1234', appName: 'App', bundleId: 'app.appsmedjan.pabcdefgh1234', buildNumber: '202611201600', files: {}, account };
+    const phone = { udid: '00008110-000A1B2C3D4E5F60', name: 'Phone' };
+    const signer = (ensurePhones: () => Promise<Array<{ udid: string; status: string }>>) =>
+      new Publisher(null, os.tmpdir(), { storeFor: () => ({ ensureBundleId: async () => 'exists' as const, ensurePhones }) as never });
+    const untouched = async () => { throw new Error('must not be called'); };
+    assert.equal((await signer(untouched).direct({ ...directJob, phones: [] }, () => undefined)).error, 'no_phones');
+    assert.equal((await signer(untouched).direct({ ...directJob, phones: [{ udid: 'not-a-udid', name: 'x' }] }, () => undefined)).error, 'internal');
+    assert.equal((await signer(untouched).direct({ ...directJob, account: undefined, phones: [phone] }, () => undefined)).error, 'unavailable');
+    assert.equal((await signer(async () => [{ udid: phone.udid, status: 'PROCESSING' }]).direct({ ...directJob, phones: [phone] }, () => undefined)).error, 'phone_processing');
+    assert.equal(
+      (await signer(async () => { throw new StoreError(409, 'App Store Connect answered 409: You have already reached the maximum allowed number of registered devices.'); }).direct({ ...directJob, phones: [phone] }, () => undefined)).error,
+      'phone_limit',
+    );
+    assert.equal((await signer(async () => { throw new StoreError(401, 'bad token'); }).direct({ ...directJob, phones: [phone] }, () => undefined)).error, 'auth');
+  }
+
   const never = async () => { throw new Error('must not be called'); };
   assert.deepEqual(await worker('app1', async () => ({ attached: 'attached' })).syncStore({ ...job, account }, () => undefined), { ok: true, attached: 'attached' });
   assert.equal((await worker(null, never).syncStore({ ...job, account }, () => undefined)).error, 'no_app_record');

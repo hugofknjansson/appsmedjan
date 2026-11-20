@@ -317,6 +317,49 @@ Tre inställningar på servern hör till detta:
 Anropen för testlänken är skrivna mot Apples dokumentation och enhetstestade mot en ersättare, och
 flödet är kört i webbläsaren mot låtsasarbetaren, men de har **inte körts mot Apple**.
 
+### Direkt på telefonen, utan TestFlight
+
+Det snabbaste sättet för en person att få sin app på sin egen telefon. Apple låter ett utvecklarkonto
+installera appar direkt på telefoner som är registrerade i kontot (ad hoc-distribution): ingen
+granskning, ingen TestFlight-app och ingen app i App Store Connect, så du behöver inte skapa något
+för hand.
+
+1. **Lägg till telefonen, en gång.** Personen öppnar en länk på telefonen (en QR-kod i webben, eller
+   knappen i iPhone-appen) och installerar en liten profil i Inställningar. Telefonen skickar då sitt
+   id (UDID) till servern. Profilen blir inte kvar på telefonen.
+2. **Bygg.** Signeringsarbetaren registrerar telefonen i utvecklarkontot om den inte redan finns där,
+   bygger appen, signerar den för kontots registrerade telefoner och lämnar appfilen till servern.
+   Det tar under en minut för en liten app.
+3. **Installera.** Telefonen öppnar en sida med en installationsknapp. iOS frågar, och appen hamnar på
+   hemskärmen. Första gången måste personen slå på Utvecklarläge under Inställningar, Integritet och
+   säkerhet; det kräver Apple för appar som inte kommer från App Store eller TestFlight.
+
+Det som begränsar:
+
+- Ett konto får registrera **100 iPhones per medlemsår**, och en plats frigörs först vid förnyelsen.
+- Apple menar ad hoc för test på telefoner hos dem du arbetar med. För den som bygger sin egen app
+  ligger det nära, men det är inte en kanal för att sprida appar brett. Därför är det avstängt för
+  tjänstens eget konto tills du slår på det. Den som har kopplat ett eget utvecklarkonto kan alltid
+  använda det: platserna är deras egna.
+- Appen fungerar så länge signeringen gäller, högst ett år, och får sedan byggas om.
+- Profilen i appfilen räknar upp alla telefoner som är registrerade i kontot, inte bara personens
+  egna. Appfilen nås bara med en hemlig länk, men den som har filen kan läsa de andra telefonernas id.
+- I ett nytt utvecklarkonto släpper Apple in de tio första telefonerna direkt; därefter kan en ny
+  telefon ta 1–3 dygn. Bygget säger då att telefonen inte är klar än.
+
+Inställningar på servern:
+
+- `DIRECT_INSTALL=1`: låter dem som använder tjänstens konto (`TESTFLIGHT_USERS`) lägga till telefoner.
+- `MAX_PHONES_PER_USER`: hur många telefoner en person får lägga till (2 om inget anges).
+- `PUBLIC_URL`: adressen telefoner når tjänsten på, om den inte går att läsa ut ur anropet.
+  Installationen kräver https med ett giltigt certifikat.
+
+Signeringen för registrerade telefoner **är körd mot Apple** från en utvecklingsdator: appfilen
+byggdes, profilen innehöll telefonen och telefonen tog emot appen. Det som **inte är provat på en
+riktig telefon** är profilen som lämnar telefonens id och installationen via länken; de är byggda
+efter Apples dokumentation och körda mot låtsasarbetaren. Låtsasarbetaren känner igen
+`MOCK_PHONE_PROCESSING` och `MOCK_PHONE_LIMIT` i källkoden för att prova felen.
+
 ### Appens sida i App Store
 
 Knappen **App Store** i ett projekt öppnar en guide som förbereder det som syns i butiken och skickar

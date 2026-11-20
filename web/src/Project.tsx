@@ -15,6 +15,7 @@ import { OnPhoneDialog } from './OnPhone';
 import { StoreDialog } from './Store';
 import { Logo } from './Logo';
 import { FrameBus, Phone } from './Phone';
+import { Mascot, MascotBadge } from './Mascot';
 import { apiErrorText, stepText, t } from './i18n';
 
 interface State {
@@ -166,6 +167,7 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
   if (missing) {
     return (
       <div className="page center">
+        <Mascot className="big" />
         <p>{t.notFound}</p>
         <button className="btn primary" onClick={() => navigate('/')}>
           {t.back}
@@ -361,12 +363,8 @@ function Chat({ id, state }: { id: string; state: State }) {
           <div className="msg assistant" aria-live="polite">
             <Parts parts={state.parts} live />
             <div className="working">
-              <span className="dots" aria-hidden="true">
-                <i />
-                <i />
-                <i />
-              </span>
-              {t.working}
+              <MascotBadge dancing />
+              {t.dancing}
             </div>
           </div>
         )}
@@ -422,7 +420,13 @@ function Parts({ parts, live }: { parts: Part[]; live: boolean }) {
   return (
     <>
       {groups.map((g, i) => {
-        if (g.kind === 'text') return <p key={i}>{g.text}</p>;
+        if (g.kind === 'text') {
+          return (
+            <p key={i} className="bubble">
+              {g.text}
+            </p>
+          );
+        }
         if (g.kind === 'error') {
           return (
             <p key={i} className="notice">

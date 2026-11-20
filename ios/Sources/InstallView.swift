@@ -26,9 +26,15 @@ struct InstallView: View {
   var body: some View {
     NavigationStack {
       List {
+        if let direct = publish.direct, direct.isShown {
+          DirectInstallSection(store: store, api: api, direct: direct)
+        }
+
         Section {
           Text("Då ligger appen på hemskärmen som en vanlig app. Det går via Apples testapp TestFlight, som är gratis. Du behöver inget utvecklarkonto.")
             .foregroundStyle(.secondary)
+        } header: {
+          if publish.direct?.isShown == true { Text("Via TestFlight") }
         }
 
         if publish.account == .none {

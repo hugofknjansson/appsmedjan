@@ -6,6 +6,8 @@ import {
   type AppleAccount,
   type BuildStage,
   type InputEvent,
+  type DirectError,
+  type DirectStage,
   type PublishError,
   type PublishStage,
   type PublishTester,
@@ -229,6 +231,31 @@ export async function invite(
   return { ok: res.ok, state: res.state, error: res.error, detail: res.detail };
 }
 
+/**
+ * Has the app signed for the person's own phones and gets the app file back. Like an upload, it
+ * needs no simulator and runs on the worker that holds the account's key.
+ */
+export async function direct(
+  project: { id: string; name: string; bundleId: string },
+  files: Record<string, string>,
+  buildNumber: string,
+  phones: Array<{ udid: string; name: string }>,
+  account: AppleAccount | undefined,
+  icon: string | undefined,
+  onProgress: (stage: DirectStage) => void,
+): Promise<{ ok: boolean; error?: DirectError; detail?: string; ipa?: Buffer }> {
+  const worker = publisher(account ? 'own' : 'operator');
+  if (!worker) throw new WorkerUnavailable('no publishing worker connected');
+  const res = await request(
+    worker,
+    { type: 'direct', jobId: randomId(16), projectId: project.id, appName: project.name, bundleId: project.bundleId, buildNumber, files, account, icon, phones },
+    PUBLISH_TIMEOUT_MS,
+    onProgress as (stage: string) => void,
+  );
+  if (res.type !== 'direct.result') throw new Error('unexpected worker reply');
+  return { ok: res.ok, error: res.error, detail: res.detail, ipa: res.ipa ? Buffer.from(res.ipa, 'base64') : undefined };
+}
+
 /** Submits the app's prepared version for Apple's review, through the worker that holds the account's key. */
 export async function submit(
   project: { id: string; bundleId: string },
@@ -331,6 +358,7 @@ export function attachWorker(ws: WebSocket): void {
         break;
       case 'build.progress':
       case 'store.progress':
+      case 'direct.progress':
       case 'publish.progress': {
         const p = pending.get(msg.jobId);
         if (p?.worker === worker) p.onProgress?.(msg.stage);
@@ -342,6 +370,7 @@ export function attachWorker(ws: WebSocket): void {
       case 'submit.result':
       case 'share.result':
       case 'invite.result':
+      case 'direct.result':
       case 'screenshot.result': {
         const p = pending.get(msg.jobId);
         if (!p || p.worker !== worker) break;

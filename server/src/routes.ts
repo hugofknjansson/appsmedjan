@@ -1,11 +1,13 @@
 // REST API: accounts, projects, chat messages.
 import type { IncomingMessage } from 'node:http';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { isValidProjectId, testerPersonProblem, type TesterPerson } from '../../shared/protocol';
 import { hasCredentials } from './agent';
 import { config } from './config';
 import * as db from './db';
+import * as direct from './direct';
 import { forget } from './live';
 import { STARTER_FILES } from './prompt';
 import { accountStatus, connectAccount, disconnectAccount } from './apple';
@@ -200,6 +202,7 @@ api.delete('/projects/:id', requireUser, (req, res) => {
   stopRun(project.id);
   workers.release(project.id);
   db.deleteProject(project.id);
+  direct.forget(project.id);
   forget(project.id);
   res.json({ ok: true });
 });
@@ -371,6 +374,102 @@ api.get('/operator/requests', requireUser, (req, res) => {
     return;
   }
   res.json({ requests: db.listAppRequests() });
+});
+
+// --- Straight onto the phone -------------------------------------------------------
+
+/** The phones the person has added. The identifiers themselves stay on the server. */
+api.get('/phones', requireUser, (req, res) => {
+  res.json({ phones: direct.phonesOf((req as Authed).user.id), max: config.maxPhones });
+});
+
+/**
+ * A link for adding a phone: it goes into a QR code, or is opened right away on the phone itself.
+ * The phone needs no sign-in to use it, so it is only good for half an hour.
+ */
+api.post('/phones/ticket', requireUser, authLimiter, (req, res) => {
+  res.json(direct.newTicket((req as Authed).user.id));
+});
+
+/** Builds the app for the person's own phones. The result is an install link in the publish state. */
+api.post('/projects/:id/direct', requireUser, (req, res) => {
+  const project = ownProject(req, res);
+  if (!project) return;
+  const outcome = direct.start(project, (req as Authed).user);
+  if (outcome === 'forbidden') {
+    res.status(403).json({ error: 'direct_not_offered' });
+    return;
+  }
+  if (outcome !== 'started') {
+    res.status(409).json({ error: outcome === 'no_phones' ? 'no_phones' : outcome === 'busy' ? 'busy' : 'publish_unavailable' });
+    return;
+  }
+  res.status(202).json({ publish: publishState(project) });
+});
+
+/**
+ * What a phone opens while it is added and when it installs. Open to everyone, because the phone is
+ * not signed in: the ticket or token in the address is what lets it in.
+ */
+export const directPages = express.Router();
+
+const langOf = (req: Request): 'sv' | 'en' => (req.acceptsLanguages('sv', 'en') === 'en' ? 'en' : 'sv');
+const baseOf = (req: Request): string => config.publicUrl || `${req.protocol}://${req.get('host')}`;
+const PAGE_HEADERS = {
+  'content-type': 'text/html; charset=utf-8',
+  'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'",
+  'x-content-type-options': 'nosniff',
+  'referrer-policy': 'no-referrer',
+  'cache-control': 'no-store',
+};
+
+directPages.get('/add/:ticket', (req, res) => {
+  res.set(PAGE_HEADERS).send(direct.addPage(String(req.params.ticket), langOf(req)));
+});
+
+directPages.get('/enroll/:file', (req, res) => {
+  const ticket = /^([A-Za-z0-9_-]{20,64})\.mobileconfig$/.exec(String(req.params.file))?.[1];
+  const profile = ticket ? direct.enrollProfile(ticket, baseOf(req), langOf(req)) : null;
+  if (!profile) {
+    res.status(404).send('Not found.');
+    return;
+  }
+  // As bytes: for text Express adds a charset to the type, and iOS is particular about this one.
+  res.set({ 'content-type': 'application/x-apple-aspen-config', 'cache-control': 'no-store' }).send(Buffer.from(profile));
+});
+
+// The phone's answer: its identifier, in a signed envelope. Then it is sent on to a page that says how it went.
+directPages.post('/enrolled/:ticket', authLimiter, express.raw({ type: () => true, limit: '64kb' }), (req, res) => {
+  const ticket = String(req.params.ticket);
+  if (Buffer.isBuffer(req.body)) direct.enroll(ticket, req.body);
+  // iOS follows a permanent redirect out of Settings and into Safari.
+  res.redirect(301, `${baseOf(req)}/d/done/${encodeURIComponent(ticket)}`);
+});
+
+directPages.get('/done/:ticket', (req, res) => {
+  res.set(PAGE_HEADERS).send(direct.donePage(String(req.params.ticket), langOf(req)));
+});
+
+directPages.get('/i/:token', (req, res) => {
+  const { html, found } = direct.installPage(String(req.params.token), baseOf(req), langOf(req));
+  res.status(found ? 200 : 404).set(PAGE_HEADERS).send(html);
+});
+
+directPages.get('/app/:token/:file', (req, res) => {
+  const build = db.directBuildByToken(String(req.params.token));
+  const project = build ? db.getProject(build.projectId) : null;
+  const file = direct.ipaPath(build?.projectId ?? '');
+  if (!build || !project || !fs.existsSync(file)) {
+    res.status(404).send('Not found.');
+    return;
+  }
+  if (req.params.file === 'manifest.plist') {
+    res.set({ 'content-type': 'text/xml', 'cache-control': 'no-store' }).send(Buffer.from(direct.manifest(build, project.bundleId, baseOf(req))));
+  } else if (req.params.file === 'app.ipa') {
+    res.set({ 'content-type': 'application/octet-stream', 'cache-control': 'no-store' }).sendFile(file);
+  } else {
+    res.status(404).send('Not found.');
+  }
 });
 
 // --- Public pages for an app: support and privacy policy -------------------------

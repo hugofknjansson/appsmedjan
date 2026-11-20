@@ -77,6 +77,10 @@ export const api = {
     call<{ publish: PublishState }>('POST', `/api/projects/${id}/testlink`, contact ? { contact } : {}),
   fastTrack: (id: string, person: TesterPerson) => call<{ publish: PublishState }>('POST', `/api/projects/${id}/fasttrack`, person),
   handoff: (id: string) => call<{ path: string; expiresInMs: number }>('POST', `/api/projects/${id}/handoff`, {}),
+  /** A link for adding a phone, to open (or scan) on that phone. */
+  phoneTicket: () => call<{ path: string; expiresInMs: number }>('POST', '/api/phones/ticket', {}),
+  /** Builds the app for the person's own phones. */
+  direct: (id: string) => call<{ publish: PublishState }>('POST', `/api/projects/${id}/direct`, {}),
   operatorRequests: () => call<{ requests: AppRequest[] }>('GET', '/api/operator/requests'),
   store: (id: string) => call<StoreState>('GET', `/api/projects/${id}/store`),
   saveListing: (id: string, page: { listing: StoreListing; choices: StoreChoices; contact: ReviewContact; pages: StorePages }) =>

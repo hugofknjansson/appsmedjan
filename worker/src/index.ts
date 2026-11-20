@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import WebSocket from 'ws';
 import { keepAlive } from '../../shared/keepalive';
 import { PROTOCOL_VERSION, encodeFrame, type ServerToWorker, type WorkerToServer } from '../../shared/protocol';
-import type { Driver, Emit, InviteResult, PublishResult, ShareResult, StoreResult } from './driver';
+import type { DirectResult, Driver, Emit, InviteResult, PublishResult, ShareResult, StoreResult } from './driver';
 import { MockDriver } from './mock';
 import { XcodeDriver } from './xcode';
 
@@ -99,6 +99,21 @@ async function handle(msg: ServerToWorker): Promise<void> {
         tester: result.tester,
         durationMs,
       });
+      break;
+    }
+    case 'direct': {
+      const started = Date.now();
+      let result: DirectResult;
+      try {
+        result = await driver.direct(msg, (stage) => send({ type: 'direct.progress', jobId: msg.jobId, stage }));
+      } catch (err) {
+        result = { ok: false, error: 'internal', detail: (err as Error).message };
+      }
+      const durationMs = Date.now() - started;
+      console.log(
+        `[worker] direct install ${msg.projectId}: ${result.ok ? `signed for ${msg.phones.length} phone(s), ${result.ipa?.length ?? 0} bytes` : `failed, ${result.error}`} in ${(durationMs / 1000).toFixed(1)}s`,
+      );
+      send({ type: 'direct.result', jobId: msg.jobId, ok: result.ok, error: result.error, detail: result.detail, ipa: result.ipa?.toString('base64'), durationMs });
       break;
     }
     case 'store': {

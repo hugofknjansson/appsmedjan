@@ -1,7 +1,7 @@
 // A stand-in driver for development on machines without Xcode (Linux, CI).
 // It "builds" instantly and streams a drawn placeholder screen so the whole flow can be exercised.
-import type { BuildStage, InputEvent, PublishStage, StoreSyncStage } from '../../shared/protocol';
-import type { BuildJob, Driver, Emit, InviteJob, InviteResult, PublishJob, PublishResult, ShareJob, ShareResult, StoreJob, StoreResult, SubmitJob } from './driver';
+import type { BuildStage, DirectStage, InputEvent, PublishStage, StoreSyncStage } from '../../shared/protocol';
+import type { BuildJob, DirectJob, DirectResult, Driver, Emit, InviteJob, InviteResult, PublishJob, PublishResult, ShareJob, ShareResult, StoreJob, StoreResult, SubmitJob } from './driver';
 
 interface MockSession {
   appName: string;
@@ -74,6 +74,26 @@ export class MockDriver implements Driver {
     await sleep(600);
     this.uploaded.set(job.projectId, job.files);
     return { ok: true, tester: has('MOCK_TESTER_MANUAL') ? 'manual' : 'added' };
+  }
+
+  /**
+   * Pretends to sign the app for the person's phones. The "app file" is a few bytes of text, which
+   * no phone can install: the mock is for trying the flow around it. Markers exercise the failures.
+   */
+  async direct(job: DirectJob, progress: (stage: DirectStage) => void): Promise<DirectResult> {
+    console.log(`[mock] direct install for ${job.projectId}, ${job.phones.length} phone(s)`);
+    const has = (marker: string) => Object.values(job.files).some((content) => content.includes(marker));
+    if (job.phones.length === 0) return { ok: false, error: 'no_phones' };
+    progress('preparing');
+    await sleep(300);
+    if (has('MOCK_PHONE_PROCESSING')) return { ok: false, error: 'phone_processing' };
+    if (has('MOCK_PHONE_LIMIT')) return { ok: false, error: 'phone_limit' };
+    progress('archiving');
+    await sleep(600);
+    if (has('MOCK_BUILD_ERROR')) return { ok: false, error: 'compile' };
+    progress('signing');
+    await sleep(500);
+    return { ok: true, ipa: Buffer.from(`MOCK IPA ${job.bundleId} ${job.buildNumber}`) };
   }
 
   /** Pretends to fill in the App Store page. Markers in the description exercise the failure paths. */

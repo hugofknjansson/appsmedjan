@@ -8,6 +8,7 @@ import {
 } from '../../shared/protocol';
 import { credentialsFor } from './apple';
 import * as db from './db';
+import * as direct from './direct';
 import { live, liveProjectIds, send } from './live';
 import { isOperator, route } from './routing';
 import * as testlink from './testlink';
@@ -23,6 +24,7 @@ export function publishState(project: db.Project): PublishState {
     test: testlink.testLink(project.id),
     fast: testlink.fastTrack(project),
     operator: owner ? isOperator(owner.email) : false,
+    direct: direct.state(project),
   };
   const current = working.get(project.id);
   if (current) {
@@ -63,6 +65,9 @@ export function accountChanged(userId: string): void {
     if (db.getProject(projectId)?.userId === userId) push(projectId);
   }
 }
+
+// A build for the person's own phone moves on by itself, and a phone they add shows up in their open projects.
+direct.onChange(push, accountChanged);
 
 export type StartResult = 'started' | 'forbidden' | 'unavailable' | 'busy';
 

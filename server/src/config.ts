@@ -51,6 +51,17 @@ export const config = {
    */
   internalTesters: process.env.INTERNAL_TESTERS === '1',
   /**
+   * Lets people who use the operator's developer account have apps signed for their own phone and
+   * installed straight from a link, without TestFlight. Off unless asked for: every phone takes one
+   * of the account's 100 places for a year, and Apple means those for people who test with you.
+   * People with their own connected account can always do it; the places are theirs.
+   */
+  directInstall: process.env.DIRECT_INSTALL === '1',
+  /** How many phones one person may add. */
+  maxPhones: Math.max(1, Number(process.env.MAX_PHONES_PER_USER ?? 2) || 2),
+  /** The address people reach the service at, for links that phones open. Worked out from the request when empty. */
+  publicUrl: (process.env.PUBLIC_URL ?? '').replace(/\/+$/, ''),
+  /**
    * Who Apple may contact about apps tested from the operator's account, when the app's own maker
    * has not given contact details: "First Last, +46 70 123 45 67, name@example.com".
    */

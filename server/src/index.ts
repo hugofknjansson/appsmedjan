@@ -12,7 +12,7 @@ import * as db from './db';
 import { live } from './live';
 import { buildProject, syncViewers } from './preview';
 import { publishState } from './publish';
-import { api, publicPages, userFromRequest } from './routes';
+import { api, directPages, publicPages, userFromRequest } from './routes';
 import * as workers from './workers';
 
 const app = express();
@@ -21,6 +21,7 @@ if (config.trustProxy) app.set('trust proxy', 1);
 app.use(express.json({ limit: '256kb' }));
 app.use('/api', api);
 app.use('/a', publicPages);
+app.use('/d', directPages);
 
 // In production the server also serves the built web client.
 if (fs.existsSync(config.webDist)) {

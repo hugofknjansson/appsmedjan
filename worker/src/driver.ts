@@ -1,6 +1,8 @@
 import type {
   AppleAccount,
   BuildStage,
+  DirectError,
+  DirectStage,
   InputEvent,
   PublishError,
   PublishStage,
@@ -28,6 +30,20 @@ export interface PublishJob extends BuildJob {
   account?: AppleAccount;
   /** The person's own app icon as a base64 PNG; without it a placeholder is drawn. */
   icon?: string;
+}
+
+/** Signs the app for the person's own phones, for installing without TestFlight. */
+export interface DirectJob extends PublishJob {
+  phones: Array<{ udid: string; name: string }>;
+}
+
+export interface DirectResult {
+  ok: boolean;
+  error?: DirectError;
+  /** Raw tool output for the operator's logs. Never shown to the person using the app. */
+  detail?: string;
+  /** The signed app file. */
+  ipa?: Buffer;
 }
 
 /** Fills in the app's page in App Store Connect. */
@@ -112,6 +128,8 @@ export interface Driver {
   build(job: BuildJob, progress: (stage: BuildStage) => void): Promise<{ ok: boolean; errors?: string }>;
   /** Uploads the app to TestFlight. Only called when init() reported canPublish. */
   publish(job: PublishJob, progress: (stage: PublishStage) => void): Promise<PublishResult>;
+  /** Signs the app for the person's phones and hands the app file back. Only called when init() reported canPublish. */
+  direct(job: DirectJob, progress: (stage: DirectStage) => void): Promise<DirectResult>;
   /** Fills in the app's App Store page. Only called when init() reported canPublish. */
   store(job: StoreJob, progress: (stage: StoreSyncStage) => void): Promise<StoreResult>;
   /** Prepares or checks the public TestFlight link. Only called when init() reported canPublish. */

@@ -5,7 +5,7 @@
  * about. Workers on rented Macs are updated separately from the server; the server says so in its
  * log when one of them is behind (or ahead).
  */
-export const PROTOCOL_VERSION = 6;
+export const PROTOCOL_VERSION = 7;
 
 // ---------------------------------------------------------------------------
 // Project files
@@ -201,7 +201,76 @@ export interface PublishState {
   fast?: FastTrack;
   /** True when the signed-in person runs the service, and so is the one who creates apps in App Store Connect. */
   operator?: boolean;
+  /** Installing straight onto the person's own phone, without TestFlight. Missing from servers before it existed. */
+  direct?: DirectInstall;
 }
+
+// ---------------------------------------------------------------------------
+// Straight onto the phone
+// ---------------------------------------------------------------------------
+//
+// Apple lets a developer account install apps directly on phones it has registered (ad hoc
+// distribution): no TestFlight, no review and no app in App Store Connect. The person adds their
+// phone once, by installing a small profile that hands over the phone's identifier; after that every
+// build is signed for their phones and installed from a link.
+
+/** signing: the app is signed for the person's phones and packed. */
+export type DirectStage = 'queued' | 'preparing' | 'archiving' | 'signing';
+
+/**
+ * no_phones: the person has not added a phone yet. phone_processing: Apple has registered the phone
+ * but does not let it into builds yet (up to three days in a new account). phone_limit: the account
+ * has no room for more phones this year. The rest are as for uploads.
+ */
+export type DirectError = 'no_phones' | 'phone_processing' | 'phone_limit' | 'compile' | 'signing' | 'auth' | 'unavailable' | 'internal';
+
+export interface DirectInstall {
+  /** Whether this person can have apps signed for their phone on this server right now. */
+  available: boolean;
+  /** How many phones the person has added, and how many they may add. */
+  phones: number;
+  maxPhones: number;
+  status: 'idle' | 'working' | 'ready' | 'failed';
+  stage?: DirectStage;
+  error?: DirectError;
+  /** Path of the page with the install button, once a build is ready. Opened on the phone. */
+  path?: string;
+  build?: string;
+  /** When the status last changed (ms since epoch). */
+  at?: number;
+}
+
+/** A phone the person has added. The identifier itself stays on the server. */
+export interface Phone {
+  id: string;
+  /** What kind of phone it is, as it reported itself: "iPhone17,1". */
+  model: string;
+  addedAt: number;
+}
+
+/** How an Apple device identifier looks: 40 hex digits on older phones, 8-16 with a dash on newer ones. */
+export function isUdid(value: unknown): value is string {
+  return typeof value === 'string' && /^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{8}-[0-9a-fA-F]{16})$/.test(value);
+}
+
+/**
+ * What a phone says about itself when it is added: a property list inside a signed envelope, as the
+ * raw bytes it posted. Only the identifier and the model are read; the envelope's signature is not
+ * what lets a phone in, the ticket in the address is.
+ */
+export function readPhoneAnswer(body: Uint8Array): { udid: string; model: string } | null {
+  const text = Array.from(body, (byte) => String.fromCharCode(byte)).join('');
+  const plist = /<\?xml[\s\S]*?<\/plist>/.exec(text)?.[0];
+  if (!plist) return null;
+  const value = (key: string) => new RegExp(`<key>${key}</key>\\s*<string>([^<]{1,80})</string>`).exec(plist)?.[1]?.trim() ?? '';
+  const udid = value('UDID');
+  if (!isUdid(udid)) return null;
+  const model = value('PRODUCT');
+  return { udid: udid.toUpperCase(), model: /^[A-Za-z0-9, ]{1,30}$/.test(model) ? model : 'iPhone' };
+}
+
+/** The most phones one build is signed for, and the largest app file a worker hands back. */
+export const DIRECT_LIMITS = { phones: 10, ipaBytes: 20 * 1024 * 1024 };
 
 /** Build numbers must grow with every upload; the UTC minute does that without any stored counter. */
 export function buildNumberFor(date: Date): string {
@@ -546,6 +615,20 @@ export type ServerToWorker =
     }
   /** Invites a person to the worker's own developer team as an internal tester of this app, or finishes that once they have accepted. */
   | { type: 'invite'; jobId: string; projectId: string; bundleId: string; person: TesterPerson }
+  /** Signs the app for the person's own phones and hands the app file back, for installing without TestFlight. */
+  | {
+      type: 'direct';
+      jobId: string;
+      projectId: string;
+      appName: string;
+      bundleId: string;
+      buildNumber: string;
+      files: Record<string, string>;
+      account?: AppleAccount;
+      icon?: string;
+      /** The phones to sign for. They are registered in the developer account if they are not already. */
+      phones: Array<{ udid: string; name: string }>;
+    }
   /** Submits the app's prepared version for Apple's review. Only ever sent because its owner pressed the button. */
   | { type: 'submit'; jobId: string; projectId: string; bundleId: string; account?: AppleAccount }
   /** `store`: a full-size picture for the App Store page instead of a small one for the agent. */
@@ -590,6 +673,9 @@ export type WorkerToServer =
   | { type: 'submit.result'; jobId: string; ok: boolean; error?: StoreSyncError; detail?: string }
   | { type: 'invite.result'; jobId: string; ok: boolean; state?: 'invited' | 'added'; error?: StoreSyncError; detail?: string }
   | { type: 'share.result'; jobId: string; ok: boolean; state?: ShareState; url?: string; error?: StoreSyncError; detail?: string }
+  | { type: 'direct.progress'; jobId: string; stage: DirectStage }
+  /** `ipa`: the signed app file, base64. */
+  | { type: 'direct.result'; jobId: string; ok: boolean; error?: DirectError; detail?: string; ipa?: string; durationMs: number }
   | { type: 'screenshot.result'; jobId: string; ok: boolean; mime?: string; data?: string; error?: string }
   | { type: 'stream.info'; projectId: string; mime: string }
   | { type: 'sim.stopped'; projectId: string };

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError, api, type User } from './api';
-import { Logo } from './Logo';
+import { NAME } from './Logo';
+import { Mascot } from './Mascot';
 import { apiErrorText, t } from './i18n';
 
 export function Auth({ onDone }: { onDone: (user: User) => void }) {
@@ -33,8 +34,11 @@ export function Auth({ onDone }: { onDone: (user: User) => void }) {
   return (
     <main className="auth">
       <form className="auth-card" onSubmit={submit}>
-        <Logo />
-        <p className="auth-tagline">{t.tagline}</p>
+        <div className="auth-hero">
+          <Mascot dancing tile="#fff" eyes="#c74005" />
+          <h1>{NAME}</h1>
+          <p>{t.tagline}</p>
+        </div>
         <label>
           <span>{t.email}</span>
           <input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />

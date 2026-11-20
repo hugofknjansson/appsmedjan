@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import type { InputEvent, PreviewState } from '../../shared/protocol';
 import { t } from './i18n';
+import { Mascot, MascotBadge } from './Mascot';
 
 /** Delivers frames straight to the <img>, so a 15 fps stream doesn't re-render the page. */
 export class FrameBus {
@@ -131,6 +132,7 @@ export function Phone({ bus, preview, running, onInput, onStart, onCapture }: Pr
     if (preview.status === 'unavailable') {
       cover = (
         <div className="phone-cover">
+          <Mascot />
           <strong>{t.previewUnavailable}</strong>
           <span>{t.previewUnavailableSub}</span>
         </div>
@@ -138,13 +140,14 @@ export function Phone({ bus, preview, running, onInput, onStart, onCapture }: Pr
     } else if (building || running || preview.status === 'running') {
       cover = (
         <div className="phone-cover">
-          <span className="spinner" />
+          <Mascot dancing />
           <strong>{building ? stageText : running ? t.working : t.previewStarting}</strong>
         </div>
       );
     } else {
       cover = (
         <div className="phone-cover">
+          <Mascot />
           <strong>{preview.status === 'failed' ? t.previewFailed : t.previewIdle}</strong>
           <button className="btn primary" onClick={onStart}>
             {preview.status === 'failed' ? t.retry : t.start}
@@ -175,7 +178,7 @@ export function Phone({ bus, preview, running, onInput, onStart, onCapture }: Pr
         {cover}
         {pill && (
           <div className="phone-pill" role="status">
-            {building && <span className="spinner small" />}
+            {building && <MascotBadge dancing />}
             {pill}
           </div>
         )}
