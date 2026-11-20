@@ -1,10 +1,10 @@
 // The public TestFlight link of a project: anyone who opens it can install the app on their phone.
 // After an upload the build is handed to Apple's beta review, and Apple is asked now and then how
 // that is going until the link works.
-import { contactComplete, parseContact, type ReviewContact, type TestLink } from '../../shared/protocol';
+import { contactComplete, parseContact, type FastTrack, type ReviewContact, type TesterPerson, type TestLink } from '../../shared/protocol';
 import { config } from './config';
 import * as db from './db';
-import { accountFor } from './routing';
+import { accountFor, isOperator, route } from './routing';
 import * as workers from './workers';
 
 /** Projects whose link is being prepared or checked right now. */
@@ -106,6 +106,70 @@ async function run(
   save(project.id, { status: status as TestLink['status'], build, url });
 }
 
+// --- The fast way: internal testers in the operator's team ------------------------------
+
+/** Projects whose invitation is being sent or checked right now. */
+const inviting = new Set<string>();
+
+/**
+ * Whether the fast way is offered for this project: the operator has turned it on, the app goes to
+ * the operator's account, and the person is not the operator (who is an internal tester already).
+ */
+function fastOffered(project: db.Project): boolean {
+  const owner = db.getUser(project.userId);
+  if (!config.internalTesters || !owner || isOperator(owner.email)) return false;
+  const routing = route(owner);
+  return routing.account === 'operator' && routing.available;
+}
+
+export function fastTrack(project: db.Project): FastTrack {
+  const saved = db.getFastTrack(project.id);
+  // The app has to exist at Apple before anyone can be invited to it, which an upload sees to.
+  const available = fastOffered(project) && db.getPublish(project.id)?.status === 'uploaded';
+  if (inviting.has(project.id)) return { available, status: 'working', email: saved?.person.email };
+  if (!saved) return { available, status: 'none' };
+  return {
+    available,
+    status: saved.status,
+    email: saved.person.email,
+    error: saved.error ?? undefined,
+    detail: saved.error === 'rejected' ? (saved.detail ?? undefined) : undefined,
+  };
+}
+
+/** Invites the person to the operator's team as a tester of this app. False when that is not offered. */
+export function startFastTrack(project: db.Project, person: TesterPerson): boolean {
+  if (!fastTrack(project).available || inviting.has(project.id)) return false;
+  void runInvite(project, person);
+  return true;
+}
+
+async function runInvite(project: db.Project, person: TesterPerson): Promise<void> {
+  if (inviting.has(project.id)) return;
+  inviting.add(project.id);
+  changed(project.id);
+  const before = db.getFastTrack(project.id);
+  let outcome: Awaited<ReturnType<typeof workers.invite>>;
+  try {
+    outcome = await workers.invite(project, person);
+  } catch (err) {
+    // A worker that is away for a moment is no reason to give up: Apple is asked again later.
+    outcome = err instanceof workers.WorkerUnavailable && before ? { ok: true, state: undefined } : { ok: false, error: 'unavailable', detail: (err as Error).message };
+  } finally {
+    inviting.delete(project.id);
+  }
+  if (!db.getProject(project.id)) return;
+  if (!outcome.ok) {
+    console.warn(`[testlink] ${project.id}: inviting a tester failed, ${outcome.error}\n${outcome.detail ?? ''}`);
+    db.setFastTrack(project.id, person, { status: 'failed', error: outcome.error ?? 'internal', detail: outcome.detail });
+  } else {
+    const status = outcome.state ?? (before?.status === 'added' ? 'added' : 'invited');
+    if (status !== before?.status) console.log(`[testlink] ${project.id}: tester ${status}`);
+    db.setFastTrack(project.id, person, { status }, status !== before?.status);
+  }
+  changed(project.id);
+}
+
 /** Asks Apple about the builds it is still working on: often while processing, seldom while reviewing. */
 function tick(): void {
   const now = Date.now();
@@ -130,4 +194,23 @@ function tick(): void {
   }
 }
 
-setInterval(tick, Math.min(20_000, PROCESSING_EVERY_MS)).unref();
+/** Looks whether the people who were invited have accepted, and makes them testers when they have. */
+function tickInvitations(): void {
+  const now = Date.now();
+  for (const row of db.pendingFastTracks()) {
+    if (inviting.has(row.projectId) || now - row.checkedAt < PROCESSING_EVERY_MS) continue;
+    const project = db.getProject(row.projectId);
+    if (!project || !fastOffered(project)) continue;
+    if (now - row.updatedAt > GIVE_UP_AFTER_MS) {
+      db.setFastTrack(project.id, row.person, { status: 'failed', error: 'internal' });
+      changed(project.id);
+      continue;
+    }
+    void runInvite(project, row.person);
+  }
+}
+
+setInterval(() => {
+  tick();
+  tickInvitations();
+}, Math.min(20_000, PROCESSING_EVERY_MS)).unref();

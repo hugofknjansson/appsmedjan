@@ -731,7 +731,11 @@ export class AppStoreConnect {
     const users = await this.call('GET', '/v1/users?filter[roles]=ACCOUNT_HOLDER&fields[users]=username,firstName,lastName&limit=1');
     const holder = users.data[0]?.attributes;
     if (!holder?.username) return false;
+    return this.addToInternalGroup(appId, { email: holder.username, firstName: holder.firstName ?? '', lastName: holder.lastName ?? '' });
+  }
 
+  /** Puts a member of the team in the app's internal group, the one that gets every build without review. */
+  private async addToInternalGroup(appId: string, person: { email: string; firstName: string; lastName: string }): Promise<boolean> {
     const groups = await this.call(
       'GET',
       `/v1/betaGroups?filter[app]=${encodeURIComponent(appId)}&filter[isInternalGroup]=true&fields[betaGroups]=name,hasAccessToAllBuilds&limit=50`,
@@ -751,7 +755,7 @@ export class AppStoreConnect {
 
     // Someone who is already a tester somewhere in the account is added to the group; otherwise created into it.
     const group = { type: 'betaGroups', id: groupId };
-    const known = await this.call('GET', `/v1/betaTesters?filter[email]=${encodeURIComponent(holder.username)}&fields[betaTesters]=email&limit=1`);
+    const known = await this.call('GET', `/v1/betaTesters?filter[email]=${encodeURIComponent(person.email)}&fields[betaTesters]=email&limit=1`);
     const testerId = known.data[0]?.id;
     if (testerId) {
       await this.call('POST', `/v1/betaGroups/${encodeURIComponent(groupId)}/relationships/betaTesters`, {
@@ -761,12 +765,56 @@ export class AppStoreConnect {
       await this.call('POST', '/v1/betaTesters', {
         data: {
           type: 'betaTesters',
-          attributes: { email: holder.username, firstName: holder.firstName, lastName: holder.lastName },
+          attributes: { email: person.email, firstName: person.firstName, lastName: person.lastName },
           relationships: { betaGroups: { data: [group] } },
         },
       });
     }
     return true;
+  }
+
+  /**
+   * The fast way onto someone's phone: internal testers get every build minutes after an upload, with
+   * no review. They have to be members of the developer team, so the person is first invited to it,
+   * with access to this one app only. Once they have accepted, running this again makes them a tester.
+   *
+   * invited: Apple has sent them an invitation to accept. added: they are a tester of the app.
+   */
+  async inviteAsTester(appId: string, person: { email: string; firstName: string; lastName: string }): Promise<'invited' | 'added'> {
+    const email = person.email.trim();
+    const members = await this.send('GET', `/v1/users?filter[username]=${encodeURIComponent(email)}&fields[users]=username,allAppsVisible&limit=5`);
+    const member = members.find((u) => String(u.attributes?.username ?? '').toLowerCase() === email.toLowerCase());
+    if (member) {
+      if (member.attributes?.allAppsVisible !== true) {
+        try {
+          await this.send('POST', `/v1/users/${encodeURIComponent(member.id)}/relationships/visibleApps`, { data: [{ type: 'apps', id: appId }] });
+        } catch (err) {
+          // 409: they can see the app already.
+          if (!(err instanceof StoreError && err.status === 409)) throw err;
+        }
+      }
+      if (!(await this.addToInternalGroup(appId, person))) throw new StoreError(500, 'The internal test group could not be created.');
+      return 'added';
+    }
+
+    const pending = await this.send('GET', `/v1/userInvitations?filter[email]=${encodeURIComponent(email)}&limit=5`);
+    if (pending.some((i) => String(i.attributes?.email ?? '').toLowerCase() === email.toLowerCase())) return 'invited';
+    await this.send('POST', '/v1/userInvitations', {
+      data: {
+        type: 'userInvitations',
+        attributes: {
+          email,
+          firstName: person.firstName.trim(),
+          lastName: person.lastName.trim(),
+          // The least that lets someone test: this app's builds and testers, nothing of the account's.
+          roles: ['DEVELOPER'],
+          allAppsVisible: false,
+          provisioningAllowed: false,
+        },
+        relationships: { visibleApps: { data: [{ type: 'apps', id: appId }] } },
+      },
+    });
+    return 'invited';
   }
 }
 

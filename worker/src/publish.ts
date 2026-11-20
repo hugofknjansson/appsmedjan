@@ -21,11 +21,12 @@ import {
   STORE_ICON_SIZE,
   STORE_SHOT,
   contactComplete,
+  testerPersonProblem,
   listingProblems,
 } from '../../shared/protocol';
 import { AppStoreConnect, StoreError, StoreLocked, bundleIdName, waitForApp, type StoreKey } from '../../shared/appstore';
 import { pngInfo } from '../../shared/png';
-import type { PublishJob, PublishResult, ShareJob, ShareResult, StoreJob, StoreResult, SubmitJob } from './driver';
+import type { InviteJob, InviteResult, PublishJob, PublishResult, ShareJob, ShareResult, StoreJob, StoreResult, SubmitJob } from './driver';
 import { exec, mustExec } from './exec';
 import { iconPng } from './icon';
 import { extractErrors, mirrorSources, projectSpec } from './xcode';
@@ -140,7 +141,7 @@ async function writeIcon(file: string, job: PublishJob): Promise<void> {
 
 type Store = Pick<
   AppStoreConnect,
-  'ensureBundleId' | 'appId' | 'ensureAccountHolderTests' | 'syncListing' | 'submitForReview' | 'shareBuild' | 'shareStatus'
+  'ensureBundleId' | 'appId' | 'ensureAccountHolderTests' | 'syncListing' | 'submitForReview' | 'shareBuild' | 'shareStatus' | 'inviteAsTester'
 >;
 
 const PEM = /^-----BEGIN PRIVATE KEY-----[A-Za-z0-9+/=\s]{50,2000}-----END PRIVATE KEY-----\s*$/;
@@ -308,6 +309,26 @@ export class Publisher {
       if (!job.contact || !contactComplete(job.contact)) return { ok: false, error: 'internal', detail: 'The share job has no complete contact.' };
       const description = (job.description ?? '').trim() || 'An app built with Appsmedjan.';
       return { ok: true, ...(await store.shareBuild(appId, { build: job.build, contact: job.contact, description })) };
+    } catch (err) {
+      return this.storeFailure(job.projectId, err);
+    }
+  }
+
+  /**
+   * Invites a person to this worker's own developer team as an internal tester of the app, or makes
+   * them a tester once they have accepted. Never done with someone else's account: who is on a team
+   * is that team's own business.
+   */
+  async invite(job: InviteJob): Promise<InviteResult> {
+    if (!isValidProjectId(job.projectId) || !isValidBundleId(job.bundleId) || !job.person || testerPersonProblem(job.person) !== null) {
+      return { ok: false, error: 'internal', detail: 'Invalid invite job.' };
+    }
+    if (!this.own) return { ok: false, error: 'unavailable', detail: 'This worker has no account of its own.' };
+    const store = this.storeOf(this.own);
+    try {
+      const appId = await store.appId(job.bundleId);
+      if (!appId) return { ok: false, error: 'no_app_record', detail: `No app with bundle id ${job.bundleId} exists in App Store Connect yet.` };
+      return { ok: true, state: await store.inviteAsTester(appId, job.person) };
     } catch (err) {
       return this.storeFailure(job.projectId, err);
     }

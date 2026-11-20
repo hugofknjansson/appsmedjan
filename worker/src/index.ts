@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import WebSocket from 'ws';
 import { keepAlive } from '../../shared/keepalive';
 import { PROTOCOL_VERSION, encodeFrame, type ServerToWorker, type WorkerToServer } from '../../shared/protocol';
-import type { Driver, Emit, PublishResult, ShareResult, StoreResult } from './driver';
+import type { Driver, Emit, InviteResult, PublishResult, ShareResult, StoreResult } from './driver';
 import { MockDriver } from './mock';
 import { XcodeDriver } from './xcode';
 
@@ -127,6 +127,17 @@ async function handle(msg: ServerToWorker): Promise<void> {
         console.log(`[worker] test link ${msg.projectId} (${msg.build}): ${result.ok ? result.state : `failed, ${result.error}`}`);
       }
       send({ type: 'share.result', jobId: msg.jobId, ok: result.ok, state: result.state, url: result.url, error: result.error, detail: result.detail });
+      break;
+    }
+    case 'invite': {
+      let result: InviteResult;
+      try {
+        result = await driver.invite(msg);
+      } catch (err) {
+        result = { ok: false, error: 'internal', detail: (err as Error).message };
+      }
+      if (!result.ok) console.log(`[worker] tester invitation for ${msg.projectId}: failed, ${result.error}`);
+      send({ type: 'invite.result', jobId: msg.jobId, ok: result.ok, state: result.state, error: result.error, detail: result.detail });
       break;
     }
     case 'submit': {

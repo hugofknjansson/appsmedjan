@@ -18,7 +18,12 @@ const working = new Map<string, PublishState>();
 
 export function publishState(project: db.Project): PublishState {
   const owner = db.getUser(project.userId);
-  const routing = { ...route(owner), test: testlink.testLink(project.id), operator: owner ? isOperator(owner.email) : false };
+  const routing = {
+    ...route(owner),
+    test: testlink.testLink(project.id),
+    fast: testlink.fastTrack(project),
+    operator: owner ? isOperator(owner.email) : false,
+  };
   const current = working.get(project.id);
   if (current) {
     // While the upload waits for the app to be created, the person needs to know which bundle id to pick.

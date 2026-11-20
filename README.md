@@ -287,11 +287,27 @@ Knappen **På min telefon** i ett projekt ger två sätt att prova appen på en 
   femte minut under granskningen) och visar en QR-kod när länken fungerar. Apple granskar första
   bygget av varje app; hur lång tid det tar varierar.
 
-Två inställningar på servern hör till detta:
+Vem som behöver vänta på Apples granskning:
+
+| Vem | Väg | Väntan |
+|---|---|---|
+| Den som driver tjänsten, i sitt eget konto | Intern testare, läggs till automatiskt | Några minuter |
+| Person med eget kopplat utvecklarkonto | Intern testare i sitt eget konto | Några minuter |
+| Person utan konto, via tjänstens konto | Publik länk | Apples betagranskning av första bygget |
+
+För den sista gruppen finns ett snabbspår, om `INTERNAL_TESTERS=1` är satt: personen bjuds in till
+tjänstens utvecklarteam som intern testare av sin egen app (rollen Developer, bara den appen, utan
+tillgång till certifikat). De tackar ja i ett mejl från Apple, servern märker när de har gjort det
+och lägger dem i appens interna testgrupp, och sedan kommer varje bygge till deras TestFlight på
+några minuter. Ett team rymmer 100 interna testare, och de blir medlemmar i ditt App Store
+Connect-team, så det är avstängt tills du slår på det.
+
+Tre inställningar på servern hör till detta:
 
 - `OPERATOR_EMAILS`: de som driver tjänsten. Apple har inget API för att skapa en app i App Store
   Connect, så för uppladdningar till ditt eget konto måste du skapa appen för hand. De här
   användarna ser på sin startsida vilka appar som väntar, med namn och bundle-id.
+- `INTERNAL_TESTERS=1`: slår på snabbspåret ovan.
 - `BETA_CONTACT`: vem Apple får kontakta om appar som testas från ditt konto. Utan den frågas varje
   person efter egna kontaktuppgifter innan länken skapas.
 
@@ -454,8 +470,8 @@ eller motsvarande).
 Bygge, simulator, bildström, tryck och text samt uppladdning till TestFlight är körda på riktiga Macar,
 både en egen och en hyrd (se "Hyrda Macar"). Det här är **inte kört på riktigt**:
 
-- Den publika TestFlight-länken: testgrupp, testinformation och betagranskning (se "Appen på
-  telefonen").
+- Den publika TestFlight-länken (testgrupp, testinformation, betagranskning) och inbjudan av interna
+  testare (se "Appen på telefonen").
 - Delar av uppgifterna som skickas med appens sida: åldersgräns, pris och tillgänglighet (se "Appens
   sida i App Store").
 - Uppladdning med en användares eget kopplade Apple-konto.

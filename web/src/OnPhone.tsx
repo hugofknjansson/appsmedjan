@@ -2,7 +2,14 @@
 // public TestFlight link that needs no developer account.
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import qrcode from 'qrcode-generator';
-import { EMPTY_CONTACT, contactProblem, type PublishState, type ReviewContact } from '../../shared/protocol';
+import {
+  EMPTY_CONTACT,
+  contactProblem,
+  testerPersonProblem,
+  type PublishState,
+  type ReviewContact,
+  type TesterPerson,
+} from '../../shared/protocol';
 import { ApiError, api } from './api';
 import { apiErrorText, t } from './i18n';
 
@@ -49,6 +56,7 @@ export function OnPhoneDialog({ id, publish, running, onClose, onConnect }: Prop
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [contact, setContact] = useState<ReviewContact>(EMPTY_CONTACT);
+  const [person, setPerson] = useState<TesterPerson>({ email: '', firstName: '', lastName: '' });
 
   async function newCode() {
     setExpired(false);
@@ -92,6 +100,15 @@ export function OnPhoneDialog({ id, publish, running, onClose, onConnect }: Prop
   const uploading = publish.status === 'working';
   const uploaded = publish.status === 'uploaded';
   const missing = contactProblem(contact);
+  const fast = publish.fast ?? { available: false, status: 'none' as const };
+  // Members of the developer team get every build without Apple's review: the operator in their own
+  // account, and anyone who has connected an account of their own.
+  const internal = uploaded && publish.tester === 'added' && (publish.operator === true || publish.account === 'own');
+
+  function sendPerson(e: FormEvent) {
+    e.preventDefault();
+    void act(() => api.fastTrack(id, person));
+  }
 
   return (
     <dialog ref={dialog} className="sheet wide" aria-labelledby="phone-title" onClose={onClose}>
@@ -146,6 +163,72 @@ export function OnPhoneDialog({ id, publish, running, onClose, onConnect }: Prop
                       ? t.phone.waitingOperatorRetry
                       : t.publishError[publish.error ?? 'internal'].replace('{bundleId}', publish.bundleId ?? '')}
                   </p>
+                )}
+
+                {internal && (
+                  <div className="notice" role="status">
+                    <p>
+                      <strong>{t.phone.internalReady}</strong>
+                    </p>
+                    <p>
+                      {t.phone.internalText}{' '}
+                      <a className="link" href={TESTFLIGHT_APP} target="_blank" rel="noreferrer">
+                        TestFlight
+                      </a>
+                    </p>
+                  </div>
+                )}
+                {internal && <h4>{t.phone.linkForOthers}</h4>}
+
+                {uploaded && fast.status === 'added' && (
+                  <div className="notice" role="status">
+                    <p>
+                      <strong>{t.phone.fastAdded}</strong>
+                    </p>
+                    <p>
+                      {t.phone.fastAddedText}{' '}
+                      <a className="link" href={TESTFLIGHT_APP} target="_blank" rel="noreferrer">
+                        TestFlight
+                      </a>
+                    </p>
+                  </div>
+                )}
+                {uploaded && fast.status === 'invited' && (
+                  <p className="notice" role="status">
+                    {t.phone.fastInvited.replace('{email}', fast.email ?? '')}
+                  </p>
+                )}
+                {uploaded && fast.status === 'working' && (
+                  <p className="notice" role="status">
+                    <span className="spinner small" /> {t.phone.fastWorking}
+                  </p>
+                )}
+                {uploaded && fast.available && (fast.status === 'none' || fast.status === 'failed') && test.status !== 'approved' && (
+                  <form className="guide-form fast" onSubmit={sendPerson}>
+                    <h4>{t.phone.fastTitle}</h4>
+                    <p className="muted fine">{t.phone.fastText}</p>
+                    {fast.status === 'failed' && (
+                      <p className="form-error" role="alert">
+                        {t.phone.fastFailed} {fast.error === 'rejected' ? fast.detail : ''}
+                      </p>
+                    )}
+                    <label>
+                      <span>{t.phone.fastEmail}</span>
+                      <input type="email" required autoComplete="email" value={person.email} onChange={(e) => setPerson((p) => ({ ...p, email: e.target.value }))} />
+                      <small>{t.phone.fastEmailHelp}</small>
+                    </label>
+                    <label>
+                      <span>{t.store.firstName}</span>
+                      <input type="text" required autoComplete="given-name" value={person.firstName} onChange={(e) => setPerson((p) => ({ ...p, firstName: e.target.value }))} />
+                    </label>
+                    <label>
+                      <span>{t.store.lastName}</span>
+                      <input type="text" required autoComplete="family-name" value={person.lastName} onChange={(e) => setPerson((p) => ({ ...p, lastName: e.target.value }))} />
+                    </label>
+                    <button className="btn" disabled={busy || testerPersonProblem(person) !== null}>
+                      {t.phone.fastSend}
+                    </button>
+                  </form>
                 )}
 
                 {uploaded && (test.status === 'none' || test.status === 'working' || test.status === 'processing') && (

@@ -175,6 +175,11 @@ extension API {
     let _: Empty = try await send("POST", "api/projects/\(id)/testlink", body: Body(contact: contact))
   }
 
+  /// Asks to be invited to the operator's team as an internal tester of this app.
+  func fastTrack(_ id: String, person: TesterPerson) async throws(APIError) {
+    let _: Empty = try await send("POST", "api/projects/\(id)/fasttrack", body: person)
+  }
+
   func operatorRequests() async throws(APIError) -> [AppRequest] {
     struct Requests: Decodable { let requests: [AppRequest] }
     let answer: Requests = try await get("api/operator/requests")

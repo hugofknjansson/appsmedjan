@@ -2,7 +2,7 @@
 import type { IncomingMessage } from 'node:http';
 import crypto from 'node:crypto';
 import express, { type NextFunction, type Request, type Response } from 'express';
-import { isValidProjectId } from '../../shared/protocol';
+import { isValidProjectId, testerPersonProblem, type TesterPerson } from '../../shared/protocol';
 import { hasCredentials } from './agent';
 import { config } from './config';
 import * as db from './db';
@@ -305,6 +305,27 @@ api.post('/projects/:id/testlink', requireUser, (req, res) => {
     return;
   }
   testlink.startShare(project);
+  res.status(202).json({ publish: publishState(project) });
+});
+
+/**
+ * The fast way: invites the person to the operator's team as an internal tester of this app. Only
+ * where the operator has turned that on, and only at the person's own request.
+ */
+api.post('/projects/:id/fasttrack', requireUser, authLimiter, (req, res) => {
+  const project = ownProject(req, res);
+  if (!project) return;
+  const given = (req.body ?? {}) as Record<string, unknown>;
+  const text = (key: string) => (typeof given[key] === 'string' ? (given[key] as string).replace(/\s+/g, ' ').trim().slice(0, 200) : '');
+  const person: TesterPerson = { email: text('email').toLowerCase(), firstName: text('firstName'), lastName: text('lastName') };
+  if (testerPersonProblem(person) !== null) {
+    res.status(400).json({ error: 'bad_contact' });
+    return;
+  }
+  if (!testlink.startFastTrack(project, person)) {
+    res.status(409).json({ error: 'fast_unavailable' });
+    return;
+  }
   res.status(202).json({ publish: publishState(project) });
 });
 

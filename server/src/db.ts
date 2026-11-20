@@ -17,6 +17,7 @@ import {
   type StoreListing,
   type StorePages,
   type StoreSyncError,
+  type TesterPerson,
   type TestLink,
 } from '../../shared/protocol';
 import { config } from './config';
@@ -104,6 +105,17 @@ db.exec(`
     status TEXT NOT NULL,
     url TEXT,
     build TEXT,
+    error TEXT,
+    detail TEXT,
+    checked_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS fast_tracks (
+    project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    first_name TEXT NOT NULL,
+    last_name TEXT NOT NULL,
+    status TEXT NOT NULL,
     error TEXT,
     detail TEXT,
     checked_at INTEGER NOT NULL,
@@ -612,6 +624,57 @@ export function setTestLink(projectId: string, link: Omit<TestLink, 'at'>, chang
        status = excluded.status, url = excluded.url, build = excluded.build, error = excluded.error,
        detail = excluded.detail, checked_at = excluded.checked_at, updated_at = excluded.updated_at`,
   ).run(projectId, link.status, link.url ?? null, link.build ?? null, link.error ?? null, link.detail ?? null, now, previous?.at ?? now);
+}
+
+// --- Internal testers: the fast way onto a phone ---------------------------------------
+
+export interface FastTrackRow {
+  projectId: string;
+  person: TesterPerson;
+  status: 'invited' | 'added' | 'failed';
+  error: StoreSyncError | null;
+  detail: string | null;
+  checkedAt: number;
+  updatedAt: number;
+}
+
+const toFastTrack = (r: Record<string, unknown>): FastTrackRow => ({
+  projectId: String(r.project_id),
+  person: { email: String(r.email), firstName: String(r.first_name), lastName: String(r.last_name) },
+  status: r.status as FastTrackRow['status'],
+  error: (r.error as StoreSyncError | null) ?? null,
+  detail: (r.detail as string | null) ?? null,
+  checkedAt: Number(r.checked_at),
+  updatedAt: Number(r.updated_at),
+});
+
+export function getFastTrack(projectId: string): FastTrackRow | null {
+  const row = db.prepare('SELECT * FROM fast_tracks WHERE project_id = ?').get(projectId) as Record<string, unknown> | undefined;
+  return row ? toFastTrack(row) : null;
+}
+
+/** Invitations that have been sent and not yet accepted. */
+export function pendingFastTracks(): FastTrackRow[] {
+  const rows = db.prepare("SELECT * FROM fast_tracks WHERE status = 'invited'").all() as unknown as Record<string, unknown>[];
+  return rows.map(toFastTrack);
+}
+
+/** Saves where the invitation stands. `changed` false only notes that Apple was asked and nothing moved. */
+export function setFastTrack(
+  projectId: string,
+  person: TesterPerson,
+  outcome: { status: FastTrackRow['status']; error?: StoreSyncError | null; detail?: string | null },
+  changed = true,
+): void {
+  const now = Date.now();
+  const previous = changed ? null : getFastTrack(projectId);
+  db.prepare(
+    `INSERT INTO fast_tracks (project_id, email, first_name, last_name, status, error, detail, checked_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (project_id) DO UPDATE SET
+       email = excluded.email, first_name = excluded.first_name, last_name = excluded.last_name, status = excluded.status,
+       error = excluded.error, detail = excluded.detail, checked_at = excluded.checked_at, updated_at = excluded.updated_at`,
+  ).run(projectId, person.email, person.firstName, person.lastName, outcome.status, outcome.error ?? null, outcome.detail ?? null, now, previous?.updatedAt ?? now);
 }
 
 // --- Apps the operator has to create in App Store Connect ---------------------------

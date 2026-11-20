@@ -1,7 +1,7 @@
 // A stand-in driver for development on machines without Xcode (Linux, CI).
 // It "builds" instantly and streams a drawn placeholder screen so the whole flow can be exercised.
 import type { BuildStage, InputEvent, PublishStage, StoreSyncStage } from '../../shared/protocol';
-import type { BuildJob, Driver, Emit, PublishJob, PublishResult, ShareJob, ShareResult, StoreJob, StoreResult, SubmitJob } from './driver';
+import type { BuildJob, Driver, Emit, InviteJob, InviteResult, PublishJob, PublishResult, ShareJob, ShareResult, StoreJob, StoreResult, SubmitJob } from './driver';
 
 interface MockSession {
   appName: string;
@@ -21,6 +21,7 @@ export class MockDriver implements Driver {
   /** How many times each build's public link has been asked about: it moves on a step each time. */
   private shareAsked = new Map<string, number>();
   private uploaded = new Map<string, Record<string, string>>();
+  private invited = new Map<string, number>();
 
   constructor(private readonly emit: Emit) {}
 
@@ -116,6 +117,16 @@ export class MockDriver implements Driver {
     const url = `https://testflight.apple.com/join/mock${job.projectId.slice(0, 4)}`;
     if (asked <= 3) return { ok: true, state: 'review', url };
     return { ok: true, state: has('MOCK_BETA_REJECTED') ? 'rejected' : 'approved', url };
+  }
+
+  /** Pretends to invite an internal tester: the invitation is "accepted" by the third time it is asked about. */
+  async invite(job: InviteJob): Promise<InviteResult> {
+    if (job.person.email.startsWith('refused')) return { ok: false, error: 'rejected', detail: 'This email address is already in use by another team member.' };
+    const asked = (this.invited.get(job.projectId) ?? 0) + 1;
+    this.invited.set(job.projectId, asked);
+    console.log(`[mock] invite ${job.person.email} as a tester of ${job.projectId} (${asked})`);
+    await sleep(150);
+    return { ok: true, state: asked >= 3 ? 'added' : 'invited' };
   }
 
   /** Pretends to submit for review. A page sent with MOCK_SUBMIT_REFUSED in its description is refused. */

@@ -5,7 +5,7 @@
  * about. Workers on rented Macs are updated separately from the server; the server says so in its
  * log when one of them is behind (or ahead).
  */
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 
 // ---------------------------------------------------------------------------
 // Project files
@@ -144,6 +144,36 @@ export interface TestLink {
 
 export type ShareState = 'processing' | 'review' | 'approved' | 'rejected';
 
+/**
+ * The fast way onto a phone for people who use the operator's developer account: they are invited
+ * to the operator's team as a tester of their own app, and then get every build within minutes,
+ * without Apple's review. Offered only where the operator has turned it on.
+ *
+ * invited: Apple has emailed them an invitation, which they have to accept. added: they are a tester.
+ */
+export interface FastTrack {
+  /** Whether this person can ask for it for this app right now. */
+  available: boolean;
+  status: 'none' | 'working' | 'invited' | 'added' | 'failed';
+  /** The Apple Account the invitation went to. */
+  email?: string;
+  error?: StoreSyncError;
+  detail?: string;
+}
+
+/** Who to invite: the email of their Apple Account, and their name as Apple wants it on the invitation. */
+export interface TesterPerson {
+  email: string;
+  firstName: string;
+  lastName: string;
+}
+
+export function testerPersonProblem(p: TesterPerson): 'name' | 'email' | null {
+  if (!p.firstName.trim() || !p.lastName.trim()) return 'name';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email.trim()) || p.email.length > 200) return 'email';
+  return null;
+}
+
 export interface PublishState {
   /** Whether this person can send the app to TestFlight right now. */
   available: boolean;
@@ -167,6 +197,8 @@ export interface PublishState {
   at?: number;
   /** The public TestFlight link for installing the app on a phone. Missing from servers before it existed. */
   test?: TestLink;
+  /** The fast way for people on the operator's account. Missing from servers before it existed. */
+  fast?: FastTrack;
   /** True when the signed-in person runs the service, and so is the one who creates apps in App Store Connect. */
   operator?: boolean;
 }
@@ -512,6 +544,8 @@ export type ServerToWorker =
       description?: string;
       account?: AppleAccount;
     }
+  /** Invites a person to the worker's own developer team as an internal tester of this app, or finishes that once they have accepted. */
+  | { type: 'invite'; jobId: string; projectId: string; bundleId: string; person: TesterPerson }
   /** Submits the app's prepared version for Apple's review. Only ever sent because its owner pressed the button. */
   | { type: 'submit'; jobId: string; projectId: string; bundleId: string; account?: AppleAccount }
   /** `store`: a full-size picture for the App Store page instead of a small one for the agent. */
@@ -554,6 +588,7 @@ export type WorkerToServer =
   | { type: 'store.progress'; jobId: string; stage: StoreSyncStage }
   | { type: 'store.result'; jobId: string; ok: boolean; error?: StoreSyncError; detail?: string; attached?: StoreBuild }
   | { type: 'submit.result'; jobId: string; ok: boolean; error?: StoreSyncError; detail?: string }
+  | { type: 'invite.result'; jobId: string; ok: boolean; state?: 'invited' | 'added'; error?: StoreSyncError; detail?: string }
   | { type: 'share.result'; jobId: string; ok: boolean; state?: ShareState; url?: string; error?: StoreSyncError; detail?: string }
   | { type: 'screenshot.result'; jobId: string; ok: boolean; mime?: string; data?: string; error?: string }
   | { type: 'stream.info'; projectId: string; mime: string }

@@ -663,6 +663,16 @@ ol.plain-list {
   user-select: all;
 }
 
+.guide-form.fast {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.guide-form.fast h4 {
+  margin: 0;
+}
+
 .choice {
   display: grid;
   gap: 10px;

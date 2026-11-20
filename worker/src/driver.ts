@@ -12,6 +12,7 @@ import type {
   StoreListing,
   StoreSyncError,
   StoreSyncStage,
+  TesterPerson,
 } from '../../shared/protocol';
 
 export interface BuildJob {
@@ -61,6 +62,20 @@ export interface ShareResult {
   detail?: string;
 }
 
+/** Invites a person to the worker's own developer team as an internal tester of one app. */
+export interface InviteJob {
+  projectId: string;
+  bundleId: string;
+  person: TesterPerson;
+}
+
+export interface InviteResult {
+  ok: boolean;
+  state?: 'invited' | 'added';
+  error?: StoreSyncError;
+  detail?: string;
+}
+
 /** Submits the app's prepared version for Apple's review. */
 export interface SubmitJob {
   projectId: string;
@@ -101,6 +116,8 @@ export interface Driver {
   store(job: StoreJob, progress: (stage: StoreSyncStage) => void): Promise<StoreResult>;
   /** Prepares or checks the public TestFlight link. Only called when init() reported canPublish. */
   share(job: ShareJob): Promise<ShareResult>;
+  /** Invites someone as an internal tester in the worker's own account. Only called when init() reported hasOwnAccount. */
+  invite(job: InviteJob): Promise<InviteResult>;
   /** Submits the app for review. Only called when init() reported canPublish. */
   submit(job: SubmitJob): Promise<StoreResult>;
   /** `store`: a full-size picture for the App Store page instead of a small one for the agent to look at. */

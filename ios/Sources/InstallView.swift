@@ -11,12 +11,17 @@ struct InstallView: View {
   @State private var isBusy = false
   @State private var errorText: String?
   @State private var contact = ReviewContact()
+  @State private var person = TesterPerson()
   @State private var isShowingAccount = false
 
   private var publish: PublishState { store.publish }
   private var test: TestLink { publish.test ?? TestLink(status: .none) }
   private var isUploading: Bool { publish.status == .working }
   private var isUploaded: Bool { publish.status == .uploaded }
+  private var fast: FastTrack { publish.fast ?? FastTrack(available: false, status: .none) }
+  /// Members of the developer team get every build without Apple's review.
+  private var isInternal: Bool { isUploaded && publish.tester == "added" && (publish.operator == true || publish.account == .own) }
+  private static let testFlightApp = URL(string: "https://apps.apple.com/app/testflight/id899247664")!
 
   var body: some View {
     NavigationStack {
@@ -89,6 +94,15 @@ struct InstallView: View {
     } else if publish.status == .failed, let note = Texts.publishNote(publish) {
       Section { Text(note.text).foregroundStyle(.red) }
     } else if isUploaded {
+      if isInternal {
+        Section {
+          Label("Du är testare i utvecklarkontot, så ingen granskning behövs. Öppna TestFlight-appen.", systemImage: "checkmark.circle")
+          Link("Hämta TestFlight", destination: Self.testFlightApp)
+        } header: {
+          Text("Appen finns i TestFlight om några minuter")
+        }
+      }
+      fastTrack
       switch test.status {
       case .none, .working, .processing:
         Section {
@@ -96,7 +110,7 @@ struct InstallView: View {
         }
       case .review:
         Section {
-          Label("Apple går igenom appen innan den får installeras. Första gången kan det ta upp till ett par dagar; nya versioner går fortare.", systemImage: "checkmark.shield")
+          Label("Apple går igenom appen innan länken får användas. Första gången kan det ta upp till ett par dagar; nya versioner går fortare.", systemImage: "checkmark.shield")
         }
       case .approved:
         if let link = test.url.flatMap(URL.init(string:)) {
@@ -133,6 +147,51 @@ struct InstallView: View {
           Text("Kontaktperson")
         } footer: {
           Text("Apple vill veta vem de kan kontakta om appen. Fyll i det här en gång, så används det för alla dina appar.")
+        }
+      }
+    }
+  }
+
+  /// The invitation to the operator's team, for people who would rather not wait for Apple's review.
+  @ViewBuilder
+  private var fastTrack: some View {
+    switch fast.status {
+    case .added:
+      Section {
+        Label("Öppna TestFlight-appen på telefonen. Nya versioner kommer dit på några minuter.", systemImage: "checkmark.circle")
+        Link("Hämta TestFlight", destination: Self.testFlightApp)
+      } header: {
+        Text("Du är testare")
+      }
+    case .invited:
+      Section {
+        Label("Apple har skickat en inbjudan till \(fast.email ?? ""). Öppna mejlet och tacka ja. Sedan kommer appen till TestFlight inom några minuter.", systemImage: "envelope")
+      }
+    case .working:
+      Section { Label("Skickar inbjudan", systemImage: "paperplane") }
+    case .none, .failed:
+      if fast.available && test.status != .approved {
+        Section {
+          if fast.status == .failed {
+            Text("Det gick inte att bjuda in dig. \(fast.detail ?? "")").foregroundStyle(.red)
+          }
+          TextField("E-postadressen till ditt Apple-konto", text: $person.email)
+            .textContentType(.emailAddress)
+            .keyboardType(.emailAddress)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+          TextField("Förnamn", text: $person.firstName)
+            .textContentType(.givenName)
+          TextField("Efternamn", text: $person.lastName)
+            .textContentType(.familyName)
+          Button("Bjud in mig som testare") {
+            run { () throws(APIError) in try await api.fastTrack(store.id, person: person) }
+          }
+          .disabled(isBusy || !person.isComplete)
+        } header: {
+          Text("Vill du inte vänta?")
+        } footer: {
+          Text("Du kan bli testare direkt, utan att vänta på Apples granskning. Då bjuds du in till tjänstens utvecklarkonto hos Apple, med tillgång till enbart din app. Du tackar ja i ett mejl från Apple.")
         }
       }
     }

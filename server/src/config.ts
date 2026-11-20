@@ -44,6 +44,13 @@ export const config = {
    */
   operatorEmails: (process.env.OPERATOR_EMAILS ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
   /**
+   * Lets people who use the operator's developer account be invited to its team as internal testers
+   * of their own app, so they get builds within minutes instead of waiting for Apple's beta review.
+   * Off unless asked for: it makes them members of the team (with access to that one app), and a
+   * team has room for 100 internal testers.
+   */
+  internalTesters: process.env.INTERNAL_TESTERS === '1',
+  /**
    * Who Apple may contact about apps tested from the operator's account, when the app's own maker
    * has not given contact details: "First Last, +46 70 123 45 67, name@example.com".
    */

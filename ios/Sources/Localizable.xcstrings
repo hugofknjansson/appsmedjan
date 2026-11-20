@@ -121,6 +121,16 @@
         }
       }
     },
+    "Appen finns i TestFlight om några minuter": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app is in TestFlight in a few minutes"
+          }
+        }
+      }
+    },
     "Appen finns inte i App Store Connect än. Gör den installerbar först; då får du hjälp att skapa den.": {
       "localizations": {
         "en": {
@@ -351,12 +361,22 @@
         }
       }
     },
-    "Apple går igenom appen innan den får installeras. Första gången kan det ta upp till ett par dagar; nya versioner går fortare.": {
+    "Apple går igenom appen innan länken får användas. Första gången kan det ta upp till ett par dagar; nya versioner går fortare.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apple looks the app over before it may be installed. The first time that can take up to a couple of days; new versions go faster."
+            "value": "Apple looks the app over before the link may be used. The first time that can take up to a couple of days; new versions go faster."
+          }
+        }
+      }
+    },
+    "Apple har skickat en inbjudan till %@. Öppna mejlet och tacka ja. Sedan kommer appen till TestFlight inom några minuter.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple has sent an invitation to %@. Open the email and accept. The app then reaches TestFlight within a few minutes."
           }
         }
       }
@@ -521,6 +541,16 @@
         }
       }
     },
+    "Bjud in mig som testare": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invite me as a tester"
+          }
+        }
+      }
+    },
     "Bygg min app": {
       "localizations": {
         "en": {
@@ -641,6 +671,16 @@
         }
       }
     },
+    "Det gick inte att bjuda in dig. %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You could not be invited. %@"
+          }
+        }
+      }
+    },
     "Det gick inte att nå Apple just nu. Försök igen om en stund.": {
       "localizations": {
         "en": {
@@ -697,6 +737,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "The picture could not be taken. Try again."
+          }
+        }
+      }
+    },
+    "Det går inte att bjuda in testare just nu.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Testers cannot be invited right now."
           }
         }
       }
@@ -841,6 +891,36 @@
         }
       }
     },
+    "Du kan bli testare direkt, utan att vänta på Apples granskning. Då bjuds du in till tjänstens utvecklarkonto hos Apple, med tillgång till enbart din app. Du tackar ja i ett mejl från Apple.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can become a tester right away, without waiting for Apple's review. You are then invited to the service's developer account with Apple, with access to your app only. You accept in an email from Apple."
+          }
+        }
+      }
+    },
+    "Du är testare": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You are a tester"
+          }
+        }
+      }
+    },
+    "Du är testare i utvecklarkontot, så ingen granskning behövs. Öppna TestFlight-appen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You are a tester in the developer account, so no review is needed. Open the TestFlight app."
+          }
+        }
+      }
+    },
     "Då ligger appen på hemskärmen som en vanlig app. Det går via Apples testapp TestFlight, som är gratis. Du behöver inget utvecklarkonto.": {
       "localizations": {
         "en": {
@@ -887,6 +967,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "The email address does not look right."
+          }
+        }
+      }
+    },
+    "E-postadressen till ditt Apple-konto": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The email address of your Apple Account"
           }
         }
       }
@@ -1287,6 +1377,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Health & Fitness"
+          }
+        }
+      }
+    },
+    "Hämta TestFlight": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get TestFlight"
           }
         }
       }
@@ -2161,6 +2261,16 @@
         }
       }
     },
+    "Skickar inbjudan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sending the invitation"
+          }
+        }
+      }
+    },
     "Skickar texter": {
       "localizations": {
         "en": {
@@ -2651,6 +2761,16 @@
         }
       }
     },
+    "Vill du inte vänta?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rather not wait?"
+          }
+        }
+      }
+    },
     "Visa integritetspolicyn": {
       "localizations": {
         "en": {
@@ -2837,6 +2957,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Open App Store Connect"
+          }
+        }
+      }
+    },
+    "Öppna TestFlight-appen på telefonen. Nya versioner kommer dit på några minuter.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open the TestFlight app on the phone. New versions get there in a few minutes."
           }
         }
       }

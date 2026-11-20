@@ -12,7 +12,7 @@ import {
   STORE_SHOT,
   type StoreSyncStage,
 } from '../../shared/protocol';
-import type { BuildJob, Driver, Emit, PublishJob, PublishResult, ShareJob, ShareResult, StoreJob, StoreResult, SubmitJob } from './driver';
+import type { BuildJob, Driver, Emit, InviteJob, InviteResult, PublishJob, PublishResult, ShareJob, ShareResult, StoreJob, StoreResult, SubmitJob } from './driver';
 import { exec, mustExec } from './exec';
 import { Publisher, publishConfigFromEnv } from './publish';
 import { listFolders, pruneAfterDays, staleIds, touch } from './prune';
@@ -268,6 +268,11 @@ export class XcodeDriver implements Driver {
     if (!this.publisher) return { ok: false, error: 'unavailable' };
     if (job.account && process.env.PUBLISH_FOR_USERS !== '1') return { ok: false, error: 'unavailable' };
     return this.publisher.share(job);
+  }
+
+  async invite(job: InviteJob): Promise<InviteResult> {
+    if (!this.publisher) return { ok: false, error: 'unavailable' };
+    return this.publisher.invite(job);
   }
 
   async submit(job: SubmitJob): Promise<StoreResult> {

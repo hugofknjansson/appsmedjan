@@ -28,6 +28,7 @@ enum Texts {
     case "store_not_ready": String(localized: "Skicka först sidan till App Store Connect med ett bygge valt, och fyll i kontaktuppgifterna.")
     case "bad_contact": String(localized: "Kontaktuppgifterna gick inte att spara.")
     case "not_uploaded": String(localized: "Appen är inte uppladdad än.")
+    case "fast_unavailable": String(localized: "Det går inte att bjuda in testare just nu.")
     case "no_api_key": String(localized: "Tjänsten är inte färdiginställd ännu (API-nyckel saknas).")
     case "rate_limited": String(localized: "Det är många som bygger just nu. Vänta en liten stund och försök igen.")
     case "overloaded": String(localized: "AI-tjänsten svarar inte just nu. Försök igen om en stund.")

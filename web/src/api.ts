@@ -1,4 +1,4 @@
-import type { PublishState, ReviewContact, StoreChoices, StoreListing, StorePages, StoreState } from '../../shared/protocol';
+import type { PublishState, ReviewContact, StoreChoices, StoreListing, StorePages, StoreState, TesterPerson } from '../../shared/protocol';
 
 /** An app someone is waiting for the operator to create in App Store Connect. */
 export interface AppRequest {
@@ -75,6 +75,7 @@ export const api = {
   testflight: (id: string) => call<{ ok: true }>('POST', `/api/projects/${id}/testflight`, {}),
   shareAgain: (id: string, contact?: ReviewContact) =>
     call<{ publish: PublishState }>('POST', `/api/projects/${id}/testlink`, contact ? { contact } : {}),
+  fastTrack: (id: string, person: TesterPerson) => call<{ publish: PublishState }>('POST', `/api/projects/${id}/fasttrack`, person),
   handoff: (id: string) => call<{ path: string; expiresInMs: number }>('POST', `/api/projects/${id}/handoff`, {}),
   operatorRequests: () => call<{ requests: AppRequest[] }>('GET', '/api/operator/requests'),
   store: (id: string) => call<StoreState>('GET', `/api/projects/${id}/store`),

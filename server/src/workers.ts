@@ -17,6 +17,7 @@ import {
   type StoreListing,
   type StoreSyncError,
   type StoreSyncStage,
+  type TesterPerson,
   type WorkerToServer,
 } from '../../shared/protocol';
 import { randomId } from './db';
@@ -216,6 +217,18 @@ export async function share(
   return { ok: res.ok, state: res.state, url: res.url, error: res.error, detail: res.detail };
 }
 
+/** Invites a person to the operator's team as an internal tester of the app, or finishes that once they have accepted. */
+export async function invite(
+  project: { id: string; bundleId: string },
+  person: TesterPerson,
+): Promise<{ ok: boolean; state?: 'invited' | 'added'; error?: StoreSyncError; detail?: string }> {
+  const worker = publisher('operator');
+  if (!worker) throw new WorkerUnavailable('no publishing worker connected');
+  const res = await request(worker, { type: 'invite', jobId: randomId(16), projectId: project.id, bundleId: project.bundleId, person }, STORE_TIMEOUT_MS);
+  if (res.type !== 'invite.result') throw new Error('unexpected worker reply');
+  return { ok: res.ok, state: res.state, error: res.error, detail: res.detail };
+}
+
 /** Submits the app's prepared version for Apple's review, through the worker that holds the account's key. */
 export async function submit(
   project: { id: string; bundleId: string },
@@ -328,6 +341,7 @@ export function attachWorker(ws: WebSocket): void {
       case 'store.result':
       case 'submit.result':
       case 'share.result':
+      case 'invite.result':
       case 'screenshot.result': {
         const p = pending.get(msg.jobId);
         if (!p || p.worker !== worker) break;

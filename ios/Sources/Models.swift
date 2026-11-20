@@ -164,6 +164,8 @@ nonisolated struct PublishState: Decodable, Equatable {
   var at: Double?
   /// The public TestFlight link for installing the app. Missing from servers before it existed.
   var test: TestLink?
+  /// The fast way for people on the operator's account. Missing from servers before it existed.
+  var fast: FastTrack?
   /// True when the signed-in person runs the service, and so creates apps in App Store Connect.
   var `operator`: Bool?
 
@@ -184,6 +186,33 @@ nonisolated struct TestLink: Decodable, Equatable {
   var build: String?
   var error: String?
   var detail: String?
+}
+
+/// The fast way onto a phone: an invitation to the operator's team as an internal tester.
+nonisolated struct FastTrack: Decodable, Equatable {
+  nonisolated enum Status: String, LenientEnum {
+    case none, working, invited, added, failed
+    static let fallback = Status.none
+  }
+
+  var available: Bool
+  var status: Status
+  var email: String?
+  var error: String?
+  var detail: String?
+}
+
+/// Who to invite: the email of their Apple Account and their name.
+nonisolated struct TesterPerson: Encodable, Equatable {
+  var email = ""
+  var firstName = ""
+  var lastName = ""
+
+  var isComplete: Bool {
+    !firstName.trimmingCharacters(in: .whitespaces).isEmpty
+      && !lastName.trimmingCharacters(in: .whitespaces).isEmpty
+      && email.trimmingCharacters(in: .whitespaces).wholeMatch(of: /[^\s@]+@[^\s@]+\.[^\s@]+/) != nil
+  }
 }
 
 // MARK: - App Store page

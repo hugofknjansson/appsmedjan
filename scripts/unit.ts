@@ -320,7 +320,7 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
 
   // A small stand-in for App Store Connect that remembers what it was told.
   interface Row { id: string; attributes?: Record<string, unknown> }
-  const fakeStore = (start: { versions: Row[]; builds: Row[]; priced?: boolean; refuseSubmit?: boolean; review?: string; inGroup?: boolean }) => {
+  const fakeStore = (start: { versions: Row[]; builds: Row[]; priced?: boolean; refuseSubmit?: boolean; review?: string; inGroup?: boolean; users?: Row[]; invitations?: Row[] }) => {
     const calls: Array<{ method: string; path: string; body?: any }> = [];
     const uploads: number[] = [];
     const state = { ...start, shots: [{ id: 'old1' }, { id: 'old2' }] as Row[], sets: [] as Row[], groups: [] as Row[], next: 1 };
@@ -385,6 +385,11 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
         return ok({ id: 's1', attributes: { betaReviewState: start.review } });
       }
       if (method === 'POST' && bare === '/v1/betaAppReviewSubmissions') return ok({ id: 's1', attributes: { betaReviewState: 'WAITING_FOR_REVIEW' } }, 201);
+      // The team: its members, and invitations that have not been accepted yet.
+      if (method === 'GET' && bare === '/v1/users') return ok(start.users ?? []);
+      if (method === 'GET' && bare === '/v1/userInvitations') return ok(start.invitations ?? []);
+      if (method === 'POST' && bare === '/v1/users/u1/relationships/visibleApps') return new Response(null, { status: 204 });
+      if (method === 'GET' && bare === '/v1/betaTesters') return ok([]);
       if (method === 'GET' && bare === '/v1/reviewSubmissions') return ok([]);
       if (method === 'POST' && bare === '/v1/reviewSubmissions') return ok({ id: 'sub1' }, 201);
       if (method === 'PATCH' && bare === '/v1/reviewSubmissions/sub1' && start.refuseSubmit) {
@@ -535,6 +540,29 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
   assert.equal((await fakeStore({ versions: [editable], builds: [build], review: 'REJECTED' }).store.shareStatus('app1', '202611200729')).state, 'rejected');
   assert.equal((await fakeStore({ versions: [editable], builds: [] }).store.shareStatus('app1', '202611200729')).state, 'processing');
 
+  // The fast way: someone outside the team is invited to it, for this one app and nothing else.
+  const tester = { email: 'Kund@Example.com', firstName: 'Kim', lastName: 'Kund' };
+  const outsider = fakeStore({ versions: [editable], builds: [build] });
+  assert.equal(await outsider.store.inviteAsTester('app1', tester), 'invited');
+  const invitation = outsider.calls.find((c) => c.method === 'POST' && c.path === '/v1/userInvitations')!.body.data;
+  assert.deepEqual(invitation.attributes, {
+    email: 'Kund@Example.com', firstName: 'Kim', lastName: 'Kund', roles: ['DEVELOPER'], allAppsVisible: false, provisioningAllowed: false,
+  });
+  assert.deepEqual(invitation.relationships.visibleApps.data, [{ type: 'apps', id: 'app1' }]);
+  assert.ok(!outsider.calls.some((c) => c.path.startsWith('/v1/betaTesters') && c.method === 'POST'), 'nobody is a tester before they have accepted');
+
+  // Asked again while the invitation is waiting: no second invitation.
+  const waiting = fakeStore({ versions: [editable], builds: [build], invitations: [{ id: 'i1', attributes: { email: 'kund@example.com' } }] });
+  assert.equal(await waiting.store.inviteAsTester('app1', tester), 'invited');
+  assert.ok(!waiting.calls.some((c) => c.method === 'POST'));
+
+  // Once they are in the team they get to see the app, and are put in its internal group.
+  const member = fakeStore({ versions: [editable], builds: [build], users: [{ id: 'u1', attributes: { username: 'kund@example.com', allAppsVisible: false } }] });
+  assert.equal(await member.store.inviteAsTester('app1', tester), 'added');
+  const posted = member.calls.filter((c) => c.method === 'POST').map((c) => c.path);
+  assert.deepEqual(posted, ['/v1/users/u1/relationships/visibleApps', '/v1/betaGroups', '/v1/betaTesters']);
+  assert.equal(member.calls.find((c) => c.path === '/v1/betaGroups' && c.method === 'POST')!.body.data.attributes.isInternalGroup, true);
+
   // The operator's own contact, as one line in the settings.
   assert.deepEqual(parseContact('Hugo Fredrik Jansson, +46 70 123 45 67, hugo@example.com'), {
     firstName: 'Hugo', lastName: 'Fredrik Jansson', phone: '+46 70 123 45 67', email: 'hugo@example.com', holder: '',
@@ -553,6 +581,7 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
         appId: async () => appId,
         syncListing: sync,
         submitForReview: async () => { if (appId === 'refuses') throw new StoreError(409, 'not valid', 'App Privacy answers are missing.'); },
+        inviteAsTester: async () => 'invited' as const,
         shareBuild: async () => ({ state: 'review' as const, url: 'https://testflight.apple.com/join/x' }),
         shareStatus: async () => ({ state: 'approved' as const, url: 'https://testflight.apple.com/join/x' }),
       }),
@@ -564,6 +593,10 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
   assert.equal((await worker('app1', never).syncStore({ ...job, account, listing: { ...listing, name: '' } }, () => undefined)).error, 'internal');
   assert.equal((await worker('app1', async () => { throw new StoreLocked('in review'); }).syncStore({ ...job, account }, () => undefined)).error, 'locked');
   assert.equal((await worker('app1', async () => { throw new StoreError(401, 'bad token'); }).syncStore({ ...job, account }, () => undefined)).error, 'auth');
+  // Inviting testers is only ever done with the worker's own account, and this one has none.
+  const inviteJob = { projectId: job.projectId, bundleId: job.bundleId, person: { email: 'kund@example.com', firstName: 'Kim', lastName: 'Kund' } };
+  assert.equal((await worker('app1', never).invite(inviteJob)).error, 'unavailable');
+  assert.equal((await worker('app1', never).invite({ ...inviteJob, person: { ...inviteJob.person, email: 'inte en adress' } })).error, 'internal');
   const shareJob = { projectId: job.projectId, bundleId: job.bundleId, build: '202611200729', account };
   assert.deepEqual(await worker('app1', never).share({ ...shareJob, contact }), { ok: true, state: 'review', url: 'https://testflight.apple.com/join/x' });
   assert.deepEqual(await worker('app1', never).share({ ...shareJob, check: true }), { ok: true, state: 'approved', url: 'https://testflight.apple.com/join/x' });
