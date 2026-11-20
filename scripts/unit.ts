@@ -176,20 +176,59 @@ try {
     },
   });
 
-  // A fitting group and a known tester are reused: nothing is created, the tester is only added to the group.
+  // A fitting group is reused, and so is the tester record the person already has in this app.
+  calls.length = 0;
+  assert.equal(
+    await scripted([
+      { status: 200, json: { data: [holder] } },
+      { status: 200, json: { data: [{ id: 'g7', attributes: { hasAccessToAllBuilds: true } }] } },
+      { status: 200, json: { data: [] } },
+      { status: 200, json: { data: [{ id: 't9' }] } },
+      { status: 204, json: {} },
+    ]).ensureAccountHolderTests('app1'),
+    true,
+  );
+  assert.equal(calls.length, 5);
+  assert.ok(calls[2]!.url.includes('filter[betaGroups]=g7'));
+  // Only a record in this app counts: Apple keeps one per app and refuses another app's in this group.
+  assert.ok(calls[3]!.url.includes('filter[apps]=app1'));
+  assert.ok(calls[4]!.url.endsWith('/v1/betaGroups/g7/relationships/betaTesters'));
+  assert.deepEqual(calls[4]!.body, { data: [{ type: 'betaTesters', id: 't9' }] });
+  // Already in the group: nothing is sent.
   calls.length = 0;
   assert.equal(
     await scripted([
       { status: 200, json: { data: [holder] } },
       { status: 200, json: { data: [{ id: 'g7', attributes: { hasAccessToAllBuilds: true } }] } },
       { status: 200, json: { data: [{ id: 't9' }] } },
-      { status: 204, json: {} },
     ]).ensureAccountHolderTests('app1'),
     true,
   );
-  assert.equal(calls.length, 4);
-  assert.ok(calls[3]!.url.endsWith('/v1/betaGroups/g7/relationships/betaTesters'));
-  assert.deepEqual(calls[3]!.body, { data: [{ type: 'betaTesters', id: 't9' }] });
+  assert.equal(calls.length, 3);
+  // A tester of another app only: a new record is created in this app's group.
+  calls.length = 0;
+  assert.equal(
+    await scripted([
+      { status: 200, json: { data: [holder] } },
+      { status: 200, json: { data: [{ id: 'g7', attributes: { hasAccessToAllBuilds: true } }] } },
+      { status: 200, json: { data: [] } },
+      { status: 200, json: { data: [] } },
+      { status: 201, json: { data: { id: 't10' } } },
+    ]).ensureAccountHolderTests('app1'),
+    true,
+  );
+  assert.ok(calls[4]!.url.endsWith('/v1/betaTesters') && calls[4]!.method === 'POST');
+  // Apple refusing is an error, not a success.
+  await assert.rejects(
+    scripted([
+      { status: 200, json: { data: [holder] } },
+      { status: 200, json: { data: [{ id: 'g7', attributes: { hasAccessToAllBuilds: true } }] } },
+      { status: 200, json: { data: [] } },
+      { status: 200, json: { data: [{ id: 't9' }] } },
+      { status: 409, json: { errors: [{ detail: 'Tester(s) cannot be assigned' }] } },
+    ]).ensureAccountHolderTests('app1'),
+    (err: unknown) => err instanceof StoreError && err.status === 409 && err.message.includes('cannot be assigned'),
+  );
   // A key that cannot list users: nothing is changed and the person is told to add themselves.
   assert.equal(await scripted([{ status: 200, json: { data: [] } }]).ensureAccountHolderTests('app1'), false);
 } finally {

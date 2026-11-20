@@ -741,7 +741,11 @@ export class AppStoreConnect {
       `/v1/betaGroups?filter[app]=${encodeURIComponent(appId)}&filter[isInternalGroup]=true&fields[betaGroups]=name,hasAccessToAllBuilds&limit=50`,
     );
     let groupId = groups.data.find((g) => g.attributes?.hasAccessToAllBuilds)?.id;
-    if (!groupId) {
+    const email = encodeURIComponent(person.email);
+    if (groupId) {
+      const inGroup = await this.call('GET', `/v1/betaTesters?filter[email]=${email}&filter[betaGroups]=${encodeURIComponent(groupId)}&fields[betaTesters]=email&limit=1`);
+      if (inGroup.data.length > 0) return true;
+    } else {
       const created = await this.call('POST', '/v1/betaGroups', {
         data: {
           type: 'betaGroups',
@@ -753,16 +757,19 @@ export class AppStoreConnect {
       if (!groupId) return false;
     }
 
-    // Someone who is already a tester somewhere in the account is added to the group; otherwise created into it.
+    // Apple keeps a tester record per app. Only one that belongs to this app can be put in its group:
+    // the record the same person has in another app is refused ("Tester(s) cannot be assigned"), and a
+    // person new to this app is created straight into the group. Both go through `send`, where a
+    // refusal is an error; `call` lets 409 pass, which once made a refusal here look like success.
     const group = { type: 'betaGroups', id: groupId };
-    const known = await this.call('GET', `/v1/betaTesters?filter[email]=${encodeURIComponent(person.email)}&fields[betaTesters]=email&limit=1`);
+    const known = await this.call('GET', `/v1/betaTesters?filter[email]=${email}&filter[apps]=${encodeURIComponent(appId)}&fields[betaTesters]=email&limit=1`);
     const testerId = known.data[0]?.id;
     if (testerId) {
-      await this.call('POST', `/v1/betaGroups/${encodeURIComponent(groupId)}/relationships/betaTesters`, {
+      await this.send('POST', `/v1/betaGroups/${encodeURIComponent(groupId)}/relationships/betaTesters`, {
         data: [{ type: 'betaTesters', id: testerId }],
       });
     } else {
-      await this.call('POST', '/v1/betaTesters', {
+      await this.send('POST', '/v1/betaTesters', {
         data: {
           type: 'betaTesters',
           attributes: { email: person.email, firstName: person.firstName, lastName: person.lastName },
