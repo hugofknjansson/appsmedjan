@@ -62,9 +62,6 @@ export function OnPhoneDialog({ id, publish, running, onClose, onConnect }: Prop
 
   useEffect(() => {
     dialog.current?.showModal();
-    void newCode();
-    // Only once, when the dialog opens.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // The code signs the phone in, so it stops working after a few minutes and is taken off the screen.
@@ -107,21 +104,6 @@ export function OnPhoneDialog({ id, publish, running, onClose, onConnect }: Prop
 
       <div className="sheet-body">
         <ol className="guide">
-          <li>
-            <h3>{t.phone.tryNow}</h3>
-            <p>{t.phone.tryNowText}</p>
-            {handoff && !expired ? (
-              <div className="qr-row">
-                <Qr value={handoff.url} label={t.phone.tryNow} />
-                <p className="muted fine">{t.phone.tryNowNote}</p>
-              </div>
-            ) : (
-              <button className="btn" onClick={() => void newCode()}>
-                {t.phone.newCode}
-              </button>
-            )}
-          </li>
-
           <li>
             <h3>{t.phone.install}</h3>
             <p>{t.phone.installText}</p>
@@ -238,6 +220,21 @@ export function OnPhoneDialog({ id, publish, running, onClose, onConnect }: Prop
                   </form>
                 )}
               </>
+            )}
+          </li>
+
+          <li>
+            <h3>{t.phone.tryNow}</h3>
+            <p>{t.phone.tryNowText}</p>
+            {handoff && !expired ? (
+              <div className="qr-row">
+                <Qr value={handoff.url} label={t.phone.tryNow} />
+                <p className="muted fine">{t.phone.tryNowNote}</p>
+              </div>
+            ) : (
+              <button className="btn" onClick={() => void newCode()}>
+                {handoff ? t.phone.newCode : t.phone.showCode}
+              </button>
             )}
           </li>
         </ol>
