@@ -11,7 +11,7 @@ import { STARTER_FILES } from './prompt';
 import { accountStatus, connectAccount, disconnectAccount } from './apple';
 import { draftListing } from './listing';
 import { accountChanged, startPublish } from './publish';
-import { capture, listingFrom, saveIcon, startSync, storeState } from './store';
+import { capture, choicesFrom, contactFrom, listingFrom, saveIcon, startSubmit, startSync, storeState } from './store';
 import { isRunning, startRun, stopRun } from './runs';
 import * as workers from './workers';
 
@@ -289,12 +289,16 @@ api.get('/projects/:id/store', requireUser, (req, res) => {
 api.put('/projects/:id/store/listing', requireUser, (req, res) => {
   const project = ownProject(req, res);
   if (!project) return;
-  const listing = listingFrom(req.body);
-  if (!listing) {
+  const body = (req.body ?? {}) as { listing?: unknown; choices?: unknown; contact?: unknown };
+  const listing = listingFrom(body.listing);
+  const contact = contactFrom(body.contact);
+  if (!listing || !contact) {
     res.status(400).json({ error: 'bad_listing' });
     return;
   }
-  db.setListing(project.id, listing);
+  db.setListing(project.id, listing, choicesFrom(body.choices));
+  // The contact belongs to the person, not the app: saved once, used for all their apps.
+  db.setReviewContact((req as Authed).user.id, contact);
   res.json(storeState(project, (req as Authed).user));
 });
 
@@ -316,7 +320,7 @@ api.post('/projects/:id/store/draft', requireUser, async (req, res) => {
     res.status(result.error === 'rate_limited' || result.error === 'overloaded' ? 503 : 502).json({ error: result.error });
     return;
   }
-  res.json({ draft: result.draft });
+  res.json({ draft: result.draft, ageRatingNotes: result.ageRatingNotes });
 });
 
 /** Saves what the simulator shows right now as a screenshot for the App Store. */
@@ -399,6 +403,23 @@ api.post('/projects/:id/store/sync', requireUser, (req, res) => {
   const started = startSync(project, user);
   if (started !== 'started') {
     const status = { forbidden: 403, unavailable: 503, busy: 409, incomplete: 400 }[started];
+    res.status(status).json({ error: started === 'busy' ? 'busy' : `store_${started}` });
+    return;
+  }
+  res.status(202).json(storeState(project, user));
+});
+
+/**
+ * Submits the app for Apple's review. This is the one step that is hard to take back, so it only
+ * ever happens here, on the owner's own request.
+ */
+api.post('/projects/:id/store/submit', requireUser, (req, res) => {
+  const project = ownProject(req, res);
+  if (!project) return;
+  const user = (req as Authed).user;
+  const started = startSubmit(project, user);
+  if (started !== 'started') {
+    const status = { forbidden: 403, unavailable: 503, busy: 409, not_ready: 400 }[started];
     res.status(status).json({ error: started === 'busy' ? 'busy' : `store_${started}` });
     return;
   }

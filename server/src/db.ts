@@ -3,12 +3,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import {
+  DEFAULT_CHOICES,
+  EMPTY_CONTACT,
   EMPTY_LISTING,
   type ChatMessage,
   type Part,
   type PublishError,
   type PublishTester,
+  type ReviewContact,
   type StoreBuild,
+  type StoreChoices,
   type StoreListing,
   type StoreSyncError,
 } from '../../shared/protocol';
@@ -92,6 +96,18 @@ db.exec(`
     data BLOB NOT NULL,
     updated_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS store_submits (
+    project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+    status TEXT NOT NULL,
+    error TEXT,
+    detail TEXT,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS review_contacts (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    data TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS store_syncs (
     project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
     status TEXT NOT NULL,
@@ -108,6 +124,7 @@ function addColumn(table: string, column: string, type: string): void {
   if (!columns.some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
 }
 addColumn('publishes', 'tester', 'TEXT');
+addColumn('store_listings', 'choices', 'TEXT');
 
 export interface User {
   id: string;
@@ -397,11 +414,36 @@ export function getListing(projectId: string): StoreListing {
   return { ...EMPTY_LISTING, ...(JSON.parse(row.data) as Partial<StoreListing>) };
 }
 
-export function setListing(projectId: string, listing: StoreListing): void {
+export function getChoices(projectId: string): StoreChoices {
+  const row = db.prepare('SELECT choices FROM store_listings WHERE project_id = ?').get(projectId) as { choices: string | null } | undefined;
+  return { ...DEFAULT_CHOICES, ...(row?.choices ? (JSON.parse(row.choices) as Partial<StoreChoices>) : {}) };
+}
+
+export function setListing(projectId: string, listing: StoreListing, choices: StoreChoices): void {
   db.prepare(
-    `INSERT INTO store_listings (project_id, data, updated_at) VALUES (?, ?, ?)
-     ON CONFLICT (project_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`,
-  ).run(projectId, JSON.stringify(listing), Date.now());
+    `INSERT INTO store_listings (project_id, data, choices, updated_at) VALUES (?, ?, ?, ?)
+     ON CONFLICT (project_id) DO UPDATE SET data = excluded.data, choices = excluded.choices, updated_at = excluded.updated_at`,
+  ).run(projectId, JSON.stringify(listing), JSON.stringify(choices), Date.now());
+}
+
+/** When the page, or the contact details sent with it, were last saved. 0 when never. */
+export function pageSavedAt(projectId: string, userId: string): number {
+  const page = db.prepare('SELECT updated_at FROM store_listings WHERE project_id = ?').get(projectId) as { updated_at: number } | undefined;
+  const contact = db.prepare('SELECT updated_at FROM review_contacts WHERE user_id = ?').get(userId) as { updated_at: number } | undefined;
+  return Math.max(page?.updated_at ?? 0, contact?.updated_at ?? 0);
+}
+
+/** The person's contact details for Apple's review, shared by all their apps. */
+export function getReviewContact(userId: string): ReviewContact {
+  const row = db.prepare('SELECT data FROM review_contacts WHERE user_id = ?').get(userId) as { data: string } | undefined;
+  return { ...EMPTY_CONTACT, ...(row ? (JSON.parse(row.data) as Partial<ReviewContact>) : {}) };
+}
+
+export function setReviewContact(userId: string, contact: ReviewContact): void {
+  db.prepare(
+    `INSERT INTO review_contacts (user_id, data, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT (user_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`,
+  ).run(userId, JSON.stringify(contact), Date.now());
 }
 
 /** Ids of the project's App Store screenshots, oldest first: the order they are shown in. */
@@ -468,6 +510,30 @@ export function getStoreSync(projectId: string): StoreSync | null {
     attached: row.attached as StoreBuild | null,
     updatedAt: row.updated_at,
   };
+}
+
+export interface StoreSubmit {
+  status: 'done' | 'failed';
+  error: StoreSyncError | null;
+  detail: string | null;
+  updatedAt: number;
+}
+
+/** The outcome of the latest attempt to submit the app for review, if there has been one. */
+export function getStoreSubmit(projectId: string): StoreSubmit | null {
+  const row = db.prepare('SELECT status, error, detail, updated_at FROM store_submits WHERE project_id = ?').get(projectId) as
+    | { status: string; error: string | null; detail: string | null; updated_at: number }
+    | undefined;
+  if (!row) return null;
+  return { status: row.status === 'done' ? 'done' : 'failed', error: row.error as StoreSyncError | null, detail: row.detail, updatedAt: row.updated_at };
+}
+
+export function setStoreSubmit(projectId: string, outcome: Omit<StoreSubmit, 'updatedAt'>): void {
+  db.prepare(
+    `INSERT INTO store_submits (project_id, status, error, detail, updated_at) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT (project_id) DO UPDATE SET
+       status = excluded.status, error = excluded.error, detail = excluded.detail, updated_at = excluded.updated_at`,
+  ).run(projectId, outcome.status, outcome.error, outcome.detail, Date.now());
 }
 
 export function setStoreSync(projectId: string, outcome: Omit<StoreSync, 'updatedAt'>): void {

@@ -286,21 +286,32 @@ det till App Store Connect, till samma konto som TestFlight-uppladdningarna går
   (1320 × 2868), så ingen större simulator behöver köras. Högst tio.
 - **Ikon**: en egen PNG på 1024 × 1024 används från nästa TestFlight-uppladdning. Genomskinlighet
   fylls med vitt, eftersom Apple inte godkänner den.
+- **Uppgifter till Apple**: tre påståenden som personen kryssar i om de stämmer, och kontaktuppgifter
+  för granskningen. "Inget av det Apple frågar om för åldersgränsen" besvarar alla åldersfrågor med
+  nej (4+). "Inget material från andra" sätter rättighetsdeklarationen. "Gratis i alla länder" sätter
+  pris och tillgänglighet, men bara om appen inte redan har det. Det som inte kryssas i rörs inte.
+  Textförslaget säger också om det hittade något i koden som höjer åldersgränsen. Kontaktuppgifterna
+  sparas per person och används för alla deras appar.
 - **Skicka**: arbetaren som har kontots nyckel fyller i versionens texter på appens primära språk,
-  byter ut skärmbilderna, sätter kategorin och väljer det senast uppladdade bygget.
+  byter ut skärmbilderna, sätter kategorin, väljer det senast uppladdade bygget och fyller i
+  uppgifterna ovan samt upphovsrättsraden.
+- **Skicka in för granskning**: en egen knapp, som går att trycka på när sidan är skickad med ett
+  bygge valt och inget har ändrats sedan dess. Personen får en fråga innan. Tjänsten skickar aldrig
+  in något på eget initiativ.
 
-Inget skickas in för granskning härifrån. Det som Apple inte har något API för, eller som den som
-äger kontot själv måste stå för, görs i App Store Connect: integritetsfrågorna, åldersgräns, pris,
-kontaktuppgifter för granskningen och själva inskicket. Guiden listar de stegen.
+Ett steg finns kvar i App Store Connect: integritetsfrågorna (vilka uppgifter appen samlar in). Apple
+har inget API för dem. Saknas de, eller något annat, säger Apple det när appen skickas in, och det
+svaret visas i guiden.
 
 Begränsningar i den här versionen: bara appens primära språk, bara en första version (en app som
-redan är släppt eller granskas lämnas orörd), och bara iPhone-skärmbilder.
+redan är släppt eller granskas lämnas orörd), bara iPhone-skärmbilder, och bara gratisappar.
 
-Anropen mot App Store Connect för butikssidan är skrivna mot Apples dokumentation och enhetstestade
-mot en ersättare, men har **inte körts mot Apple**. Textförslaget, skärmbilden i rätt storlek och
-ikonen är körda på riktigt; flödet i webbläsaren är kört mot låtsasarbetaren. Räkna med justeringar
-första gången en sida skickas, troligast i hur skärmbilderna laddas upp. iPhone-klienten har inte
-den här guiden.
+Anropen mot App Store Connect för butikssidan är skrivna mot Apples dokumentation (fältnamnen för
+åldersfrågor, pris, tillgänglighet, kontakt och inskick är kontrollerade där) och enhetstestade mot
+en ersättare, men har **inte körts mot Apple**. Textförslaget, skärmbilden i rätt storlek och ikonen
+är körda på riktigt; flödet i webbläsaren är kört mot låtsasarbetaren. Räkna med justeringar första
+gången en sida skickas, troligast i uppladdningen av skärmbilder och i pris och tillgänglighet.
+iPhone-klienten har inte den här guiden.
 
 ### Användarens eget Apple-konto
 
@@ -394,7 +405,8 @@ eller motsvarande).
 Bygge, simulator, bildström, tryck och text samt uppladdning till TestFlight är körda på riktiga Macar,
 både en egen och en hyrd (se "Hyrda Macar"). Det här är **inte kört på riktigt**:
 
-- Att skicka appens sida till App Store Connect (se "Appens sida i App Store").
+- Att skicka appens sida till App Store Connect och att skicka in appen för granskning (se "Appens
+  sida i App Store").
 - Uppladdning med en användares eget kopplade Apple-konto.
 - `scripts/e2e.mjs` (Playwright är inte installerat här).
 - En omstart av den hyrda Macen.

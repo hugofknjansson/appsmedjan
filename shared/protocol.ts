@@ -5,7 +5,7 @@
  * about. Workers on rented Macs are updated separately from the server; the server says so in its
  * log when one of them is behind (or ahead).
  */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 // ---------------------------------------------------------------------------
 // Project files
@@ -258,7 +258,50 @@ export function listingProblems(listing: StoreListing, screenshots: number): Lis
   return out;
 }
 
-export type StoreSyncStage = 'queued' | 'version' | 'texts' | 'screenshots' | 'build';
+/**
+ * What the person states about the app, and wants set up for them. Each is only acted on when it is
+ * true; left false, that part of App Store Connect is not touched and they fill it in there.
+ */
+export interface StoreChoices {
+  /** The app has none of the content Apple's age rating asks about, so it is rated for everyone. */
+  noMatureContent: boolean;
+  /** The app shows no material from others that the person lacks the rights to. */
+  noThirdPartyContent: boolean;
+  /** Free, and available in every country. */
+  free: boolean;
+}
+
+export const DEFAULT_CHOICES: StoreChoices = { noMatureContent: false, noThirdPartyContent: false, free: true };
+
+/** Who Apple's reviewers can reach about the app. Kept per person and used for all their apps. */
+export interface ReviewContact {
+  firstName: string;
+  lastName: string;
+  /** With country code, for example +46 70 123 45 67. */
+  phone: string;
+  email: string;
+  /** Who holds the copyright, when it is not the person named above (a company, say). */
+  holder: string;
+}
+
+export const EMPTY_CONTACT: ReviewContact = { firstName: '', lastName: '', phone: '', email: '', holder: '' };
+
+export function contactComplete(c: ReviewContact): boolean {
+  return (
+    c.firstName.trim().length > 0 &&
+    c.lastName.trim().length > 0 &&
+    /^\+[0-9][0-9 ()-]{6,24}$/.test(c.phone.trim()) &&
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email.trim())
+  );
+}
+
+/** The copyright line Apple shows on the app's page: the year and who holds it. */
+export function copyrightLine(c: ReviewContact, year: number): string {
+  return `${year} ${c.holder.trim() || `${c.firstName.trim()} ${c.lastName.trim()}`}`;
+}
+
+/** details: copyright, rights, age rating, price and review contact. */
+export type StoreSyncStage = 'queued' | 'version' | 'texts' | 'screenshots' | 'build' | 'details';
 
 /**
  * no_app_record: the app does not exist in App Store Connect yet (send it to TestFlight first).
@@ -283,6 +326,18 @@ export interface StoreState {
   problems: ListingProblem[];
   /** Build number of the latest successful TestFlight upload, if any. */
   build?: string;
+  choices: StoreChoices;
+  /** The signed-in person's contact details for Apple's review. */
+  contact: ReviewContact;
+  /** Whether the app can be submitted for review right now: the page has been sent with a build, and the contact is filled in. */
+  canSubmit: boolean;
+  /** The latest attempt to submit the app for review. */
+  submit: {
+    status: 'idle' | 'working' | 'done' | 'failed';
+    error?: StoreSyncError;
+    detail?: string;
+    at?: number;
+  };
   sync: {
     status: 'idle' | 'working' | 'done' | 'failed';
     stage?: StoreSyncStage;
@@ -358,8 +413,13 @@ export type ServerToWorker =
       screenshots: string[];
       /** Build number to select for the version, when one has been uploaded. */
       build?: string;
+      choices?: StoreChoices;
+      /** Sent when the person has filled it in completely. */
+      contact?: ReviewContact;
       account?: AppleAccount;
     }
+  /** Submits the app's prepared version for Apple's review. Only ever sent because its owner pressed the button. */
+  | { type: 'submit'; jobId: string; projectId: string; bundleId: string; account?: AppleAccount }
   /** `store`: a full-size picture for the App Store page instead of a small one for the agent. */
   | { type: 'screenshot'; jobId: string; projectId: string; store?: boolean }
   | { type: 'input'; projectId: string; event: InputEvent }
@@ -399,6 +459,7 @@ export type WorkerToServer =
     }
   | { type: 'store.progress'; jobId: string; stage: StoreSyncStage }
   | { type: 'store.result'; jobId: string; ok: boolean; error?: StoreSyncError; detail?: string; attached?: StoreBuild }
+  | { type: 'submit.result'; jobId: string; ok: boolean; error?: StoreSyncError; detail?: string }
   | { type: 'screenshot.result'; jobId: string; ok: boolean; mime?: string; data?: string; error?: string }
   | { type: 'stream.info'; projectId: string; mime: string }
   | { type: 'sim.stopped'; projectId: string };

@@ -5,7 +5,9 @@ import type {
   PublishError,
   PublishStage,
   PublishTester,
+  ReviewContact,
   StoreBuild,
+  StoreChoices,
   StoreListing,
   StoreSyncError,
   StoreSyncStage,
@@ -34,6 +36,15 @@ export interface StoreJob {
   /** Base64 JPEGs in App Store size, in display order. */
   screenshots: string[];
   build?: string;
+  choices?: StoreChoices;
+  contact?: ReviewContact;
+  account?: AppleAccount;
+}
+
+/** Submits the app's prepared version for Apple's review. */
+export interface SubmitJob {
+  projectId: string;
+  bundleId: string;
   account?: AppleAccount;
 }
 
@@ -68,6 +79,8 @@ export interface Driver {
   publish(job: PublishJob, progress: (stage: PublishStage) => void): Promise<PublishResult>;
   /** Fills in the app's App Store page. Only called when init() reported canPublish. */
   store(job: StoreJob, progress: (stage: StoreSyncStage) => void): Promise<StoreResult>;
+  /** Submits the app for review. Only called when init() reported canPublish. */
+  submit(job: SubmitJob): Promise<StoreResult>;
   /** `store`: a full-size picture for the App Store page instead of a small one for the agent to look at. */
   screenshot(projectId: string, opts?: { store?: boolean }): Promise<{ mime: string; data: Buffer }>;
   input(projectId: string, event: InputEvent): void;

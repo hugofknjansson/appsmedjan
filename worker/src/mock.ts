@@ -1,7 +1,7 @@
 // A stand-in driver for development on machines without Xcode (Linux, CI).
 // It "builds" instantly and streams a drawn placeholder screen so the whole flow can be exercised.
 import type { BuildStage, InputEvent, PublishStage, StoreSyncStage } from '../../shared/protocol';
-import type { BuildJob, Driver, Emit, PublishJob, PublishResult, StoreJob, StoreResult } from './driver';
+import type { BuildJob, Driver, Emit, PublishJob, PublishResult, StoreJob, StoreResult, SubmitJob } from './driver';
 
 interface MockSession {
   appName: string;
@@ -17,6 +17,7 @@ const escapeXml = (s: string) => s.replace(/[<>&"]/g, (c) => `&#${c.charCodeAt(0
 
 export class MockDriver implements Driver {
   private sessions = new Map<string, MockSession>();
+  private refuseSubmit = new Set<string>();
 
   constructor(private readonly emit: Emit) {}
 
@@ -85,7 +86,23 @@ export class MockDriver implements Driver {
     await sleep(200 * job.screenshots.length);
     progress('build');
     await sleep(200);
-    return { ok: true, attached: job.build ? (has('MOCK_PROCESSING') ? 'processing' : 'attached') : 'none' };
+    progress('details');
+    await sleep(200);
+    console.log(`[mock] details for ${job.projectId}: choices ${JSON.stringify(job.choices ?? {})}, contact ${job.contact ? 'given' : 'not given'}`);
+    if (has('MOCK_SUBMIT_REFUSED')) this.refuseSubmit.add(job.projectId);
+    else this.refuseSubmit.delete(job.projectId);
+    // MOCK_BUILD: as if a build had been uploaded, so the submit step can be tried without one.
+    return { ok: true, attached: job.build || has('MOCK_BUILD') ? (has('MOCK_PROCESSING') ? 'processing' : 'attached') : 'none' };
+  }
+
+  /** Pretends to submit for review. A page sent with MOCK_SUBMIT_REFUSED in its description is refused. */
+  async submit(job: SubmitJob): Promise<StoreResult> {
+    console.log(`[mock] submit ${job.projectId} for review`);
+    await sleep(500);
+    if (this.refuseSubmit.has(job.projectId)) {
+      return { ok: false, error: 'rejected', detail: 'App Privacy: you must answer the privacy questions before submitting.' };
+    }
+    return { ok: true };
   }
 
   /** Only the App Store kind exists here: the drawn placeholder screen, so the flow can be tried. */

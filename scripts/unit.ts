@@ -10,7 +10,18 @@ import { iconPng } from '../worker/src/icon';
 import { Publisher, classifyPublishFailure, publishConfigFromEnv } from '../worker/src/publish';
 import { listFolders, pruneAfterDays, staleIds, touch } from '../worker/src/prune';
 import { extractErrors, projectSpec } from '../worker/src/xcode';
-import { EMPTY_LISTING, buildNumberFor, decodeFrame, encodeFrame, isValidSourcePath, listingProblems, type StoreListing } from '../shared/protocol';
+import {
+  EMPTY_CONTACT,
+  EMPTY_LISTING,
+  buildNumberFor,
+  contactComplete,
+  copyrightLine,
+  decodeFrame,
+  encodeFrame,
+  isValidSourcePath,
+  listingProblems,
+  type StoreListing,
+} from '../shared/protocol';
 import { keepAlive } from '../shared/keepalive';
 import { EventEmitter } from 'node:events';
 import type { WebSocket } from 'ws';
@@ -301,7 +312,7 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
 
   // A small stand-in for App Store Connect that remembers what it was told.
   interface Row { id: string; attributes?: Record<string, unknown> }
-  const fakeStore = (start: { versions: Row[]; builds: Row[] }) => {
+  const fakeStore = (start: { versions: Row[]; builds: Row[]; priced?: boolean; refuseSubmit?: boolean }) => {
     const calls: Array<{ method: string; path: string; body?: any }> = [];
     const uploads: number[] = [];
     const state = { ...start, shots: [{ id: 'old1' }, { id: 'old2' }] as Row[], sets: [] as Row[], next: 1 };
@@ -339,6 +350,29 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
         }, 201);
       }
       if (method === 'GET' && bare === '/v1/builds') return ok(state.builds);
+      // Only some of the questions exist in this account's API version, and one it must not touch.
+      if (method === 'GET' && bare === '/v1/appInfos/info1/ageRatingDeclaration') {
+        return ok({ id: 'age1', attributes: { violenceRealistic: null, gambling: null, advertising: null, kidsAgeBand: null } });
+      }
+      if (method === 'GET' && bare === '/v1/appPriceSchedules/app1/manualPrices' && start.priced) return ok([{ id: 'p1' }]);
+      if (method === 'GET' && bare === '/v1/apps/app1/appPricePoints') {
+        return ok([{ id: 'pp-099', attributes: { customerPrice: '0.99' } }, { id: 'pp-free', attributes: { customerPrice: '0.0' } }]);
+      }
+      if (method === 'GET' && bare === '/v1/apps/app1/appAvailabilityV2' && start.priced) return ok({ id: 'av1' });
+      if (method === 'GET' && bare === '/v1/territories') return ok([{ id: 'USA' }, { id: 'SWE' }]);
+      if (method === 'GET' && bare === '/v1/reviewSubmissions') return ok([]);
+      if (method === 'POST' && bare === '/v1/reviewSubmissions') return ok({ id: 'sub1' }, 201);
+      if (method === 'PATCH' && bare === '/v1/reviewSubmissions/sub1' && start.refuseSubmit) {
+        return new Response(
+          JSON.stringify({
+            errors: [{
+              detail: 'The provided entity is not in a valid state.',
+              meta: { associatedErrors: { '/v1/appStoreVersions/v1': [{ detail: 'App Privacy answers are missing.' }, { detail: 'App Privacy answers are missing.' }] } },
+            }],
+          }),
+          { status: 409 },
+        );
+      }
       if (method === 'DELETE' || bare.endsWith('/relationships/build')) return new Response(null, { status: 204 });
       if (method === 'PATCH' || method === 'POST') return ok({ id: 'x' });
       return new Response(JSON.stringify({ errors: [{ detail: `unexpected ${method} ${path}` }] }), { status: 404 });
@@ -352,7 +386,9 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
   const full = fakeStore({ versions: [{ id: 'v0', attributes: { appVersionState: 'READY_FOR_SALE' } }, editable], builds: [build] });
   const stages: string[] = [];
   assert.deepEqual(await full.store.syncListing('app1', { listing, screenshots: [shot, shot], build: '202611200729' }, (s) => stages.push(s)), { attached: 'attached' });
-  assert.deepEqual(stages, ['version', 'texts', 'screenshots', 'build']);
+  assert.deepEqual(stages, ['version', 'texts', 'screenshots', 'build', 'details']);
+  // Nothing was stated about the app, so none of the details are touched.
+  assert.ok(!full.calls.some((c) => /ageRating|appPrice|appAvailab|appStoreReviewDetail|\/v1\/apps\/app1$/.test(c.path) && c.method !== 'GET'));
   const did = (method: string, path: string) => full.calls.filter((c) => c.method === method && c.path.split('?')[0] === path);
   // The texts go into the app's own language, not the first one in the list.
   assert.deepEqual(did('PATCH', '/v1/appStoreVersionLocalizations/vl-sv')[0]!.body.data.attributes, {
@@ -383,6 +419,54 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
   await assert.rejects(released.store.syncListing('app1', { listing, screenshots: [shot] }), StoreLocked);
   assert.equal(released.calls.length, 1, 'nothing is changed once the version turns out to be locked');
 
+  // The details the person asked for: each only when stated, and nothing they chose themselves is replaced.
+  const contact = { firstName: 'Hugo', lastName: 'Jansson', phone: '+46 70 123 45 67', email: 'hugo@example.com', holder: '' };
+  assert.ok(contactComplete(contact));
+  assert.ok(!contactComplete({ ...contact, phone: '070-123 45 67' }), 'the country code is needed');
+  assert.ok(!contactComplete(EMPTY_CONTACT));
+  assert.equal(copyrightLine(contact, 2026), '2026 Hugo Jansson');
+  assert.equal(copyrightLine({ ...contact, holder: 'Smedjan AB' }, 2026), '2026 Smedjan AB');
+
+  const everything = { noMatureContent: true, noThirdPartyContent: true, free: true };
+  const detailed = fakeStore({ versions: [editable], builds: [build] });
+  await detailed.store.syncListing('app1', { listing, screenshots: [shot], build: '202611200729', choices: everything, contact });
+  const sent = (method: string, path: string) => detailed.calls.find((c) => c.method === method && c.path.split('?')[0] === path)?.body;
+  assert.match(sent('PATCH', '/v1/appStoreVersions/v1').data.attributes.copyright, /^\d{4} Hugo Jansson$/);
+  assert.deepEqual(sent('POST', '/v1/appStoreReviewDetails').data.attributes, {
+    contactFirstName: 'Hugo', contactLastName: 'Jansson', contactPhone: '+46 70 123 45 67', contactEmail: 'hugo@example.com', demoAccountRequired: false,
+  });
+  assert.equal(sent('PATCH', '/v1/apps/app1').data.attributes.contentRightsDeclaration, 'DOES_NOT_USE_THIRD_PARTY_CONTENT');
+  // Only the questions this account's API knows are answered, and never the ones that are not about content.
+  assert.deepEqual(sent('PATCH', '/v1/ageRatingDeclarations/age1').data.attributes, { violenceRealistic: 'NONE', advertising: false, gambling: false });
+  const schedule = sent('POST', '/v1/appPriceSchedules');
+  assert.equal(schedule.included[0].relationships.appPricePoint.data.id, 'pp-free');
+  assert.equal(schedule.data.relationships.manualPrices.data[0].id, schedule.included[0].id);
+  const availability = sent('POST', '/v2/appAvailabilities');
+  assert.deepEqual(availability.included.map((t: any) => [t.relationships.territory.data.id, t.attributes.available]), [['USA', true], ['SWE', true]]);
+  assert.deepEqual(availability.data.relationships.territoryAvailabilities.data.map((t: any) => t.id), availability.included.map((t: any) => t.id));
+
+  // An app that already has a price and countries keeps them.
+  const priced = fakeStore({ versions: [editable], builds: [], priced: true });
+  await priced.store.syncListing('app1', { listing, screenshots: [shot], choices: { noMatureContent: false, noThirdPartyContent: false, free: true } });
+  assert.ok(!priced.calls.some((c) => c.method === 'POST' && /appPriceSchedules|appAvailabilities/.test(c.path)));
+  assert.ok(!priced.calls.some((c) => /ageRating/.test(c.path)), 'the age rating is left alone when nothing was stated');
+
+  // Submitting: a submission is opened, the version is put in it, and it is sent.
+  const submitted = fakeStore({ versions: [editable], builds: [] });
+  await submitted.store.submitForReview('app1');
+  assert.deepEqual(
+    submitted.calls.filter((c) => c.method !== 'GET').map((c) => `${c.method} ${c.path}`),
+    ['POST /v1/reviewSubmissions', 'POST /v1/reviewSubmissionItems', 'PATCH /v1/reviewSubmissions/sub1'],
+  );
+  assert.deepEqual(submitted.calls.at(-2)!.body.data.relationships.appStoreVersion.data, { type: 'appStoreVersions', id: 'v1' });
+  assert.deepEqual(submitted.calls.at(-1)!.body.data.attributes, { submitted: true });
+  // What Apple finds missing sits one level down in its answer, and is said once.
+  await assert.rejects(
+    fakeStore({ versions: [editable], builds: [], refuseSubmit: true }).store.submitForReview('app1'),
+    (err: unknown) => err instanceof StoreError && err.detail === 'The provided entity is not in a valid state. App Privacy answers are missing.',
+  );
+  await assert.rejects(fakeStore({ versions: [{ id: 'v0', attributes: { appVersionState: 'WAITING_FOR_REVIEW' } }], builds: [] }).store.submitForReview('app1'), StoreLocked);
+
   // What the worker tells the server, by what Apple answered
   const job = { projectId: 'abcdefgh1234', bundleId: 'app.appsmedjan.pabcdefgh1234', listing, screenshots: [shot.toString('base64')] };
   const account = { teamId: 'ABCDE12345', keyId: 'KEY1234567', issuerId: '69a6de70-03db-47e3-e053-5b8c7c11a4d1', key: pem };
@@ -393,6 +477,7 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
         ensureAccountHolderTests: async () => true,
         appId: async () => appId,
         syncListing: sync,
+        submitForReview: async () => { if (appId === 'refuses') throw new StoreError(409, 'not valid', 'App Privacy answers are missing.'); },
       }),
     });
   const never = async () => { throw new Error('must not be called'); };
@@ -402,6 +487,11 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
   assert.equal((await worker('app1', never).syncStore({ ...job, account, listing: { ...listing, name: '' } }, () => undefined)).error, 'internal');
   assert.equal((await worker('app1', async () => { throw new StoreLocked('in review'); }).syncStore({ ...job, account }, () => undefined)).error, 'locked');
   assert.equal((await worker('app1', async () => { throw new StoreError(401, 'bad token'); }).syncStore({ ...job, account }, () => undefined)).error, 'auth');
+  assert.deepEqual(await worker('app1', never).submit({ projectId: job.projectId, bundleId: job.bundleId, account }), { ok: true });
+  assert.equal((await worker(null, never).submit({ projectId: job.projectId, bundleId: job.bundleId, account })).error, 'no_app_record');
+  assert.deepEqual(await worker('refuses', never).submit({ projectId: job.projectId, bundleId: job.bundleId, account }), {
+    ok: false, error: 'rejected', detail: 'App Privacy answers are missing.',
+  });
   assert.deepEqual(
     await worker('app1', async () => { throw new StoreError(409, 'App Store Connect answered 409', 'The app name is already being used.'); }).syncStore({ ...job, account }, () => undefined),
     { ok: false, error: 'rejected', detail: 'The app name is already being used.' },

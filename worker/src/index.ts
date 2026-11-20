@@ -115,6 +115,17 @@ async function handle(msg: ServerToWorker): Promise<void> {
       send({ type: 'store.result', jobId: msg.jobId, ok: result.ok, error: result.error, detail: result.detail, attached: result.attached });
       break;
     }
+    case 'submit': {
+      let result: StoreResult;
+      try {
+        result = await driver.submit(msg);
+      } catch (err) {
+        result = { ok: false, error: 'internal', detail: (err as Error).message };
+      }
+      console.log(`[worker] submit ${msg.projectId} for review: ${result.ok ? 'submitted' : `failed, ${result.error}`}`);
+      send({ type: 'submit.result', jobId: msg.jobId, ok: result.ok, error: result.error, detail: result.detail });
+      break;
+    }
     case 'screenshot':
       try {
         const shot = await driver.screenshot(msg.projectId, { store: msg.store === true });

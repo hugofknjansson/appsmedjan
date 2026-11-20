@@ -20,11 +20,12 @@ import {
   type StoreSyncStage,
   STORE_ICON_SIZE,
   STORE_SHOT,
+  contactComplete,
   listingProblems,
 } from '../../shared/protocol';
 import { AppStoreConnect, StoreError, StoreLocked, bundleIdName, waitForApp, type StoreKey } from '../../shared/appstore';
 import { pngInfo } from '../../shared/png';
-import type { PublishJob, PublishResult, StoreJob, StoreResult } from './driver';
+import type { PublishJob, PublishResult, StoreJob, StoreResult, SubmitJob } from './driver';
 import { exec, mustExec } from './exec';
 import { iconPng } from './icon';
 import { extractErrors, mirrorSources, projectSpec } from './xcode';
@@ -137,7 +138,7 @@ async function writeIcon(file: string, job: PublishJob): Promise<void> {
   }
 }
 
-type Store = Pick<AppStoreConnect, 'ensureBundleId' | 'appId' | 'ensureAccountHolderTests' | 'syncListing'>;
+type Store = Pick<AppStoreConnect, 'ensureBundleId' | 'appId' | 'ensureAccountHolderTests' | 'syncListing' | 'submitForReview'>;
 
 const PEM = /^-----BEGIN PRIVATE KEY-----[A-Za-z0-9+/=\s]{50,2000}-----END PRIVATE KEY-----\s*$/;
 
@@ -251,19 +252,51 @@ export class Publisher {
       progress('version');
       const appId = await store.appId(job.bundleId);
       if (!appId) return { ok: false, error: 'no_app_record', detail: `No app with bundle id ${job.bundleId} exists in App Store Connect yet.` };
-      const { attached } = await store.syncListing(appId, { listing: job.listing, screenshots, build: job.build }, progress);
+      const choices = job.choices && {
+        noMatureContent: job.choices.noMatureContent === true,
+        noThirdPartyContent: job.choices.noThirdPartyContent === true,
+        free: job.choices.free === true,
+      };
+      // A half-filled contact is left out rather than sent on to be refused.
+      const contact = job.contact && contactComplete(job.contact) ? job.contact : undefined;
+      const { attached } = await store.syncListing(appId, { listing: job.listing, screenshots, build: job.build, choices, contact }, progress);
       return { ok: true, attached };
     } catch (err) {
-      const message = (err as Error).message;
-      console.warn(`[store] ${job.projectId}: ${message}`);
-      if (err instanceof StoreLocked) return { ok: false, error: 'locked', detail: message };
-      if (err instanceof StoreError) {
-        if (err.status === 401) return { ok: false, error: 'auth', detail: message };
-        // Apple explains what it did not accept (a word in the name, a link it cannot open): pass that on.
-        if (err.detail && err.status >= 400 && err.status < 500) return { ok: false, error: 'rejected', detail: err.detail };
-      }
-      return { ok: false, error: 'internal', detail: message };
+      return this.storeFailure(job.projectId, err);
     }
+  }
+
+  /**
+   * Submits the app's prepared version for Apple's review. Sent only because the app's owner pressed
+   * the button for it; Apple answers with what is missing when something is.
+   */
+  async submit(job: SubmitJob): Promise<StoreResult> {
+    if (!isValidProjectId(job.projectId) || !isValidBundleId(job.bundleId)) {
+      return { ok: false, error: 'internal', detail: 'Invalid submit job.' };
+    }
+    const resolved = this.targetFor(job.account);
+    if ('stop' in resolved) return resolved.stop;
+    const store = this.storeOf(resolved.target);
+    try {
+      const appId = await store.appId(job.bundleId);
+      if (!appId) return { ok: false, error: 'no_app_record', detail: `No app with bundle id ${job.bundleId} exists in App Store Connect yet.` };
+      await store.submitForReview(appId);
+      return { ok: true };
+    } catch (err) {
+      return this.storeFailure(job.projectId, err);
+    }
+  }
+
+  private storeFailure(projectId: string, err: unknown): StoreResult {
+    const message = (err as Error).message;
+    console.warn(`[store] ${projectId}: ${message}`);
+    if (err instanceof StoreLocked) return { ok: false, error: 'locked', detail: message };
+    if (err instanceof StoreError) {
+      if (err.status === 401) return { ok: false, error: 'auth', detail: message };
+      // Apple explains what it did not accept (a word in the name, a missing answer): pass that on.
+      if (err.detail && err.status >= 400 && err.status < 500) return { ok: false, error: 'rejected', detail: err.detail };
+    }
+    return { ok: false, error: 'internal', detail: message };
   }
 
   /** xcodebuild wants the key as a file. A person's key is one only while their archive and upload run. */

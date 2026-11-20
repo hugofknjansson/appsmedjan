@@ -1,12 +1,17 @@
 // The app's App Store page: texts, screenshots and icon are prepared here and sent to App Store Connect.
-// Submitting for review stays with the person, in App Store Connect.
+// Submitting for review is its own step with its own button, and a question before it happens.
 import { useEffect, useRef, useState } from 'react';
 import {
+  DEFAULT_CHOICES,
+  EMPTY_CONTACT,
   EMPTY_LISTING,
   STORE_CATEGORIES,
   STORE_LIMITS,
   STORE_SHOT,
+  contactComplete,
   listingProblems,
+  type ReviewContact,
+  type StoreChoices,
   type StoreListing,
   type StoreState,
 } from '../../shared/protocol';
@@ -24,8 +29,12 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
   const dialog = useRef<HTMLDialogElement>(null);
   const [store, setStore] = useState<StoreState | null>(null);
   const [form, setForm] = useState<StoreListing>(EMPTY_LISTING);
+  const [choices, setChoices] = useState<StoreChoices>(DEFAULT_CHOICES);
+  const [contact, setContact] = useState<ReviewContact>(EMPTY_CONTACT);
+  /** What the latest suggestion found that would raise the age rating; null before any suggestion. */
+  const [ageNotes, setAgeNotes] = useState<string[] | null>(null);
   const [dirty, setDirty] = useState(false);
-  const [busy, setBusy] = useState<'' | 'draft' | 'save' | 'capture' | 'icon' | 'send'>('');
+  const [busy, setBusy] = useState<'' | 'draft' | 'save' | 'capture' | 'icon' | 'send' | 'submit'>('');
   const [error, setError] = useState('');
   const [iconVersion, setIconVersion] = useState(0);
 
@@ -36,19 +45,22 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
       .then((s) => {
         setStore(s);
         setForm(s.listing);
+        setChoices(s.choices);
+        setContact(s.contact);
       })
       .catch((err) => setError(errorText(err)));
   }, [id]);
 
   // While the page is on its way to Apple, ask how it is going.
   const syncing = store?.sync.status === 'working';
+  const submitting = store?.submit.status === 'working';
   useEffect(() => {
-    if (!syncing) return;
+    if (!syncing && !submitting) return;
     const timer = setInterval(() => {
       api.store(id).then(setStore).catch(() => undefined);
     }, 1500);
     return () => clearInterval(timer);
-  }, [id, syncing]);
+  }, [id, syncing, submitting]);
 
   function change<K extends keyof StoreListing>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -70,8 +82,18 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
     }
   }
 
+  function choose(key: keyof StoreChoices, value: boolean) {
+    setChoices((c) => ({ ...c, [key]: value }));
+    setDirty(true);
+  }
+
+  function changeContact(key: keyof ReviewContact, value: string) {
+    setContact((c) => ({ ...c, [key]: value }));
+    setDirty(true);
+  }
+
   async function save(): Promise<boolean> {
-    const ok = await act('save', () => api.saveListing(id, form));
+    const ok = await act('save', () => api.saveListing(id, { listing: form, choices, contact }));
     if (ok) setDirty(false);
     return ok;
   }
@@ -82,8 +104,9 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
     setBusy('draft');
     setError('');
     try {
-      const { draft } = await api.draftListing(id);
+      const { draft, ageRatingNotes } = await api.draftListing(id);
       setForm((f) => ({ ...f, ...draft }));
+      setAgeNotes(ageRatingNotes);
       setDirty(true);
     } catch (err) {
       setError(errorText(err));
@@ -102,8 +125,29 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
     await act('send', () => api.syncStore(id));
   }
 
+  async function submit() {
+    if (!window.confirm(t.store.confirmSubmit)) return;
+    await act('submit', () => api.submitStore(id));
+  }
+
   const problems = store ? listingProblems(form, store.screenshots.length) : [];
   const sync = store?.sync;
+  const check = (key: keyof StoreChoices, label: string, help: string) => (
+    <label className="check">
+      <input type="checkbox" checked={choices[key]} onChange={(e) => choose(key, e.target.checked)} />
+      <span>
+        {label}
+        <small>{help}</small>
+      </span>
+    </label>
+  );
+  const person = (key: keyof ReviewContact, label: string, type: 'text' | 'tel' | 'email', autoComplete: string, help?: string) => (
+    <label>
+      <span>{label}</span>
+      <input type={type} autoComplete={autoComplete} value={contact[key]} onChange={(e) => changeContact(key, e.target.value)} />
+      {help && <small>{help}</small>}
+    </label>
+  );
 
   const field = (key: 'name' | 'subtitle' | 'promo' | 'keywords', label: string, help?: string) => (
     <label>
@@ -233,6 +277,37 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
             </li>
 
             <li>
+              <h3>{t.store.details}</h3>
+              <p>{t.store.detailsHelp}</p>
+              <div className="guide-form">
+                {check('noMatureContent', t.store.noMature, t.store.noMatureHelp)}
+                {ageNotes && ageNotes.length === 0 && <p className="muted fine">{t.store.ageNotesNone}</p>}
+                {ageNotes && ageNotes.length > 0 && (
+                  <div className="notice">
+                    <p>{t.store.ageNotesSome}</p>
+                    <ul className="plain-list">
+                      {ageNotes.map((note) => (
+                        <li key={note}>{note}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {check('noThirdPartyContent', t.store.noThirdParty, t.store.noThirdPartyHelp)}
+                {check('free', t.store.free, t.store.freeHelp)}
+                <h4>{t.store.contact}</h4>
+                <p className="muted fine">{t.store.contactHelp}</p>
+                {person('firstName', t.store.firstName, 'text', 'given-name')}
+                {person('lastName', t.store.lastName, 'text', 'family-name')}
+                {person('phone', t.store.phone, 'tel', 'tel', t.store.phoneHelp)}
+                {person('email', t.store.email, 'email', 'email')}
+                {person('holder', t.store.holder, 'text', 'organization', t.store.holderHelp)}
+                <button className="btn" disabled={busy !== '' || !dirty} onClick={() => void save()}>
+                  {dirty ? t.store.save : t.store.saved}
+                </button>
+              </div>
+            </li>
+
+            <li>
               <h3>{t.store.sendTitle}</h3>
               {store.account === 'none' ? (
                 <p>
@@ -256,6 +331,7 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
                   </ul>
                 </div>
               )}
+              {!contactComplete(contact) && <p className="muted">{t.store.contactMissing}</p>}
               {dirty && problems.length === 0 && <p className="muted">{t.store.unsaved}</p>}
               <button
                 className="btn primary"
@@ -279,16 +355,29 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
             </li>
 
             <li>
-              <h3>{t.store.left}</h3>
-              <p>{t.store.leftText}</p>
-              <ul className="plain-list">
-                {t.store.leftItems.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
+              <h3>{t.store.review}</h3>
+              <p>{t.store.reviewText}</p>
               <a className="link" href={CONNECT_URL} target="_blank" rel="noreferrer">
                 {t.store.open}
               </a>
+              {!store.canSubmit && store.submit.status !== 'done' && !submitting && (
+                <p className="muted">
+                  {sync?.status === 'done' && sync.attached === 'attached' ? t.store.reviewNeedsContact : t.store.reviewNeedsSync}
+                </p>
+              )}
+              <button className="btn primary" disabled={busy !== '' || submitting || syncing || dirty || !store.canSubmit} onClick={() => void submit()}>
+                {submitting ? `${t.store.submitting}…` : t.store.submit}
+              </button>
+              {store.submit.status === 'done' && (
+                <p className="notice" role="status">
+                  {t.store.submitted}
+                </p>
+              )}
+              {store.submit.status === 'failed' && (
+                <p className="form-error" role="alert">
+                  {t.store.submitError[store.submit.error ?? 'internal']} {store.submit.error === 'rejected' ? store.submit.detail : ''}
+                </p>
+              )}
             </li>
           </ol>
         )}

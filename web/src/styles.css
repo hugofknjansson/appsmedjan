@@ -601,6 +601,30 @@ textarea {
   color: var(--muted);
 }
 
+.guide-form label.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-weight: 600;
+}
+
+.guide-form label.check input {
+  width: auto;
+  flex: none;
+  margin-top: 4px;
+}
+
+.guide-form label.check > span {
+  display: grid;
+  gap: 4px;
+  justify-content: start;
+}
+
+.guide-form h4 {
+  margin: 8px 0 0;
+  font-size: 0.95rem;
+}
+
 .plain-list {
   margin: 6px 0 0;
   padding-left: 20px;

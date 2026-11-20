@@ -9,8 +9,10 @@ import {
   type PublishError,
   type PublishStage,
   type PublishTester,
+  type ReviewContact,
   type ServerToWorker,
   type StoreBuild,
+  type StoreChoices,
   type StoreListing,
   type StoreSyncError,
   type StoreSyncStage,
@@ -184,7 +186,7 @@ export async function publish(
  */
 export async function store(
   project: { id: string; bundleId: string },
-  page: { listing: StoreListing; screenshots: string[]; build?: string },
+  page: { listing: StoreListing; screenshots: string[]; build?: string; choices?: StoreChoices; contact?: ReviewContact },
   account: AppleAccount | undefined,
   onProgress: (stage: StoreSyncStage) => void,
 ): Promise<{ ok: boolean; error?: StoreSyncError; detail?: string; attached?: StoreBuild }> {
@@ -198,6 +200,18 @@ export async function store(
   );
   if (res.type !== 'store.result') throw new Error('unexpected worker reply');
   return { ok: res.ok, error: res.error, detail: res.detail, attached: res.attached };
+}
+
+/** Submits the app's prepared version for Apple's review, through the worker that holds the account's key. */
+export async function submit(
+  project: { id: string; bundleId: string },
+  account: AppleAccount | undefined,
+): Promise<{ ok: boolean; error?: StoreSyncError; detail?: string }> {
+  const worker = publisher(account ? 'own' : 'operator');
+  if (!worker) throw new WorkerUnavailable('no publishing worker connected');
+  const res = await request(worker, { type: 'submit', jobId: randomId(16), projectId: project.id, bundleId: project.bundleId, account }, STORE_TIMEOUT_MS);
+  if (res.type !== 'submit.result') throw new Error('unexpected worker reply');
+  return { ok: res.ok, error: res.error, detail: res.detail };
 }
 
 /**
@@ -298,6 +312,7 @@ export function attachWorker(ws: WebSocket): void {
       case 'build.result':
       case 'publish.result':
       case 'store.result':
+      case 'submit.result':
       case 'screenshot.result': {
         const p = pending.get(msg.jobId);
         if (!p || p.worker !== worker) break;

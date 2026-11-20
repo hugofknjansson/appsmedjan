@@ -3,7 +3,7 @@
 // API for creating the app; that step stays manual. Node only (server and worker); the web client
 // never loads this file.
 import crypto from 'node:crypto';
-import type { StoreBuild, StoreListing, StoreSyncStage } from './protocol';
+import { copyrightLine, type ReviewContact, type StoreBuild, type StoreChoices, type StoreListing, type StoreSyncStage } from './protocol';
 
 const DEFAULT_API = 'https://api.appstoreconnect.apple.com';
 const TOKEN_LIFETIME_S = 10 * 60;
@@ -35,6 +35,50 @@ interface Item {
   id: string;
   attributes?: Record<string, unknown>;
 }
+
+interface ApiError {
+  title?: string;
+  detail?: string;
+  meta?: { associatedErrors?: Record<string, Array<{ title?: string; detail?: string }>> };
+}
+
+/**
+ * Apple's age rating questions (API version 4.x): the ones answered with a level, and the yes/no ones.
+ * "None of this" answers every one of them; the result is a rating for all ages.
+ */
+const AGE_LEVELS = [
+  'alcoholTobaccoOrDrugUseOrReferences',
+  'contests',
+  'gamblingSimulated',
+  'gunsOrOtherWeapons',
+  'medicalOrTreatmentInformation',
+  'profanityOrCrudeHumor',
+  'sexualContentGraphicAndNudity',
+  'sexualContentOrNudity',
+  'horrorOrFearThemes',
+  'matureOrSuggestiveThemes',
+  'violenceCartoonOrFantasy',
+  'violenceRealisticProlongedGraphicOrSadistic',
+  'violenceRealistic',
+];
+const AGE_FLAGS = [
+  'advertising',
+  'gambling',
+  'healthOrWellnessTopics',
+  'lootBox',
+  'messagingAndChat',
+  'parentalControls',
+  'ageAssurance',
+  'socialMedia',
+  'socialMediaAgeRestricted',
+  'sharedLocation',
+  'datingAndRelationships',
+  'unrestrictedWebAccess',
+  'userGeneratedContent',
+];
+
+/** The territory prices are set in; the free price is the same everywhere. */
+const BASE_TERRITORY = 'USA';
 
 interface UploadOperation {
   method?: string;
@@ -131,18 +175,39 @@ export class AppStoreConnect {
       signal: AbortSignal.timeout(30_000),
     });
     const json = (await res.json().catch(() => ({}))) as {
-      data?: Item | Item[];
-      errors?: Array<{ title?: string; detail?: string }>;
+      data?: Item | Item[] | null;
+      errors?: ApiError[];
     };
     if (!res.ok) {
-      const detail = (json.errors ?? [])
-        .map((e) => e.detail ?? e.title)
-        .filter(Boolean)
-        .join(' ')
-        .slice(0, 600);
+      // When a submission is refused, the useful part ("answer the privacy questions") sits one level down.
+      const texts = (json.errors ?? []).flatMap((e) => [
+        e.detail ?? e.title,
+        ...Object.values(e.meta?.associatedErrors ?? {}).flatMap((list) => list.map((a) => a.detail ?? a.title)),
+      ]);
+      const detail = [...new Set(texts.filter(Boolean))].join(' ').slice(0, 900);
       throw new StoreError(res.status, `App Store Connect answered ${res.status} to ${method} ${path.split('?')[0]}: ${detail || 'no details'}`, detail || undefined);
     }
-    return json.data === undefined ? [] : Array.isArray(json.data) ? json.data : [json.data];
+    return json.data === undefined || json.data === null ? [] : Array.isArray(json.data) ? json.data : [json.data];
+  }
+
+  /** Like `send`, for looking something up that may not exist yet: nothing instead of an error. */
+  private async look(path: string): Promise<Item[]> {
+    try {
+      return await this.send('GET', path);
+    } catch (err) {
+      if (err instanceof StoreError && err.status === 404) return [];
+      throw err;
+    }
+  }
+
+  /** Runs one part of the details, naming it in the error so the person can tell what Apple refused. */
+  private async part<T>(name: string, work: () => Promise<T>): Promise<T> {
+    try {
+      return await work();
+    } catch (err) {
+      if (err instanceof StoreError) throw new StoreError(err.status, `${name}: ${err.message}`, err.detail ? `${name}: ${err.detail}` : undefined);
+      throw err;
+    }
   }
 
   /**
@@ -152,7 +217,7 @@ export class AppStoreConnect {
    */
   async syncListing(
     appId: string,
-    input: { listing: StoreListing; screenshots: Buffer[]; build?: string },
+    input: { listing: StoreListing; screenshots: Buffer[]; build?: string; choices?: StoreChoices; contact?: ReviewContact },
     onStage: (stage: StoreSyncStage) => void = () => undefined,
   ): Promise<{ attached: StoreBuild }> {
     const app = encodeURIComponent(appId);
@@ -240,7 +305,159 @@ export class AppStoreConnect {
     await this.replaceScreenshots(versionLoc.id, input.screenshots);
 
     onStage('build');
-    return { attached: input.build ? await this.attachBuild(appId, versionId, input.build) : 'none' };
+    const attached = input.build ? await this.attachBuild(appId, versionId, input.build) : 'none';
+
+    onStage('details');
+    const { choices, contact } = input;
+    if (contact) {
+      await this.part('Copyright', () =>
+        this.send('PATCH', `/v1/appStoreVersions/${encodeURIComponent(versionId)}`, {
+          data: { type: 'appStoreVersions', id: versionId, attributes: { copyright: copyrightLine(contact, new Date().getFullYear()) } },
+        }),
+      );
+      await this.part('Review contact', () => this.setReviewContact(versionId, contact));
+    }
+    if (choices?.noThirdPartyContent) {
+      await this.part('Content rights', () =>
+        this.send('PATCH', `/v1/apps/${app}`, {
+          data: { type: 'apps', id: appId, attributes: { contentRightsDeclaration: 'DOES_NOT_USE_THIRD_PARTY_CONTENT' } },
+        }),
+      );
+    }
+    if (choices?.noMatureContent && info) await this.part('Age rating', () => this.rateForEveryone(info.id));
+    if (choices?.free) {
+      await this.part('Price', () => this.makeFree(appId));
+      await this.part('Availability', () => this.makeAvailableEverywhere(appId));
+    }
+    return { attached };
+  }
+
+  private async setReviewContact(versionId: string, contact: ReviewContact): Promise<void> {
+    const attributes = {
+      contactFirstName: contact.firstName.trim(),
+      contactLastName: contact.lastName.trim(),
+      contactPhone: contact.phone.trim(),
+      contactEmail: contact.email.trim(),
+      // The generated apps have no sign-in of their own for a reviewer to get through.
+      demoAccountRequired: false,
+    };
+    const [existing] = await this.look(`/v1/appStoreVersions/${encodeURIComponent(versionId)}/appStoreReviewDetail`);
+    if (existing) {
+      await this.send('PATCH', `/v1/appStoreReviewDetails/${encodeURIComponent(existing.id)}`, {
+        data: { type: 'appStoreReviewDetails', id: existing.id, attributes },
+      });
+    } else {
+      await this.send('POST', '/v1/appStoreReviewDetails', {
+        data: {
+          type: 'appStoreReviewDetails',
+          attributes,
+          relationships: { appStoreVersion: { data: { type: 'appStoreVersions', id: versionId } } },
+        },
+      });
+    }
+  }
+
+  /** Answers every age rating question with "none". Questions Apple adds later are left for the person. */
+  private async rateForEveryone(appInfoId: string): Promise<void> {
+    const [declaration] = await this.send('GET', `/v1/appInfos/${encodeURIComponent(appInfoId)}/ageRatingDeclaration`);
+    if (!declaration) throw new StoreError(500, 'The app has no age rating declaration.');
+    // Only what this account's API version knows: an unknown attribute would refuse the whole answer.
+    const known = declaration.attributes ? new Set(Object.keys(declaration.attributes)) : null;
+    const attributes: Record<string, unknown> = {};
+    for (const name of AGE_LEVELS) if (!known || known.has(name)) attributes[name] = 'NONE';
+    for (const name of AGE_FLAGS) if (!known || known.has(name)) attributes[name] = false;
+    await this.send('PATCH', `/v1/ageRatingDeclarations/${encodeURIComponent(declaration.id)}`, {
+      data: { type: 'ageRatingDeclarations', id: declaration.id, attributes },
+    });
+  }
+
+  /** Gives the app the price "free", unless it already has a price: one the person chose is not replaced. */
+  private async makeFree(appId: string): Promise<void> {
+    const app = encodeURIComponent(appId);
+    const current = await this.look(`/v1/appPriceSchedules/${app}/manualPrices?limit=1`);
+    if (current.length > 0) return;
+    const points = await this.send('GET', `/v1/apps/${app}/appPricePoints?filter[territory]=${BASE_TERRITORY}&fields[appPricePoints]=customerPrice&limit=200`);
+    const free = points.find((p) => Number(p.attributes?.customerPrice) === 0);
+    if (!free) throw new StoreError(500, 'App Store Connect listed no free price.');
+    await this.send('POST', '/v1/appPriceSchedules', {
+      data: {
+        type: 'appPriceSchedules',
+        relationships: {
+          app: { data: { type: 'apps', id: appId } },
+          baseTerritory: { data: { type: 'territories', id: BASE_TERRITORY } },
+          manualPrices: { data: [{ type: 'appPrices', id: '${price}' }] },
+        },
+      },
+      included: [
+        {
+          type: 'appPrices',
+          id: '${price}',
+          attributes: { startDate: null },
+          relationships: { appPricePoint: { data: { type: 'appPricePoints', id: free.id } } },
+        },
+      ],
+    });
+  }
+
+  /** Makes the app available in every country, unless its availability has already been set up. */
+  private async makeAvailableEverywhere(appId: string): Promise<void> {
+    const existing = await this.look(`/v1/apps/${encodeURIComponent(appId)}/appAvailabilityV2`);
+    if (existing.length > 0) return;
+    const territories = await this.send('GET', '/v1/territories?limit=200');
+    await this.send('POST', '/v2/appAvailabilities', {
+      data: {
+        type: 'appAvailabilities',
+        attributes: { availableInNewTerritories: true },
+        relationships: {
+          app: { data: { type: 'apps', id: appId } },
+          territoryAvailabilities: { data: territories.map((t) => ({ type: 'territoryAvailabilities', id: `\${${t.id}}` })) },
+        },
+      },
+      included: territories.map((t) => ({
+        type: 'territoryAvailabilities',
+        id: `\${${t.id}}`,
+        attributes: { available: true },
+        relationships: { territory: { data: { type: 'territories', id: t.id } } },
+      })),
+    });
+  }
+
+  /**
+   * Submits the app's prepared version for Apple's review. Apple refuses when something is still
+   * missing (the privacy answers, a build) and says what; that explanation is passed on.
+   */
+  async submitForReview(appId: string): Promise<void> {
+    const app = encodeURIComponent(appId);
+    const versions = await this.send('GET', `/v1/apps/${app}/appStoreVersions?filter[platform]=IOS&limit=20`);
+    const stateOf = (v: Item) => String(v.attributes?.appVersionState ?? v.attributes?.appStoreState ?? '');
+    const version = versions.find((v) => EDITABLE.has(stateOf(v)));
+    if (!version) throw new StoreLocked(`No version of the app is waiting to be submitted (states: ${versions.map(stateOf).join(', ') || 'none'}).`);
+
+    // A submission that was started earlier and never sent is picked up again.
+    const open = await this.send('GET', `/v1/reviewSubmissions?filter[app]=${app}&filter[platform]=IOS&filter[state]=READY_FOR_REVIEW&limit=5`);
+    let [submission] = open;
+    if (!submission) {
+      [submission] = await this.send('POST', '/v1/reviewSubmissions', {
+        data: { type: 'reviewSubmissions', attributes: { platform: 'IOS' }, relationships: { app: { data: { type: 'apps', id: appId } } } },
+      });
+      if (!submission) throw new StoreError(500, 'App Store Connect created no submission.');
+    }
+    const submissionId = submission.id;
+    const items = await this.look(`/v1/reviewSubmissions/${encodeURIComponent(submissionId)}/items?limit=50`);
+    if (items.length === 0) {
+      await this.send('POST', '/v1/reviewSubmissionItems', {
+        data: {
+          type: 'reviewSubmissionItems',
+          relationships: {
+            reviewSubmission: { data: { type: 'reviewSubmissions', id: submissionId } },
+            appStoreVersion: { data: { type: 'appStoreVersions', id: version.id } },
+          },
+        },
+      });
+    }
+    await this.send('PATCH', `/v1/reviewSubmissions/${encodeURIComponent(submissionId)}`, {
+      data: { type: 'reviewSubmissions', id: submissionId, attributes: { submitted: true } },
+    });
   }
 
   /** Replaces the phone screenshots of one language with the given ones, in order. */

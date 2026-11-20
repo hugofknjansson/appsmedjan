@@ -1,12 +1,17 @@
 // The app's App Store page: its texts, screenshots and icon are kept here, and sent to App Store
-// Connect through a worker that holds the account's key. Nothing is ever submitted for review from
-// here; that last step stays with the account's owner.
+// Connect through a worker that holds the account's key. Sending the page changes only a draft.
+// Submitting the app for review is a separate step that happens only when its owner asks for it.
 import {
+  DEFAULT_CHOICES,
+  EMPTY_CONTACT,
   EMPTY_LISTING,
   STORE_ICON_SIZE,
   STORE_SHOT,
+  contactComplete,
   listingProblems,
   type AppleAccount,
+  type ReviewContact,
+  type StoreChoices,
   type StoreListing,
   type StoreState,
 } from '../../shared/protocol';
@@ -19,6 +24,8 @@ import * as workers from './workers';
 
 /** Syncs in progress. Finished ones are read from the database. */
 const working = new Map<string, StoreState['sync']>();
+/** Projects being submitted for review right now. */
+const submitting = new Map<string, number>();
 
 /** Far above Apple's limits, so an over-long draft can still be saved and trimmed by its author. */
 const MAX_FIELD_CHARS = 8000;
@@ -36,13 +43,57 @@ export function listingFrom(body: unknown): StoreListing | null {
   return out;
 }
 
+/** Reads the person's statements about the app. Anything that is not plainly "true" counts as not stated. */
+export function choicesFrom(body: unknown): StoreChoices {
+  const given = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {};
+  const out = { ...DEFAULT_CHOICES };
+  for (const key of Object.keys(DEFAULT_CHOICES) as (keyof StoreChoices)[]) out[key] = given[key] === true;
+  return out;
+}
+
+/** Reads contact details sent by the browser. Null when they are not that. */
+export function contactFrom(body: unknown): ReviewContact | null {
+  if (typeof body !== 'object' || body === null) return null;
+  const out = { ...EMPTY_CONTACT };
+  for (const key of Object.keys(EMPTY_CONTACT) as (keyof ReviewContact)[]) {
+    const value = (body as Record<string, unknown>)[key];
+    if (typeof value !== 'string' || value.length > 200) return null;
+    out[key] = value.replace(/\s+/g, ' ').trim();
+  }
+  return out;
+}
+
 export function storeState(project: db.Project, user: db.User): StoreState {
   const routing = route(user);
   const listing = db.getListing(project.id);
   const screenshots = db.listScreenshots(project.id);
   const published = db.getPublish(project.id);
   const saved = db.getStoreSync(project.id);
+  const contact = db.getReviewContact(user.id);
+  const submitted = db.getStoreSubmit(project.id);
+  const busy = working.has(project.id) || submitting.has(project.id);
   return {
+    choices: db.getChoices(project.id),
+    contact,
+    // What Apple has is what is saved here: sent with a build selected and the contact details, and
+    // nothing changed since.
+    canSubmit:
+      routing.available &&
+      !busy &&
+      saved?.status === 'done' &&
+      saved.attached === 'attached' &&
+      contactComplete(contact) &&
+      saved.updatedAt >= db.pageSavedAt(project.id, user.id),
+    submit: submitting.has(project.id)
+      ? { status: 'working', at: submitting.get(project.id) }
+      : submitted
+        ? {
+            status: submitted.status,
+            error: submitted.error ?? undefined,
+            detail: submitted.error === 'rejected' ? (submitted.detail ?? undefined) : undefined,
+            at: submitted.updatedAt,
+          }
+        : { status: 'idle' },
     listing,
     screenshots,
     hasIcon: db.hasIcon(project.id),
@@ -100,7 +151,7 @@ export function startSync(project: db.Project, user: db.User): SyncStart {
   const routing = route(user);
   if (routing.account === 'none') return 'forbidden';
   if (!routing.available) return 'unavailable';
-  if (working.has(project.id) || live(project.id).running) return 'busy';
+  if (working.has(project.id) || submitting.has(project.id) || live(project.id).running) return 'busy';
 
   const listing = db.getListing(project.id);
   const ids = db.listScreenshots(project.id);
@@ -119,14 +170,61 @@ export function startSync(project: db.Project, user: db.User): SyncStart {
   const published = db.getPublish(project.id);
   const build = published?.status === 'uploaded' ? published.build : undefined;
 
+  const contact = db.getReviewContact(user.id);
+  const page = { listing, screenshots, build, choices: db.getChoices(project.id), contact: contactComplete(contact) ? contact : undefined };
+
   working.set(project.id, { status: 'working', stage: 'queued', at: Date.now() });
-  void run(project, { listing, screenshots, build }, account);
+  void run(project, page, account);
   return 'started';
+}
+
+export type SubmitStart = 'started' | 'forbidden' | 'unavailable' | 'busy' | 'not_ready';
+
+/** Submits the app for Apple's review. Called only when the app's owner has pressed the button for it. */
+export function startSubmit(project: db.Project, user: db.User): SubmitStart {
+  const routing = route(user);
+  if (routing.account === 'none') return 'forbidden';
+  if (!routing.available) return 'unavailable';
+  if (working.has(project.id) || submitting.has(project.id)) return 'busy';
+  if (!storeState(project, user).canSubmit) return 'not_ready';
+
+  let account: AppleAccount | undefined;
+  if (routing.account === 'own') {
+    const credentials = credentialsFor(user.id);
+    if (!credentials) return 'unavailable';
+    account = credentials;
+  }
+  submitting.set(project.id, Date.now());
+  void runSubmit(project, account);
+  return 'started';
+}
+
+async function runSubmit(project: db.Project, account: AppleAccount | undefined): Promise<void> {
+  let outcome: Awaited<ReturnType<typeof workers.submit>>;
+  try {
+    outcome = await workers.submit(project, account);
+  } catch (err) {
+    outcome = {
+      ok: false,
+      error: err instanceof workers.WorkerUnavailable ? 'unavailable' : 'internal',
+      detail: (err as Error).message,
+    };
+  }
+  submitting.delete(project.id);
+  const target = account ? `team ${account.teamId}` : "the operator's account";
+  if (outcome.ok) console.log(`[store] ${project.id} (${project.bundleId}): submitted for review in ${target}`);
+  else console.warn(`[store] ${project.id} (${project.bundleId}) submit in ${target}: failed, ${outcome.error}\n${outcome.detail ?? ''}`);
+  if (!db.getProject(project.id)) return;
+  db.setStoreSubmit(project.id, {
+    status: outcome.ok ? 'done' : 'failed',
+    error: outcome.ok ? null : (outcome.error ?? 'internal'),
+    detail: outcome.ok ? null : (outcome.detail ?? null),
+  });
 }
 
 async function run(
   project: db.Project,
-  page: { listing: StoreListing; screenshots: string[]; build?: string },
+  page: Parameters<typeof workers.store>[1],
   account: AppleAccount | undefined,
 ): Promise<void> {
   let outcome: Awaited<ReturnType<typeof workers.store>>;
