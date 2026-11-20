@@ -2,7 +2,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod/v4';
-import { STORE_CATEGORIES, STORE_LIMITS, type ErrorCode, type StoreListing } from '../../shared/protocol';
+import { MAX_POLICY_CHARS, STORE_CATEGORIES, STORE_LIMITS, type ErrorCode, type StoreListing } from '../../shared/protocol';
 import { anthropic, hasCredentials } from './agent';
 import { config } from './config';
 
@@ -17,6 +17,7 @@ const Draft = z.object({
   keywords: z.string(),
   category: z.enum(STORE_CATEGORIES),
   ageRatingNotes: z.array(z.string()),
+  privacyPolicy: z.string(),
 });
 
 const SYSTEM = `You write the App Store page for an iPhone app, working from the app's source code. The person who made the app is not a marketer and will publish what you write after reading it through, so it has to be true and ready to use.
@@ -31,11 +32,17 @@ What each field is, with Apple's limits in characters:
 - keywords: search words separated by commas with no spaces after the commas, at most ${STORE_LIMITS.keywords} in total. Words people would type to find this app. Leave out the words already in the name and the word "app".
 - category: the one that fits best.
 - ageRatingNotes: Apple rates every app by age. List what in this app would raise the rating, one short sentence each, in the same language as the rest: violence, weapons, sexual or suggestive content, crude language, alcohol, tobacco or drugs, gambling or loot boxes, horror, medical advice, contests, an open web browser, content or messages from other users, social features, shared location, dating, or advertising. Only what the code actually contains. An empty list when there is none of it, which is the usual case.
+- privacyPolicy: a privacy policy for the app, in the same language, as plain text with a blank line between paragraphs and no headings, Markdown or lists. Say in plain words what information the app handles, where it is kept (only on the phone, or sent somewhere: say where, if the code sends it), which permissions it asks for and why (notifications, camera, location and so on), whether anything is shared with others, and how a person removes their information (deleting the app removes what is stored on the phone). State only what the code shows; do not promise anything the code does not do, and do not invent a company, an address or contact details: the page it is shown on adds who is responsible and how to reach them. Usually 120 to 300 words.
 
 Describe only what the code actually does. Do not mention prices, other platforms, awards, rankings or other apps, and do not promise features, syncing or accounts that are not in the code: Apple rejects pages that do, and the person would be making claims they cannot back.`;
 
 export type DraftResult =
-  | { ok: true; draft: Pick<StoreListing, 'name' | 'subtitle' | 'promo' | 'description' | 'keywords' | 'category'>; ageRatingNotes: string[] }
+  | {
+      ok: true;
+      draft: Pick<StoreListing, 'name' | 'subtitle' | 'promo' | 'description' | 'keywords' | 'category'>;
+      ageRatingNotes: string[];
+      privacyPolicy: string;
+    }
   | { ok: false; error: ErrorCode };
 
 function sourceText(files: Record<string, string>): string {
@@ -87,8 +94,13 @@ export async function draftListing(appName: string, files: Record<string, string
     if (message.stop_reason === 'max_tokens') return { ok: false, error: 'too_long' };
     const draft = message.parsed_output;
     if (!draft) return { ok: false, error: 'internal' };
-    const { ageRatingNotes, ...texts } = draft;
-    return { ok: true, draft: { ...texts, keywords: fitKeywords(texts.keywords) }, ageRatingNotes: ageRatingNotes.slice(0, 12) };
+    const { ageRatingNotes, privacyPolicy, ...texts } = draft;
+    return {
+      ok: true,
+      draft: { ...texts, keywords: fitKeywords(texts.keywords) },
+      ageRatingNotes: ageRatingNotes.slice(0, 12),
+      privacyPolicy: privacyPolicy.trim().slice(0, MAX_POLICY_CHARS),
+    };
   } catch (err) {
     if (err instanceof Anthropic.AuthenticationError) return { ok: false, error: 'no_api_key' };
     if (err instanceof Anthropic.RateLimitError) return { ok: false, error: 'rate_limited' };

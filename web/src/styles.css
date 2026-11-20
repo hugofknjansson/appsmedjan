@@ -620,6 +620,11 @@ textarea {
   justify-content: start;
 }
 
+.choice {
+  display: grid;
+  gap: 10px;
+}
+
 .guide-form h4 {
   margin: 8px 0 0;
   font-size: 0.95rem;

@@ -1,4 +1,4 @@
-import type { ReviewContact, StoreChoices, StoreListing, StoreState } from '../../shared/protocol';
+import type { ReviewContact, StoreChoices, StoreListing, StorePages, StoreState } from '../../shared/protocol';
 
 export interface User {
   id: string;
@@ -65,10 +65,10 @@ export const api = {
   disconnectApple: () => call<AppleStatus>('DELETE', '/api/apple-account'),
   testflight: (id: string) => call<{ ok: true }>('POST', `/api/projects/${id}/testflight`, {}),
   store: (id: string) => call<StoreState>('GET', `/api/projects/${id}/store`),
-  saveListing: (id: string, page: { listing: StoreListing; choices: StoreChoices; contact: ReviewContact }) =>
+  saveListing: (id: string, page: { listing: StoreListing; choices: StoreChoices; contact: ReviewContact; pages: StorePages }) =>
     call<StoreState>('PUT', `/api/projects/${id}/store/listing`, page),
   draftListing: (id: string) =>
-    call<{ draft: Partial<StoreListing>; ageRatingNotes: string[] }>('POST', `/api/projects/${id}/store/draft`, {}),
+    call<{ draft: Partial<StoreListing>; ageRatingNotes: string[]; privacyPolicy: string }>('POST', `/api/projects/${id}/store/draft`, {}),
   captureScreenshot: (id: string) => call<StoreState>('POST', `/api/projects/${id}/store/screenshots`, {}),
   deleteScreenshot: (id: string, shot: string) => call<StoreState>('DELETE', `/api/projects/${id}/store/screenshots/${shot}`),
   uploadIcon: (id: string, file: Blob) => call<StoreState>('PUT', `/api/projects/${id}/store/icon`, file),

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import {
   DEFAULT_CHOICES,
+  DEFAULT_PAGES,
   EMPTY_CONTACT,
   EMPTY_LISTING,
   type ChatMessage,
@@ -14,6 +15,7 @@ import {
   type StoreBuild,
   type StoreChoices,
   type StoreListing,
+  type StorePages,
   type StoreSyncError,
 } from '../../shared/protocol';
 import { config } from './config';
@@ -125,6 +127,7 @@ function addColumn(table: string, column: string, type: string): void {
 }
 addColumn('publishes', 'tester', 'TEXT');
 addColumn('store_listings', 'choices', 'TEXT');
+addColumn('store_listings', 'pages', 'TEXT');
 
 export interface User {
   id: string;
@@ -419,11 +422,20 @@ export function getChoices(projectId: string): StoreChoices {
   return { ...DEFAULT_CHOICES, ...(row?.choices ? (JSON.parse(row.choices) as Partial<StoreChoices>) : {}) };
 }
 
-export function setListing(projectId: string, listing: StoreListing, choices: StoreChoices): void {
+/** The project's hosted support and privacy pages, and when they were last saved. */
+export function getPages(projectId: string): { pages: StorePages; savedAt: number } {
+  const row = db.prepare('SELECT pages, updated_at FROM store_listings WHERE project_id = ?').get(projectId) as
+    | { pages: string | null; updated_at: number }
+    | undefined;
+  return { pages: { ...DEFAULT_PAGES, ...(row?.pages ? (JSON.parse(row.pages) as Partial<StorePages>) : {}) }, savedAt: row?.updated_at ?? 0 };
+}
+
+export function setListing(projectId: string, listing: StoreListing, choices: StoreChoices, pages: StorePages): void {
   db.prepare(
-    `INSERT INTO store_listings (project_id, data, choices, updated_at) VALUES (?, ?, ?, ?)
-     ON CONFLICT (project_id) DO UPDATE SET data = excluded.data, choices = excluded.choices, updated_at = excluded.updated_at`,
-  ).run(projectId, JSON.stringify(listing), JSON.stringify(choices), Date.now());
+    `INSERT INTO store_listings (project_id, data, choices, pages, updated_at) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT (project_id) DO UPDATE SET
+       data = excluded.data, choices = excluded.choices, pages = excluded.pages, updated_at = excluded.updated_at`,
+  ).run(projectId, JSON.stringify(listing), JSON.stringify(choices), JSON.stringify(pages), Date.now());
 }
 
 /** When the page, or the contact details sent with it, were last saved. 0 when never. */

@@ -3,20 +3,24 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   DEFAULT_CHOICES,
+  DEFAULT_PAGES,
   EMPTY_CONTACT,
+  MAX_POLICY_CHARS,
   EMPTY_LISTING,
   STORE_CATEGORIES,
   STORE_LIMITS,
   STORE_SHOT,
   contactComplete,
+  hostedPagePath,
   listingProblems,
   type ReviewContact,
   type StoreChoices,
   type StoreListing,
+  type StorePages,
   type StoreState,
 } from '../../shared/protocol';
 import { ApiError, api } from './api';
-import { apiErrorText, t } from './i18n';
+import { apiErrorText, lang, t } from './i18n';
 
 const CONNECT_URL = 'https://appstoreconnect.apple.com/apps';
 
@@ -31,12 +35,16 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
   const [form, setForm] = useState<StoreListing>(EMPTY_LISTING);
   const [choices, setChoices] = useState<StoreChoices>(DEFAULT_CHOICES);
   const [contact, setContact] = useState<ReviewContact>(EMPTY_CONTACT);
+  const [pages, setPages] = useState<StorePages>(DEFAULT_PAGES);
   /** What the latest suggestion found that would raise the age rating; null before any suggestion. */
   const [ageNotes, setAgeNotes] = useState<string[] | null>(null);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState<'' | 'draft' | 'save' | 'capture' | 'icon' | 'send' | 'submit'>('');
   const [error, setError] = useState('');
   const [iconVersion, setIconVersion] = useState(0);
+
+  /** The addresses of the pages this service shows for the app. */
+  const hostedUrl = (page: 'support' | 'privacy') => location.origin + hostedPagePath(id, page);
 
   useEffect(() => {
     dialog.current?.showModal();
@@ -47,6 +55,15 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
         setForm(s.listing);
         setChoices(s.choices);
         setContact(s.contact);
+        // Most people have no website to put the two pages on, so ours are the starting choice
+        // until they have entered addresses of their own.
+        if (!s.pages.hosted && !s.listing.supportUrl && !s.listing.privacyUrl) {
+          setPages({ ...s.pages, hosted: true, lang, supportEmail: s.pages.supportEmail || s.contact.email });
+          setForm({ ...s.listing, supportUrl: hostedUrl('support'), privacyUrl: hostedUrl('privacy') });
+          setDirty(true);
+        } else {
+          setPages(s.pages);
+        }
       })
       .catch((err) => setError(errorText(err)));
   }, [id]);
@@ -87,26 +104,46 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
     setDirty(true);
   }
 
+  /**
+   * Switches between pages shown from here and the person's own. The two links follow along: ours
+   * are filled in when turned on, and taken out again (never the person's own) when turned off.
+   */
+  function hostPages(hosted: boolean) {
+    setPages((p) => ({ ...p, hosted, lang, supportEmail: p.supportEmail || contact.email }));
+    setForm((f) => ({
+      ...f,
+      supportUrl: hosted ? hostedUrl('support') : f.supportUrl === hostedUrl('support') ? '' : f.supportUrl,
+      privacyUrl: hosted ? hostedUrl('privacy') : f.privacyUrl === hostedUrl('privacy') ? '' : f.privacyUrl,
+    }));
+    setDirty(true);
+  }
+
+  function changePages(key: 'supportEmail' | 'privacyText', value: string) {
+    setPages((p) => ({ ...p, [key]: value }));
+    setDirty(true);
+  }
+
   function changeContact(key: keyof ReviewContact, value: string) {
     setContact((c) => ({ ...c, [key]: value }));
     setDirty(true);
   }
 
   async function save(): Promise<boolean> {
-    const ok = await act('save', () => api.saveListing(id, { listing: form, choices, contact }));
+    const ok = await act('save', () => api.saveListing(id, { listing: form, choices, contact, pages }));
     if (ok) setDirty(false);
     return ok;
   }
 
   async function draft() {
-    const written = form.name || form.subtitle || form.promo || form.description || form.keywords;
+    const written = form.name || form.subtitle || form.promo || form.description || form.keywords || pages.privacyText;
     if (written && !window.confirm(t.store.confirmDraft)) return;
     setBusy('draft');
     setError('');
     try {
-      const { draft, ageRatingNotes } = await api.draftListing(id);
+      const { draft, ageRatingNotes, privacyPolicy } = await api.draftListing(id);
       setForm((f) => ({ ...f, ...draft }));
       setAgeNotes(ageRatingNotes);
+      setPages((p) => ({ ...p, privacyText: privacyPolicy }));
       setDirty(true);
     } catch (err) {
       setError(errorText(err));
@@ -130,7 +167,7 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
     await act('submit', () => api.submitStore(id));
   }
 
-  const problems = store ? listingProblems(form, store.screenshots.length) : [];
+  const problems = store ? listingProblems(form, store.screenshots.length, pages) : [];
   const sync = store?.sync;
   const check = (key: keyof StoreChoices, label: string, help: string) => (
     <label className="check">
@@ -219,8 +256,57 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
                     ))}
                   </select>
                 </label>
-                {link('supportUrl', t.store.supportUrl, t.store.supportUrlHelp)}
-                {link('privacyUrl', t.store.privacyUrl, t.store.privacyUrlHelp)}
+                <h4>{t.store.pages}</h4>
+                <p className="muted fine">{t.store.pagesHelp}</p>
+                <div className="choice" role="radiogroup" aria-label={t.store.pages}>
+                  <label className="check">
+                    <input type="radio" name="pages" checked={pages.hosted} onChange={() => hostPages(true)} />
+                    <span>
+                      {t.store.pagesHosted}
+                      <small>{t.store.pagesHostedHelp}</small>
+                    </span>
+                  </label>
+                  <label className="check">
+                    <input type="radio" name="pages" checked={!pages.hosted} onChange={() => hostPages(false)} />
+                    <span>
+                      {t.store.pagesOwn}
+                      <small>{t.store.pagesOwnHelp}</small>
+                    </span>
+                  </label>
+                </div>
+                {pages.hosted ? (
+                  <>
+                    <label>
+                      <span>{t.store.pageEmail}</span>
+                      <input type="email" autoComplete="email" value={pages.supportEmail} onChange={(e) => changePages('supportEmail', e.target.value)} />
+                      <small>{t.store.pageEmailHelp}</small>
+                    </label>
+                    <label>
+                      <span>
+                        {t.store.pagePolicy} <Counter value={pages.privacyText} max={MAX_POLICY_CHARS} />
+                      </span>
+                      <textarea rows={9} value={pages.privacyText} onChange={(e) => changePages('privacyText', e.target.value)} />
+                      <small>{t.store.pagePolicyHelp}</small>
+                    </label>
+                    <p className="fine">
+                      {t.store.pagesWhere}{' '}
+                      <a className="link" href={hostedUrl('support')} target="_blank" rel="noreferrer">
+                        {t.store.supportUrl}
+                      </a>
+                      {' · '}
+                      <a className="link" href={hostedUrl('privacy')} target="_blank" rel="noreferrer">
+                        {t.store.privacyUrl}
+                      </a>
+                      <br />
+                      <span className="muted">{t.store.pagesAfterSave}</span>
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    {link('supportUrl', t.store.supportUrl, t.store.supportUrlHelp)}
+                    {link('privacyUrl', t.store.privacyUrl, t.store.privacyUrlHelp)}
+                  </>
+                )}
                 {link('marketingUrl', t.store.marketingUrl)}
                 <button className="btn" disabled={busy !== '' || !dirty} onClick={() => void save()}>
                   {dirty ? t.store.save : t.store.saved}

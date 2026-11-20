@@ -303,6 +303,11 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
   assert.deepEqual(listingProblems({ ...listing, name: 'x'.repeat(31), marketingUrl: 'example.com', supportUrl: 'http://example.com' }, 1), [
     'name_long', 'support_url', 'marketing_url',
   ]);
+  // Pages shown from here need an address to write to and a policy to show.
+  const hosted = { hosted: true, supportEmail: 'hjalp@example.com', privacyText: 'Appen sparar dina borstningar på telefonen och skickar ingenting vidare till någon annan.', lang: 'sv' as const };
+  assert.deepEqual(listingProblems(listing, 1, hosted), []);
+  assert.deepEqual(listingProblems(listing, 1, { ...hosted, supportEmail: 'inte en adress', privacyText: 'Kort.' }), ['page_email', 'page_policy']);
+  assert.deepEqual(listingProblems(listing, 1, { ...hosted, hosted: false, supportEmail: '', privacyText: '' }), [], 'own pages need neither');
   // Thirty emoji are thirty characters to Apple, though sixty to JavaScript.
   assert.deepEqual(listingProblems({ ...listing, name: '🪥'.repeat(30) }, 1), []);
 

@@ -281,6 +281,12 @@ det till App Store Connect, till samma konto som TestFlight-uppladdningarna går
 - **Texter**: namn, underrubrik, kampanjtext, beskrivning, sökord, kategori och länkar, med Apples
   teckengränser. "Föreslå texter från appen" låter Claude skriva ett förslag utifrån appens kod, på
   appens eget språk. Förslaget sparas inte förrän personen har läst det och tryckt Spara.
+- **Supportsida och integritetspolicy**: Apple kräver båda, på webben. Den som saknar egen webbplats
+  kan låta tjänsten visa dem på `/a/<projekt-id>/support` och `/a/<projekt-id>/privacy`. Sidorna är
+  öppna för alla, finns bara för projekt där ägaren har slagit på dem, och visar bara det ägaren
+  skrivit: appens namn, en e-postadress för support, policytexten och (om kontaktuppgifterna är
+  ifyllda) vem som ansvarar för appen. Textförslaget skriver också ett utkast till policyn utifrån
+  koden. Den som har egna sidor anger sina adresser i stället.
 - **Skärmbilder**: knappen "App Store-bild" under förhandsvisningen sparar det som visas just då.
   Bilden tas i simulatorn och skalas till storleken Apple kräver för den största iPhonen
   (1320 × 2868), så ingen större simulator behöver köras. Högst tio.
@@ -308,8 +314,8 @@ redan är släppt eller granskas lämnas orörd), bara iPhone-skärmbilder, och 
 
 Anropen mot App Store Connect för butikssidan är skrivna mot Apples dokumentation (fältnamnen för
 åldersfrågor, pris, tillgänglighet, kontakt och inskick är kontrollerade där) och enhetstestade mot
-en ersättare, men har **inte körts mot Apple**. Textförslaget, skärmbilden i rätt storlek och ikonen
-är körda på riktigt; flödet i webbläsaren är kört mot låtsasarbetaren. Räkna med justeringar första
+en ersättare, men har **inte körts mot Apple**. Textförslaget (med policyutkastet), skärmbilden i
+rätt storlek, ikonen och de publika sidorna är körda på riktigt; flödet i webbläsaren är kört mot låtsasarbetaren. Räkna med justeringar första
 gången en sida skickas, troligast i uppladdningen av skärmbilder och i pris och tillgänglighet.
 iPhone-klienten har inte den här guiden.
 
@@ -425,6 +431,9 @@ både en egen och en hyrd (se "Hyrda Macar"). Det här är **inte kört på rikt
   andra webbplatser avvisas.
 - Filsökvägar från modellen valideras både i servern och i arbetaren (endast under `Sources/`, endast
   kända filändelser).
+- De publika sidorna under `/a/` kräver ingen inloggning. De byggs som ren HTML av servern, all text
+  från användaren kodas om, och svaret tillåter varken skript eller inbäddat innehåll. Det som visas
+  (namn och e-postadress) är det ägaren själv valt att göra offentligt.
 - `DAILY_MESSAGE_LIMIT` begränsar antal meddelanden per användare och dygn. Varje meddelande kan kosta
   en hel del tokens, så håll koll på förbrukningen i Anthropic-konsolen.
 

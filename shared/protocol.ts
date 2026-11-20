@@ -219,6 +219,29 @@ export const STORE_CATEGORIES = [
 export const STORE_SHOT = { width: 1320, height: 2868, min: 1, max: 10 } as const;
 export const STORE_ICON_SIZE = 1024;
 
+/**
+ * A support page and a privacy policy for the app, shown by this service at a public address, for
+ * people who have no website of their own to put them on.
+ */
+export interface StorePages {
+  hosted: boolean;
+  /** Shown on both pages, so people can reach whoever made the app. */
+  supportEmail: string;
+  /** The privacy policy as plain text; blank lines separate paragraphs. */
+  privacyText: string;
+  /** Language of the pages' own headings. */
+  lang: 'sv' | 'en';
+}
+
+export const DEFAULT_PAGES: StorePages = { hosted: false, supportEmail: '', privacyText: '', lang: 'en' };
+
+export const MAX_POLICY_CHARS = 12_000;
+
+/** Where the hosted pages of a project live, under the service's own address. */
+export const hostedPagePath = (projectId: string, page: 'support' | 'privacy') => `/a/${projectId}/${page}`;
+
+const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) && s.length <= 200;
+
 export type ListingProblem =
   | 'name_missing'
   | 'name_long'
@@ -232,12 +255,14 @@ export type ListingProblem =
   | 'marketing_url'
   | 'privacy_url'
   | 'category'
-  | 'screenshots';
+  | 'screenshots'
+  | 'page_email'
+  | 'page_policy';
 
 const isWebUrl = (s: string) => /^https:\/\/[^\s/]+\.[^\s]+$/.test(s) && s.length <= 255;
 
 /** What stops the page from being sent to App Store Connect. Empty when it is ready. */
-export function listingProblems(listing: StoreListing, screenshots: number): ListingProblem[] {
+export function listingProblems(listing: StoreListing, screenshots: number, pages?: StorePages): ListingProblem[] {
   const out: ListingProblem[] = [];
   // Apple counts characters the way people do, not UTF-16 units.
   const len = (s: string) => [...s].length;
@@ -255,6 +280,11 @@ export function listingProblems(listing: StoreListing, screenshots: number): Lis
   if (!isWebUrl(listing.privacyUrl)) out.push('privacy_url');
   if (!(STORE_CATEGORIES as readonly string[]).includes(listing.category)) out.push('category');
   if (screenshots < STORE_SHOT.min) out.push('screenshots');
+  // Pages shown from here need something to show.
+  if (pages?.hosted) {
+    if (!isEmail(pages.supportEmail.trim())) out.push('page_email');
+    if (pages.privacyText.trim().length < 80) out.push('page_policy');
+  }
   return out;
 }
 
@@ -327,6 +357,7 @@ export interface StoreState {
   /** Build number of the latest successful TestFlight upload, if any. */
   build?: string;
   choices: StoreChoices;
+  pages: StorePages;
   /** The signed-in person's contact details for Apple's review. */
   contact: ReviewContact;
   /** Whether the app can be submitted for review right now: the page has been sent with a build, and the contact is filled in. */

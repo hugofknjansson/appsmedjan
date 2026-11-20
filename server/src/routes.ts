@@ -11,7 +11,8 @@ import { STARTER_FILES } from './prompt';
 import { accountStatus, connectAccount, disconnectAccount } from './apple';
 import { draftListing } from './listing';
 import { accountChanged, startPublish } from './publish';
-import { capture, choicesFrom, contactFrom, listingFrom, saveIcon, startSubmit, startSync, storeState } from './store';
+import { renderPage } from './pages';
+import { capture, choicesFrom, contactFrom, listingFrom, pagesFrom, saveIcon, startSubmit, startSync, storeState } from './store';
 import { isRunning, startRun, stopRun } from './runs';
 import * as workers from './workers';
 
@@ -278,6 +279,28 @@ api.post('/projects/:id/testflight', requireUser, (req, res) => {
   }
 });
 
+// --- Public pages for an app: support and privacy policy -------------------------
+
+/**
+ * Open to everyone, because Apple and the app's users have to be able to read them. They exist only
+ * for projects whose owner has turned them on, and show only what the owner wrote for them.
+ */
+export const publicPages = express.Router();
+
+publicPages.get('/:id/:page', (req, res) => {
+  const { id, page } = req.params;
+  const project = isValidProjectId(id) ? db.getProject(id) : null;
+  const html = project && (page === 'support' || page === 'privacy') ? renderPage(project, page) : null;
+  res.set({
+    'content-type': 'text/html; charset=utf-8',
+    'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'",
+    'x-content-type-options': 'nosniff',
+    'referrer-policy': 'no-referrer',
+    'cache-control': 'public, max-age=300',
+  });
+  res.status(html ? 200 : 404).send(html ?? '<!doctype html><title>Not found</title><p>Not found.</p>');
+});
+
 // --- The app's App Store page ---------------------------------------------------
 
 api.get('/projects/:id/store', requireUser, (req, res) => {
@@ -289,14 +312,15 @@ api.get('/projects/:id/store', requireUser, (req, res) => {
 api.put('/projects/:id/store/listing', requireUser, (req, res) => {
   const project = ownProject(req, res);
   if (!project) return;
-  const body = (req.body ?? {}) as { listing?: unknown; choices?: unknown; contact?: unknown };
+  const body = (req.body ?? {}) as { listing?: unknown; choices?: unknown; contact?: unknown; pages?: unknown };
   const listing = listingFrom(body.listing);
   const contact = contactFrom(body.contact);
-  if (!listing || !contact) {
+  const pages = pagesFrom(body.pages);
+  if (!listing || !contact || !pages) {
     res.status(400).json({ error: 'bad_listing' });
     return;
   }
-  db.setListing(project.id, listing, choicesFrom(body.choices));
+  db.setListing(project.id, listing, choicesFrom(body.choices), pages);
   // The contact belongs to the person, not the app: saved once, used for all their apps.
   db.setReviewContact((req as Authed).user.id, contact);
   res.json(storeState(project, (req as Authed).user));
@@ -320,7 +344,7 @@ api.post('/projects/:id/store/draft', requireUser, async (req, res) => {
     res.status(result.error === 'rate_limited' || result.error === 'overloaded' ? 503 : 502).json({ error: result.error });
     return;
   }
-  res.json({ draft: result.draft, ageRatingNotes: result.ageRatingNotes });
+  res.json({ draft: result.draft, ageRatingNotes: result.ageRatingNotes, privacyPolicy: result.privacyPolicy });
 });
 
 /** Saves what the simulator shows right now as a screenshot for the App Store. */

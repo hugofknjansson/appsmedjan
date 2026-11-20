@@ -3,7 +3,9 @@
 // Submitting the app for review is a separate step that happens only when its owner asks for it.
 import {
   DEFAULT_CHOICES,
+  DEFAULT_PAGES,
   EMPTY_CONTACT,
+  MAX_POLICY_CHARS,
   EMPTY_LISTING,
   STORE_ICON_SIZE,
   STORE_SHOT,
@@ -13,6 +15,7 @@ import {
   type ReviewContact,
   type StoreChoices,
   type StoreListing,
+  type StorePages,
   type StoreState,
 } from '../../shared/protocol';
 import { pngInfo } from '../../shared/png';
@@ -51,6 +54,21 @@ export function choicesFrom(body: unknown): StoreChoices {
   return out;
 }
 
+/** Reads the settings for the hosted pages sent by the browser. Null when they are not that. */
+export function pagesFrom(body: unknown): StorePages | null {
+  const given = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {};
+  const { supportEmail = '', privacyText = '' } = given;
+  if (typeof supportEmail !== 'string' || supportEmail.length > 200) return null;
+  if (typeof privacyText !== 'string' || privacyText.length > MAX_POLICY_CHARS) return null;
+  return {
+    ...DEFAULT_PAGES,
+    hosted: given.hosted === true,
+    supportEmail: supportEmail.trim(),
+    privacyText: privacyText.replace(/\r\n/g, '\n').trim(),
+    lang: given.lang === 'sv' ? 'sv' : 'en',
+  };
+}
+
 /** Reads contact details sent by the browser. Null when they are not that. */
 export function contactFrom(body: unknown): ReviewContact | null {
   if (typeof body !== 'object' || body === null) return null;
@@ -72,8 +90,10 @@ export function storeState(project: db.Project, user: db.User): StoreState {
   const contact = db.getReviewContact(user.id);
   const submitted = db.getStoreSubmit(project.id);
   const busy = working.has(project.id) || submitting.has(project.id);
+  const { pages } = db.getPages(project.id);
   return {
     choices: db.getChoices(project.id),
+    pages,
     contact,
     // What Apple has is what is saved here: sent with a build selected and the contact details, and
     // nothing changed since.
@@ -100,7 +120,7 @@ export function storeState(project: db.Project, user: db.User): StoreState {
     canCapture: workers.hasSimulator(project.id) && screenshots.length < STORE_SHOT.max,
     available: routing.available,
     account: routing.account,
-    problems: listingProblems(listing, screenshots.length),
+    problems: listingProblems(listing, screenshots.length, pages),
     build: published?.status === 'uploaded' ? published.build : undefined,
     sync:
       working.get(project.id) ??
@@ -155,7 +175,7 @@ export function startSync(project: db.Project, user: db.User): SyncStart {
 
   const listing = db.getListing(project.id);
   const ids = db.listScreenshots(project.id);
-  if (listingProblems(listing, ids.length).length > 0) return 'incomplete';
+  if (listingProblems(listing, ids.length, db.getPages(project.id).pages).length > 0) return 'incomplete';
 
   let account: AppleAccount | undefined;
   if (routing.account === 'own') {
