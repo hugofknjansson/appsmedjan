@@ -39,10 +39,12 @@ struct MascotBadge: View {
 nonisolated struct MascotPose {
   /// 0 is the pose of the icon, 1 its mirror image: the other arm in the air, the other leg kicking.
   var swing: Double
-  /// 0 on the ground, 1 at the top of the hop between the two poses.
+  /// How high off the ground it is, in hops: 1 is the small hop between two poses.
   var lift: Double
   /// 0 with the eyes open, 1 with them shut.
   var blink: Double
+  /// 1 facing us, -1 facing away, and everything between while it spins on the spot.
+  var turn: Double = 1
 
   static let icon = MascotPose(swing: 0, lift: 0, blink: 0)
 
@@ -55,12 +57,29 @@ nonisolated struct MascotPose {
     self.blink = blink
   }
 
+  /// The dance goes in phrases of four beats: the swing, a row of jumps, the swing again, a
+  /// pirouette. Every phrase starts and ends in the icon's pose, so one move flows into the next.
   init(time: Double) {
-    let turn = time / Self.beat * 2 * .pi
+    let phrase = Self.beat * 4
+    let local = time.truncatingRemainder(dividingBy: phrase) / phrase
+    let angle = time / Self.beat * 2 * .pi
     // A sine that lingers at both ends, so each pose is held for a moment before the swap.
-    let wave = (1 - cos(turn)) / 2
-    swing = wave * wave * (3 - 2 * wave)
-    lift = pow(abs(sin(turn)), 3)
+    let wave = (1 - cos(angle)) / 2
+    let swung = wave * wave * (3 - 2 * wave)
+    switch Int(time / phrase) % 4 {
+    case 1:
+      // Jumps: both arms half-way up, straight up and down.
+      swing = 0.5 * min(1, local / 0.12, (1 - local) / 0.12)
+      lift = pow(abs(sin(angle)), 0.8) * 2.2
+    case 3:
+      // A pirouette: the swing goes on while it turns around twice.
+      swing = swung
+      lift = pow(abs(sin(angle)), 3)
+      turn = cos(local * 4 * .pi)
+    default:
+      swing = swung
+      lift = pow(abs(sin(angle)), 3)
+    }
     blink = time.truncatingRemainder(dividingBy: Self.blinkEvery) < 0.13 ? 1 : 0
   }
 
@@ -92,6 +111,11 @@ nonisolated struct MascotPose {
     var figure = context
     figure.translateBy(x: (size.width - 32 * unit) / 2, y: (size.height - 32 * unit) / 2 - lift * 1.3 * unit)
     figure.scaleBy(x: unit, y: unit)
+    // Turning on the spot: the figure narrows to nothing and widens again as its mirror image.
+    let width = abs(turn) < 0.03 ? (turn < 0 ? -0.03 : 0.03) : turn
+    figure.translateBy(x: 16, y: 0)
+    figure.scaleBy(x: width, y: 1)
+    figure.translateBy(x: -16, y: 0)
 
     var strokes = Path()
     for limb in limbs { strokes.addLines(limb) }

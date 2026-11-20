@@ -190,12 +190,6 @@ extension API {
     baseURL.appending(path: path)
   }
 
-  func files(_ id: String) async throws(APIError) -> [String: String] {
-    struct Files: Decodable { let files: [String: String] }
-    let answer: Files = try await get("api/projects/\(id)/files")
-    return answer.files
-  }
-
   /// Prepares the public TestFlight link again, with contact details when those were what was missing.
   func shareAgain(_ id: String, contact: ReviewContact? = nil) async throws(APIError) {
     struct Body: Encodable { let contact: ReviewContact? }

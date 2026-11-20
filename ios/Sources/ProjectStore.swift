@@ -17,6 +17,13 @@ final class ProjectStore {
   private(set) var isRunning = false
   /// The parts of the answer being written right now.
   private(set) var liveParts: [Part] = []
+
+  /// True when the builder's latest answer says that something went wrong.
+  var lastRunFailed: Bool {
+    messages.last?.parts.contains { part in
+      if case .error = part { true } else { false }
+    } ?? false
+  }
   private(set) var preview = PreviewState.idle
   private(set) var publish = PublishState.none
   /// The simulator's screen, when frames are arriving.

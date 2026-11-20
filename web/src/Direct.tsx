@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { directProgress, type DirectInstall } from '../../shared/protocol';
 import { ApiError, api } from './api';
 import { apiErrorText, t } from './i18n';
-import { Mascot } from './Mascot';
+import { Mascot, WaitingCaption } from './Mascot';
 import { Qr } from './OnPhone';
 
 interface Props {
@@ -171,7 +171,10 @@ export function InstallProgress({ direct }: { direct: DirectInstall }) {
     <div className="install-progress" role="status">
       <div className="install-head">
         <Mascot dancing={moving} />
-        <strong>{headline(direct)}</strong>
+        <div>
+          <strong>{headline(direct)}</strong>
+          {moving && <WaitingCaption lines={t.wait.phone} />}
+        </div>
       </div>
       <progress value={progress} max={1} aria-label={t.direct.progressLabel} />
       <ol>

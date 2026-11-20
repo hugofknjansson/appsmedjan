@@ -86,6 +86,11 @@ struct PhoneTestView: View {
         Text(direct.headline)
           .font(.title3.weight(.bold))
           .multilineTextAlignment(.center)
+        if direct.isOnItsWay {
+          WaitingCaption(lines: WaitingLines.phone)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+        }
         if let progress = direct.progress {
           ProgressView(value: progress)
             .tint(.brand)

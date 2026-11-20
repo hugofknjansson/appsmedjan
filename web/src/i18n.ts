@@ -7,7 +7,6 @@ import type {
   PublishError,
   PublishStage,
   STORE_CATEGORIES,
-  Step,
   StoreBuild,
   StoreSyncError,
   StoreSyncStage,
@@ -36,14 +35,16 @@ const sv = {
   updated: 'Ändrad',
   back: 'Alla appar',
   preview: 'Förhandsvisning',
-  code: 'Kod',
   chat: 'Chatt',
   messagePlaceholder: 'Beskriv vad du vill ändra eller lägga till',
   send: 'Skicka',
   stop: 'Stoppa',
-  working: 'Arbetar',
-  dancing: 'Dansar fram din app',
-  steps: '{n} steg',
+  wait: {
+    working: ['Dansar fram din app', 'Snickrar på knapparna', 'Väljer färger som passar', 'Lär appen ett nytt steg', 'Putsar på detaljerna', 'Tar en piruett medan det blir klart'],
+    trying: ['Provkör appen', 'Trycker på alla knappar', 'Tittar hur det blev'],
+    starting: ['Värmer upp', 'Packar upp appen', 'Snart ser du den'],
+    phone: ['Det här tar ungefär en halv minut', 'Gör plats på hemskärmen', 'Knyter skorna inför premiären', 'Snart är den din'],
+  },
   home: 'Hem',
   restart: 'Starta om',
   start: 'Starta',
@@ -58,7 +59,6 @@ const sv = {
   previewFixing: 'Rättar ett fel',
   reconnecting: 'Återansluter',
   notFound: 'Appen hittades inte.',
-  noFiles: 'Inga filer än.',
   agentNotReady: 'Tjänsten saknar API-nyckel, så appar kan inte byggas ännu.',
   noWorkers: 'Ingen byggserver är ansluten, så förhandsvisningen är avstängd just nu.',
   appleAccount: 'Apple-konto',
@@ -416,18 +416,6 @@ const sv = {
     installing: 'Installerar',
     launching: 'Startar appen',
   } satisfies Record<BuildStage, string>,
-  step: {
-    write: 'Skriver {x}',
-    edit: 'Justerar {x}',
-    delete: 'Tar bort {x}',
-    read: 'Läser {x}',
-    look: 'Tittar på skärmen',
-    rename: 'Döper appen till {x}',
-    build: 'Bygger appen',
-    buildDone: 'Appen är uppdaterad',
-    buildError: 'Hittade ett fel och rättar det',
-    generic: 'en del av appen',
-  },
   agentError: {
     no_api_key: 'Tjänsten är inte färdiginställd ännu (API-nyckel saknas). Kontakta den som driver tjänsten.',
     rate_limited: 'Det är många som bygger just nu. Vänta en liten stund och försök igen.',
@@ -504,14 +492,16 @@ const en: typeof sv = {
   updated: 'Changed',
   back: 'All apps',
   preview: 'Preview',
-  code: 'Code',
   chat: 'Chat',
   messagePlaceholder: 'Describe what you want to change or add',
   send: 'Send',
   stop: 'Stop',
-  working: 'Working',
-  dancing: 'Dancing your app into shape',
-  steps: '{n} steps',
+  wait: {
+    working: ['Dancing your app into shape', 'Putting the buttons together', 'Picking colours that fit', 'Teaching the app a new step', 'Polishing the details', 'Doing a pirouette while it gets ready'],
+    trying: ['Taking the app for a spin', 'Pressing all the buttons', 'Looking at how it turned out'],
+    starting: ['Warming up', 'Unpacking the app', 'You will see it soon'],
+    phone: ['This takes about half a minute', 'Making room on the home screen', 'Tying its shoes before the premiere', 'It will be yours soon'],
+  },
   home: 'Home',
   restart: 'Restart',
   start: 'Start',
@@ -526,7 +516,6 @@ const en: typeof sv = {
   previewFixing: 'Fixing a problem',
   reconnecting: 'Reconnecting',
   notFound: 'App not found.',
-  noFiles: 'No files yet.',
   agentNotReady: 'The service has no API key yet, so apps cannot be built.',
   noWorkers: 'No build server is connected, so the preview is off for now.',
   appleAccount: 'Apple account',
@@ -883,18 +872,6 @@ const en: typeof sv = {
     installing: 'Installing',
     launching: 'Starting the app',
   },
-  step: {
-    write: 'Writing {x}',
-    edit: 'Adjusting {x}',
-    delete: 'Removing {x}',
-    read: 'Reading {x}',
-    look: 'Looking at the screen',
-    rename: 'Naming the app {x}',
-    build: 'Building the app',
-    buildDone: 'The app is updated',
-    buildError: 'Found a problem and fixing it',
-    generic: 'part of the app',
-  },
   agentError: {
     no_api_key: 'The service is not fully set up yet (API key missing). Contact whoever runs it.',
     rate_limited: 'Lots of people are building right now. Wait a moment and try again.',
@@ -956,22 +933,4 @@ export function apiErrorText(code: string): string {
   return t.apiError[code] ?? t.apiError.internal!;
 }
 
-/** "Sources/Views/HabitListView.swift" becomes "Habit List View". */
-function friendlyName(path: string): string {
-  const base = path.split('/').pop()!.replace(/\.[a-z]+$/, '');
-  const spaced = base.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_+-]+/g, ' ').trim();
-  return spaced || t.step.generic;
-}
 
-export function stepText(step: Step): string {
-  switch (step.kind) {
-    case 'build':
-      return step.status === 'done' ? t.step.buildDone : step.status === 'error' ? t.step.buildError : t.step.build;
-    case 'look':
-      return t.step.look;
-    case 'rename':
-      return t.step.rename.replace('{x}', step.detail || '…');
-    default:
-      return t.step[step.kind].replace('{x}', step.detail ? friendlyName(step.detail) : t.step.generic);
-  }
-}

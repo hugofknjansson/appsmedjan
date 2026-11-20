@@ -127,12 +127,11 @@ async function main() {
   assert(first.model === 'claude-opus-5-5' && first.fallbacks === 'default', 'model and refusal fallback are requested');
   assert(first.messages.at(-1).content[0].text.includes('<file path="Sources/App.swift">'), 'the project files are in the prompt');
 
-  // Code tab.
-  await page.getByRole('tab', { name: 'Kod' }).click();
-  await page.getByRole('button', { name: 'Models/Habit.swift' }).click();
-  await page.getByText('struct Habit').waitFor();
-  assert(true, 'the code view lists and shows files');
-  await shot('3-code');
+  // No code anywhere: there is no code tab, and the chat names no files and lists no steps.
+  assert((await page.getByRole('tab', { name: 'Kod' }).count()) === 0, 'there is no code tab');
+  const chat = await page.locator('.messages').textContent();
+  assert(!/\.swift|Sources\//.test(chat), 'the chat names no files');
+  assert((await page.locator('.messages .steps, .messages details').count()) === 0, 'the chat lists no steps');
 
   // TestFlight: the mock worker pretends to archive and upload.
   await page.getByRole('tab', { name: 'Förhandsvisning' }).click();

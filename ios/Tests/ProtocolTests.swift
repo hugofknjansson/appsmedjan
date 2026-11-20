@@ -129,12 +129,21 @@ private func summary() -> ProjectSummary {
     #expect(String(decoding: try encoder.encode(input), as: UTF8.self) == json)
   }
 
-  @Test(arguments: [
-    ("Sources/Views/HabitListView.swift", "Habit List View"),
-    ("Sources/App.swift", "App"),
-    ("Sources/Models/todo_item.swift", "todo item"),
-  ])
-  func `file paths are shown as plain names`(path: String, name: String) {
-    #expect(Texts.friendlyName(path) == name)
+  // The dance must start and end every phrase in the icon's pose, or one move would jump into the next.
+  @Test(arguments: [0.0, 1, 2, 3, 4, 7])
+  func `every phrase of the dance starts in the pose of the icon`(phrase: Double) {
+    let pose = MascotPose(time: phrase * 4.6)
+    #expect(abs(pose.swing) < 0.001)
+    #expect(abs(pose.lift) < 0.001)
+    #expect(abs(pose.turn - 1) < 0.001)
+  }
+
+  @Test func `the dance stays inside what the mascot can do`() {
+    for step in 0..<2000 {
+      let pose = MascotPose(time: Double(step) * 0.0137)
+      #expect((0...1).contains(pose.swing))
+      #expect((0...2.2).contains(pose.lift))
+      #expect((-1...1).contains(pose.turn))
+    }
   }
 }

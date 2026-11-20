@@ -60,35 +60,6 @@ enum Texts {
     }
   }
 
-  static func step(_ step: Step) -> String {
-    switch step.kind {
-    case .build:
-      switch step.status {
-      case .done: String(localized: "Appen är uppdaterad")
-      case .error: String(localized: "Hittade ett fel och rättar det")
-      case .running: String(localized: "Bygger appen")
-      }
-    case .look: String(localized: "Tittar på skärmen")
-    case .rename: String(localized: "Döper appen till \(step.detail.isEmpty ? "…" : step.detail)")
-    case .write: String(localized: "Skriver \(friendlyName(step.detail))")
-    case .edit: String(localized: "Justerar \(friendlyName(step.detail))")
-    case .delete: String(localized: "Tar bort \(friendlyName(step.detail))")
-    case .read: String(localized: "Läser \(friendlyName(step.detail))")
-    case .other: String(localized: "Arbetar")
-    }
-  }
-
-  /// "Sources/Views/HabitListView.swift" becomes "Habit List View".
-  static func friendlyName(_ path: String) -> String {
-    let file = path.split(separator: "/").last.map(String.init) ?? ""
-    let base = file.replacing(/\.[a-z]+$/, with: "")
-    let spaced = base
-      .replacing(/([a-z0-9])([A-Z])/) { "\($0.1) \($0.2)" }
-      .replacing(/[_+-]+/, with: " ")
-      .trimmingCharacters(in: .whitespaces)
-    return spaced.isEmpty ? String(localized: "en del av appen") : spaced
-  }
-
   static func buildStage(_ stage: String?) -> String {
     switch stage {
     case "queued": String(localized: "Väntar på en ledig simulator")

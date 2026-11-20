@@ -9,6 +9,12 @@ körande system hänger på: adressen `appsmedjan.fly.dev`, kodförrådet, bundl
 databasfilen, launchd-etiketterna `se.appsmedjan.*` och arbetarnas loggfiler. Namnet som visas står i
 `web/src/Logo.tsx`, `web/index.html`, `server/src/prompt.ts`, `shared/appstore.ts` och `ios/project.yml`.
 
+Tjänsten är gjord för den som aldrig har byggt programvara. Därför syns ingen kod någonstans: det
+finns ingen kodvy, chatten visar bara vad byggaren säger (inte stegen den tar), och byggaren är
+instruerad att svara med ett par korta meningar utan tekniska ord. All väntan har något att titta
+på: maskoten dansar sig igenom sving, hopp och piruett, texterna under den byter av varandra, och
+det blir konfetti när byggaren är klar och när appen har kommit fram till telefonen.
+
 ## Så hänger det ihop
 
 ```
@@ -17,11 +23,11 @@ databasfilen, launchd-etiketterna `se.appsmedjan.*` och arbetarnas loggfiler. Na
 │ Chatt            │ ───────► │ Konton, projekt, filer    │ ◄─────── │ Byggarbetare (worker/)   │
 │ Telefon-         │ ◄─────── │ (SQLite)                  │  jobb,   │  XcodeGen + xcodebuild   │
 │ förhandsvisning  │  WSS     │ AI-agent (Claude API)     │  bilder, │  iOS-simulator per app   │
-│ Kodvy            │          │ Kö och relä till arbetare │  tryck   │  skärmström + inmatning  │
+│                  │          │ Kö och relä till arbetare │  tryck   │  skärmström + inmatning  │
 └──────────────────┘          └───────────────────────────┘          └──────────────────────────┘
 ```
 
-- **`web/`** React-klient: inloggning, projektlista, chatt, telefonförhandsvisning, kodvy. Svenska och engelska.
+- **`web/`** React-klient: inloggning, projektlista, chatt, telefonförhandsvisning och installation på egen telefon. Svenska och engelska.
 - **`server/`** Node-server: REST-API, WebSocket till webbläsare och arbetare, samt AI-agenten.
 - **`worker/`** Körs på en Mac. Ansluter *ut* till servern (Macen behöver inga öppna portar), bygger
   projekten, startar appen i en simulator, strömmar skärmen och tar emot tryck och text.
@@ -479,7 +485,6 @@ var 25:e sekund, annars kopplar Flys proxy ner en tyst arbetare efter ungefär e
 - logga in eller skapa konto, se och skapa appar
 - chatta med agenten och följa stegen medan den arbetar
 - se simulatorns skärm, trycka, svepa och skriva i den, och spara skärmbilder till App Store
-- läsa appens källkod
 - göra appen installerbar via en publik TestFlight-länk, och öppna länken direkt
 - App Store-guiden: texter med förslag från Claude, supportsida och integritetspolicy, skärmbilder,
   ikon (valfri bild görs om till rätt format), uppgifter till Apple, skicka sidan och skicka in
@@ -505,7 +510,7 @@ För en riktig telefon eller TestFlight behövs ditt team: `APPLE_TEAM_ID=XXXXXX
 och sedan arkivering i Xcode. Bundle-id:t är `app.appsmedjan.ios`.
 
 Kört i simulatorn mot en teststack med låtsasarbetare: inloggad start, installationsflödet fram till
-"Öppna i TestFlight", App Store-guidens formulär, kodvyn och engelska. **Inte kört**: appen på en
+"Öppna i TestFlight", App Store-guidens formulär och engelska. **Inte kört**: appen på en
 riktig telefon, koppling av Apple-konto, ikonval från bildbiblioteket, skärmbildsknappen och att
 skicka sidan från appen. Tio enhetstester täcker tolkningen av serverns meddelanden.
 
@@ -521,7 +526,7 @@ npm run build && npm run test:e2e
 
 `test:e2e` startar servern, låtsasarbetaren och en skriptad ersättare för Claude-API:t, och kör hela
 flödet i en riktig webbläsare: konto, ny app, agentens skriv-bygg-rätta-loop, bildström, tryck och text,
-kodvy och åtkomstkontroll mellan konton. Det kräver att Playwright finns installerat (`npm i -g playwright`
+att ingen kod syns, och åtkomstkontroll mellan konton. Det kräver att Playwright finns installerat (`npm i -g playwright`
 eller motsvarande).
 
 ### Vad som inte är testat

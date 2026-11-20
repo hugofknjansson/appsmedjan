@@ -16,8 +16,8 @@ import { OnPhoneDialog } from './OnPhone';
 import { StoreDialog } from './Store';
 import { Logo } from './Logo';
 import { FrameBus, Phone } from './Phone';
-import { Mascot, MascotBadge } from './Mascot';
-import { apiErrorText, stepText, t } from './i18n';
+import { Confetti, Mascot, MascotBadge, WaitingCaption } from './Mascot';
+import { apiErrorText, t } from './i18n';
 
 interface State {
   name: string;
@@ -26,7 +26,6 @@ interface State {
   parts: Part[];
   preview: PreviewState;
   publish: PublishState;
-  filesVersion: number;
 }
 
 function reduce(state: State | null, ev: ServerToClient): State | null {
@@ -38,7 +37,6 @@ function reduce(state: State | null, ev: ServerToClient): State | null {
       parts: ev.parts,
       preview: ev.preview,
       publish: ev.publish,
-      filesVersion: (state?.filesVersion ?? 0) + 1,
     };
   }
   if (!state) return state;
@@ -72,8 +70,6 @@ function reduce(state: State | null, ev: ServerToClient): State | null {
       return { ...state, publish: ev.publish };
     case 'project':
       return { ...state, name: ev.name };
-    case 'files.changed':
-      return { ...state, filesVersion: state.filesVersion + 1 };
     default:
       return state;
   }
@@ -83,7 +79,7 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
   const [state, dispatch] = useReducer(reduce, null);
   const [connected, setConnected] = useState(true);
   const [missing, setMissing] = useState(false);
-  const [tab, setTab] = useState<'chat' | 'phone' | 'preview' | 'code'>(() =>
+  const [tab, setTab] = useState<'chat' | 'phone' | 'preview'>(() =>
     window.matchMedia('(max-width: 820px)').matches ? 'chat' : 'preview',
   );
   /** Whether the pane beside the chat has been chosen yet, by the person or for them. */
@@ -181,10 +177,27 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
   useEffect(() => {
     if (state && !phone) setTab((now) => (now === 'phone' ? 'preview' : now));
   }, [state, phone]);
-  const choose = (next: 'phone' | 'preview' | 'code') => {
+  const choose = (next: 'phone' | 'preview') => {
     paneChosen.current = true;
     setTab(next);
   };
+
+  // Something to cheer about: the builder has finished without trouble, or the app has arrived on the phone.
+  const [cheers, setCheers] = useState(0);
+  const wasRunning = useRef(false);
+  const running = state?.running ?? false;
+  const lastFailed = state?.messages.at(-1)?.parts.some((part) => part.t === 'error') ?? false;
+  useEffect(() => {
+    if (wasRunning.current && !running && !lastFailed) setCheers((n) => n + 1);
+    wasRunning.current = running;
+  }, [running, lastFailed]);
+  // Only when it was seen arriving: not for an app that had already arrived when the page was opened.
+  const install = direct?.status === 'ready' ? (direct.install ?? 'ready') : undefined;
+  const lastInstall = useRef(install);
+  useEffect(() => {
+    if (install === 'fetched' && lastInstall.current !== undefined && lastInstall.current !== 'fetched') setCheers((n) => n + 1);
+    lastInstall.current = install;
+  }, [install]);
 
   if (missing) {
     return (
@@ -200,6 +213,7 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
 
   return (
     <div className="page project">
+      <Confetti trigger={cheers} />
       <header className="topbar">
         <button className="btn ghost" onClick={() => navigate('/')} aria-label={t.back}>
           ← <span className="hide-narrow">{t.back}</span>
@@ -228,9 +242,6 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
             )}
             <button role="tab" aria-selected={tab === 'preview'} onClick={() => choose('preview')}>
               {phone ? t.simulator : t.preview}
-            </button>
-            <button role="tab" aria-selected={tab === 'code'} onClick={() => choose('code')}>
-              {t.code}
             </button>
           </div>
         </div>
@@ -268,7 +279,7 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
               <DirectInstallSteps id={id} direct={phone} running={state.running} />
             </div>
           )}
-          {state && tab !== 'code' && tab !== 'phone' && (
+          {state && tab !== 'phone' && (
             <Phone
               bus={bus}
               preview={state.preview}
@@ -278,7 +289,6 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
               onCapture={captureForStore}
             />
           )}
-          {state && tab === 'code' && <CodeView id={id} version={state.filesVersion} />}
           {!state && <Logo small />}
         </section>
       </div>
@@ -387,16 +397,16 @@ function Chat({ id, state }: { id: string; state: State }) {
             </div>
           ) : (
             <div key={m.id} className="msg assistant">
-              <Parts parts={m.parts} live={false} />
+              <Parts parts={m.parts} />
             </div>
           ),
         )}
         {state.running && (
           <div className="msg assistant" aria-live="polite">
-            <Parts parts={state.parts} live />
+            <Parts parts={state.parts} />
             <div className="working">
               <MascotBadge dancing />
-              {t.dancing}
+              <WaitingCaption lines={tryingOut(state.parts) ? t.wait.trying : t.wait.working} />
             </div>
           </div>
         )}
@@ -435,96 +445,44 @@ function Chat({ id, state }: { id: string; state: State }) {
   );
 }
 
-/** Renders text, progress rows and errors in order; runs of consecutive steps become one list. */
-function Parts({ parts, live }: { parts: Part[]; live: boolean }) {
-  const groups: Array<{ kind: 'text'; text: string } | { kind: 'steps'; steps: Step[] } | { kind: 'error'; text: string }> = [];
-  for (const p of parts) {
-    if (p.t === 'text') {
-      if (p.text.trim()) groups.push({ kind: 'text', text: p.text.trim() });
-    } else if (p.t === 'error') {
-      groups.push({ kind: 'error', text: t.agentError[p.code] ?? t.agentError.internal });
-    } else {
-      const last = groups[groups.length - 1];
-      if (last?.kind === 'steps') last.steps.push(p.step);
-      else groups.push({ kind: 'steps', steps: [p.step] });
-    }
+/** True when the latest thing the builder started is trying the app out or looking at it. */
+function tryingOut(parts: Part[]): boolean {
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i]!;
+    if (part.t === 'step' && part.step.status === 'running') return part.step.kind === 'build' || part.step.kind === 'look';
   }
-  return (
-    <>
-      {groups.map((g, i) => {
-        if (g.kind === 'text') {
-          return (
-            <p key={i} className="bubble">
-              {g.text}
-            </p>
-          );
-        }
-        if (g.kind === 'error') {
-          return (
-            <p key={i} className="notice">
-              {g.text}
-            </p>
-          );
-        }
-        const list = (
-          <ul className="steps">
-            {g.steps.map((s) => (
-              <li key={s.id} data-status={s.status}>
-                <span className="step-mark" aria-hidden="true" />
-                {stepText(s)}
-              </li>
-            ))}
-          </ul>
-        );
-        // Finished work folds away so the conversation stays readable.
-        if (live || g.steps.length <= 2) return <div key={i}>{list}</div>;
-        return (
-          <details key={i} className="steps-fold">
-            <summary>{t.steps.replace('{n}', String(g.steps.length))}</summary>
-            {list}
-          </details>
-        );
-      })}
-    </>
-  );
+  return false;
 }
 
-// --- Code ----------------------------------------------------------------------
+/** Bold is shown as such, should the builder use it; nothing is shown as raw marks. */
+function rich(text: string): Array<string | JSX.Element> {
+  return text.split(/\*\*(.+?)\*\*/g).map((piece, i) => (i % 2 === 1 ? <strong key={i}>{piece}</strong> : piece));
+}
 
-function CodeView({ id, version }: { id: string; version: number }) {
-  const [files, setFiles] = useState<Record<string, string>>({});
-  const [selected, setSelected] = useState('');
-
-  useEffect(() => {
-    let current = true;
-    // Many files can change in quick succession while the agent works.
-    const timer = setTimeout(() => {
-      api.files(id).then((r) => current && setFiles(r.files)).catch(() => undefined);
-    }, 300);
-    return () => {
-      current = false;
-      clearTimeout(timer);
-    };
-  }, [id, version]);
-
-  const paths = Object.keys(files);
-  const active = selected in files ? selected : (paths[0] ?? '');
-
-  if (paths.length === 0) return <p className="muted">{t.noFiles}</p>;
+/**
+ * What the builder says, and what went wrong when something did. The steps it took on the way are
+ * not shown: they are about how the app is made, which is nothing the person needs to follow.
+ */
+function Parts({ parts }: { parts: Part[] }) {
   return (
-    <div className="code">
-      <ul className="file-list">
-        {paths.map((p) => (
-          <li key={p}>
-            <button aria-current={p === active} onClick={() => setSelected(p)}>
-              {p.replace(/^Sources\//, '')}
-            </button>
-          </li>
-        ))}
-      </ul>
-      <pre className="file-body" tabIndex={0}>
-        <code>{files[active]}</code>
-      </pre>
-    </div>
+    <>
+      {parts.map((part, i) => {
+        if (part.t === 'text') {
+          return part.text.trim() ? (
+            <p key={i} className="bubble">
+              {rich(part.text.trim())}
+            </p>
+          ) : null;
+        }
+        if (part.t === 'error') {
+          return (
+            <p key={i} className="notice">
+              {t.agentError[part.code] ?? t.agentError.internal}
+            </p>
+          );
+        }
+        return null;
+      })}
+    </>
   );
 }

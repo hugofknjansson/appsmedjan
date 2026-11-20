@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import type { InputEvent, PreviewState } from '../../shared/protocol';
 import { t } from './i18n';
-import { Mascot, MascotBadge } from './Mascot';
+import { Mascot, MascotBadge, WaitingCaption } from './Mascot';
 
 /** Delivers frames straight to the <img>, so a 15 fps stream doesn't re-render the page. */
 export class FrameBus {
@@ -141,7 +141,8 @@ export function Phone({ bus, preview, running, onInput, onStart, onCapture }: Pr
       cover = (
         <div className="phone-cover">
           <Mascot dancing />
-          <strong>{building ? stageText : running ? t.working : t.previewStarting}</strong>
+          <strong>{building ? stageText : t.previewStarting}</strong>
+          <WaitingCaption lines={running && !building ? t.wait.working : t.wait.starting} />
         </div>
       );
     } else {

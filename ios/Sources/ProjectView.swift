@@ -11,6 +11,7 @@ struct ProjectView: View {
   @State private var sheet: Sheet?
   /// The person has asked to see the streamed simulator, although their own phone is where apps are tried.
   @State private var showsSimulator = false
+  @State private var cheers = 0
 
   /// The person's own phone comes first when apps can be installed straight onto it.
   private var phone: DirectInstall? {
@@ -45,10 +46,19 @@ struct ProjectView: View {
           }
           PhoneView(store: store, api: api)
         }
-      case .code: CodeView(store: store, api: api)
       }
     }
     .background(Color(.paper))
+    // Something to cheer about: the builder has finished, or the app has arrived on the phone.
+    .overlay { Confetti(trigger: cheers) }
+    .sensoryFeedback(.success, trigger: cheers)
+    .onChange(of: store.isRunning) { was, running in
+      if was && !running && !store.lastRunFailed { cheers += 1 }
+    }
+    .onChange(of: store.publish.direct) { before, now in
+      // Only when it was seen arriving: not for an app that had already arrived when the screen was opened.
+      if now?.install == "fetched", let before, before.status == .ready, before.install != "fetched" { cheers += 1 }
+    }
     .navigationTitle(store.name)
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
@@ -65,7 +75,6 @@ struct ProjectView: View {
         }
       }
     }
-    .navigationDestination(for: SourceFile.self) { SourceFileView(file: $0) }
     .sheet(item: $sheet) { sheet in
       switch sheet {
       case .install: InstallView(store: store, api: api)
@@ -83,7 +92,7 @@ struct ProjectView: View {
 // MARK: - Panes
 
 private enum Pane: CaseIterable, Identifiable {
-  case chat, preview, code
+  case chat, preview
 
   var id: Self { self }
 
@@ -92,7 +101,6 @@ private enum Pane: CaseIterable, Identifiable {
     switch self {
     case .chat: "Chatt"
     case .preview: isPhoneFirst ? "Min telefon" : "Förhandsvisning"
-    case .code: "Kod"
     }
   }
 
@@ -100,7 +108,6 @@ private enum Pane: CaseIterable, Identifiable {
     switch self {
     case .chat: "bubble.left.and.bubble.right.fill"
     case .preview: "iphone"
-    case .code: "chevron.left.forwardslash.chevron.right"
     }
   }
 }
@@ -178,19 +185,12 @@ struct ChatView: View {
                 .padding(.leading, 44)
                 .frame(maxWidth: .infinity, alignment: .trailing)
             case .assistant:
-              PartsView(parts: message.parts, isLive: false)
+              PartsView(parts: message.parts)
             }
           }
           if store.isRunning {
-            PartsView(parts: store.liveParts, isLive: true)
-            HStack(spacing: 10) {
-              MascotBadge(isDancing: true)
-                .frame(width: 38)
-              Text("Dansar fram din app")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(.secondary)
-            }
-            .accessibilityElement(children: .combine)
+            PartsView(parts: store.liveParts)
+            WorkingShow(isTrying: store.liveParts.isTryingOut)
           }
         }
         .padding()
@@ -240,22 +240,21 @@ struct ChatView: View {
   }
 }
 
-/// Text, progress rows and errors in order; a run of steps becomes one list that folds away when done.
+/// What the builder says, and what went wrong when something did. The steps it took on the way are
+/// not shown: they are about how the app is made, which is nothing the person needs to follow.
 private struct PartsView: View {
   private enum Block: Identifiable {
     case text(Int, String)
-    case steps(Int, [Step])
     case error(Int, String)
 
     var id: Int {
       switch self {
-      case .text(let id, _), .steps(let id, _), .error(let id, _): id
+      case .text(let id, _), .error(let id, _): id
       }
     }
   }
 
   let parts: [Part]
-  let isLive: Bool
 
   private var blocks: [Block] {
     var out: [Block] = []
@@ -266,13 +265,7 @@ private struct PartsView: View {
         if !trimmed.isEmpty { out.append(.text(out.count, trimmed)) }
       case .error(let code):
         out.append(.error(out.count, Texts.agentError(code)))
-      case .step(let step):
-        if case .steps(let id, let steps) = out.last {
-          out[out.count - 1] = .steps(id, steps + [step])
-        } else {
-          out.append(.steps(out.count, [step]))
-        }
-      case .unknown:
+      case .step, .unknown:
         break
       }
     }
@@ -284,7 +277,7 @@ private struct PartsView: View {
       ForEach(blocks) { block in
         switch block {
         case .text(_, let text):
-          Text(text)
+          Text(Self.styled(text))
             .padding(.horizontal, 15)
             .padding(.vertical, 10)
             .background(Color(.card), in: .rect(topLeadingRadius: 20, bottomLeadingRadius: 6, bottomTrailingRadius: 20, topTrailingRadius: 20, style: .continuous))
@@ -295,39 +288,43 @@ private struct PartsView: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .background(Color.brand.opacity(0.14), in: .rect(cornerRadius: 16, style: .continuous))
-        case .steps(_, let steps):
-          // Finished work folds away so the conversation stays readable.
-          if isLive || steps.count <= 2 {
-            StepList(steps: steps)
-          } else {
-            DisclosureGroup("\(steps.count) steg") { StepList(steps: steps) }
-              .font(.footnote)
-          }
         }
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
   }
+
+  /// Bold and italics are shown as such, should the builder use them; nothing is shown as raw marks.
+  private static func styled(_ text: String) -> AttributedString {
+    let options = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+    return (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
+  }
 }
 
-private struct StepList: View {
-  let steps: [Step]
+/// The wait while the builder works: the mascot dancing through its moves, with lines that take turns.
+private struct WorkingShow: View {
+  /// True while the builder is trying the app out rather than changing it.
+  let isTrying: Bool
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 4) {
-      ForEach(steps) { step in
-        Label {
-          Text(Texts.step(step))
-        } icon: {
-          switch step.status {
-          case .running: ProgressView().controlSize(.mini)
-          case .done: Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-          case .error: Image(systemName: "wrench.adjustable").foregroundStyle(.orange)
-          }
-        }
-        .font(.footnote)
+    HStack(spacing: 14) {
+      MascotBadge(isDancing: true)
+        .frame(width: 64)
+      WaitingCaption(lines: isTrying ? WaitingLines.trying : WaitingLines.working)
+        .font(.subheadline.weight(.semibold))
         .foregroundStyle(.secondary)
-      }
     }
+    .padding(.vertical, 6)
+    .accessibilityElement(children: .combine)
+  }
+}
+
+private extension [Part] {
+  /// True when the latest thing the builder started is trying the app out or looking at it.
+  var isTryingOut: Bool {
+    for part in reversed() {
+      if case .step(let step) = part, step.status == .running { return step.kind == .build || step.kind == .look }
+    }
+    return false
   }
 }

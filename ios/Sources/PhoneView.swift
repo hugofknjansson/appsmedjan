@@ -92,7 +92,11 @@ struct PhoneView: View {
   private var placeholder: some View {
     switch store.preview.status {
     case .building:
-      MascotNote(title: Text(Texts.buildStage(store.preview.stage)), isDancing: true)
+      MascotNote(title: Text(Texts.buildStage(store.preview.stage)), isDancing: true) {
+        WaitingCaption(lines: WaitingLines.starting)
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+      }
     case .unavailable:
       MascotNote(
         title: Text("Ingen simulator är tillgänglig just nu"),
@@ -111,7 +115,11 @@ struct PhoneView: View {
       }
     case .running:
       // Frames are on their way.
-      MascotNote(title: Text("Startar appen"), isDancing: true)
+      MascotNote(title: Text("Startar appen"), isDancing: true) {
+        WaitingCaption(lines: WaitingLines.starting)
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+      }
     }
   }
 

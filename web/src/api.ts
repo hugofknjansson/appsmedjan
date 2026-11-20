@@ -65,7 +65,6 @@ export const api = {
   createProject: (text: string, name: string) =>
     call<{ project: ProjectSummary }>('POST', '/api/projects', { text, name }),
   deleteProject: (id: string) => call<{ ok: true }>('DELETE', `/api/projects/${id}`),
-  files: (id: string) => call<{ files: Record<string, string> }>('GET', `/api/projects/${id}/files`),
   sendMessage: (id: string, text: string) => call<{ ok: true }>('POST', `/api/projects/${id}/messages`, { text }),
   stop: (id: string) => call<{ ok: true }>('POST', `/api/projects/${id}/stop`, {}),
   appleAccount: () => call<AppleStatus>('GET', '/api/apple-account'),

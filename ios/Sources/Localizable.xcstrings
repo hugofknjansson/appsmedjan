@@ -1,16 +1,6 @@
 {
   "sourceLanguage": "sv",
   "strings": {
-    "%lld steg": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld steps"
-          }
-        }
-      }
-    },
     "%lld/%lld": {
       "localizations": {
         "en": {
@@ -301,16 +291,6 @@
         }
       }
     },
-    "Appen är uppdaterad": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The app is updated"
-          }
-        }
-      }
-    },
     "Appens skärm i simulatorn": {
       "localizations": {
         "en": {
@@ -517,16 +497,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Apple developer account"
-          }
-        }
-      }
-    },
-    "Arbetar": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Working"
           }
         }
       }
@@ -901,6 +871,16 @@
         }
       }
     },
+    "Det här tar ungefär en halv minut": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This takes about half a minute"
+          }
+        }
+      }
+    },
     "Det tar ett par minuter att bygga appen för telefonen.": {
       "localizations": {
         "en": {
@@ -1057,16 +1037,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Then the app sits on the home screen like any other app. It goes through Apple's testing app TestFlight, which is free. You need no developer account."
-          }
-        }
-      }
-    },
-    "Döper appen till %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Naming the app %@"
           }
         }
       }
@@ -1511,6 +1481,16 @@
         }
       }
     },
+    "Gör plats på hemskärmen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Making room on the home screen"
+          }
+        }
+      }
+    },
     "Har du inte TestFlight installerat hämtar du den gratis i App Store först. Tryck sedan på Godkänn och Installera.": {
       "localizations": {
         "en": {
@@ -1547,16 +1527,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Home"
-          }
-        }
-      }
-    },
-    "Hittade ett fel och rättar det": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Found a problem and fixing it"
           }
         }
       }
@@ -1637,16 +1607,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "The invite code is not right."
-          }
-        }
-      }
-    },
-    "Inga filer än": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No files yet"
           }
         }
       }
@@ -1851,16 +1811,6 @@
         }
       }
     },
-    "Justerar %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adjusting %@"
-          }
-        }
-      }
-    },
     "Kampanjtext": {
       "localizations": {
         "en": {
@@ -1961,12 +1911,12 @@
         }
       }
     },
-    "Kod": {
+    "Knyter skorna inför premiären": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Code"
+            "value": "Tying its shoes before the premiere"
           }
         }
       }
@@ -2191,12 +2141,12 @@
         }
       }
     },
-    "Läser %@": {
+    "Lär appen ett nytt steg": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Reading %@"
+            "value": "Teaching the app a new step"
           }
         }
       }
@@ -2391,6 +2341,16 @@
         }
       }
     },
+    "Packar upp appen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unpacking the app"
+          }
+        }
+      }
+    },
     "Packlista": {
       "localizations": {
         "en": {
@@ -2411,12 +2371,32 @@
         }
       }
     },
+    "Provkör appen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Taking the app for a spin"
+          }
+        }
+      }
+    },
     "Publicera": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Publish"
+          }
+        }
+      }
+    },
+    "Putsar på detaljerna": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Polishing the details"
           }
         }
       }
@@ -2681,16 +2661,6 @@
         }
       }
     },
-    "Skriver %@": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Writing %@"
-          }
-        }
-      }
-    },
     "Skriver förslag": {
       "localizations": {
         "en": {
@@ -2717,6 +2687,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Turn on only what is true. No violence, no weapons, no sexual or frightening content, no crude language, no drugs, no gambling, no medical advice, no open web browser, no content from other users and no advertising gives the rating 4+. What you leave off you fill in yourself in App Store Connect."
+          }
+        }
+      }
+    },
+    "Snart ser du den": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You will see it soon"
+          }
+        }
+      }
+    },
+    "Snart är den din": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It will be yours soon"
+          }
+        }
+      }
+    },
+    "Snickrar på knapparna": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Putting the buttons together"
           }
         }
       }
@@ -2921,12 +2921,12 @@
         }
       }
     },
-    "Tar bort %@": {
+    "Tar en piruett medan det blir klart": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Removing %@"
+            "value": "Doing a pirouette while it gets ready"
           }
         }
       }
@@ -3021,12 +3021,12 @@
         }
       }
     },
-    "Tittar på skärmen": {
+    "Tittar hur det blev": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Looking at the screen"
+            "value": "Looking at how it turned out"
           }
         }
       }
@@ -3057,6 +3057,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "The service is not fully set up yet (API key missing). Contact whoever runs the service."
+          }
+        }
+      }
+    },
+    "Trycker på alla knappar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pressing all the buttons"
           }
         }
       }
@@ -3291,6 +3301,16 @@
         }
       }
     },
+    "Väljer färger som passar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Picking colours that fit"
+          }
+        }
+      }
+    },
     "Vänta tills appen är färdigbyggd i chatten.": {
       "localizations": {
         "en": {
@@ -3351,6 +3371,16 @@
         }
       }
     },
+    "Värmer upp": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warming up"
+          }
+        }
+      }
+    },
     "Växter": {
       "localizations": {
         "en": {
@@ -3377,16 +3407,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "The website must be an address starting with https://"
-          }
-        }
-      }
-    },
-    "en del av appen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "a part of the app"
           }
         }
       }
