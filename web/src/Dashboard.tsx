@@ -159,7 +159,7 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
                 <button className="app-card" onClick={() => navigate(`/p/${p.id}`)}>
                   {p.icon ? (
                     // The app's own icon, leaning like the tile it takes the place of. The time makes a changed icon load again.
-                    <img className="app-icon" alt="" src={`/api/projects/${p.id}/store/icon?v=${p.icon}`} data-tilt={tileNumber(p.id) % 2 === 0 ? 'left' : 'right'} />
+                    <img className="app-icon" alt="" src={`/api/projects/${p.id}/store/icon?size=138&v=${p.icon}`} data-tilt={tileNumber(p.id) % 2 === 0 ? 'left' : 'right'} />
                   ) : (
                     <span className="app-icon" aria-hidden="true" data-color={tileNumber(p.id) % 6} data-tilt={tileNumber(p.id) % 2 === 0 ? 'left' : 'right'}>
                       {p.name.slice(0, 1).toUpperCase()}

@@ -244,7 +244,8 @@ extension API {
   /// The app's icon as the list shows it: nil while the app has none. The time makes a changed icon load again.
   func iconURL(_ id: String, changedAt: Double?) -> URL? {
     guard let changedAt else { return nil }
-    return iconURL(id).appending(queryItems: [URLQueryItem(name: "v", value: String(Int(changedAt)))])
+    // A small version: the full icon can be a couple of megabytes.
+    return iconURL(id).appending(queryItems: [URLQueryItem(name: "size", value: "138"), URLQueryItem(name: "v", value: String(Int(changedAt)))])
   }
 
   func iconURL(_ id: String) -> URL {

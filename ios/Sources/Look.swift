@@ -125,11 +125,7 @@ struct AppTile: View {
   var body: some View {
     Group {
       if let icon {
-        AsyncImage(url: icon) { image in
-          image.resizable()
-        } placeholder: {
-          letter
-        }
+        RemoteImage(url: icon) { letter }
       } else {
         letter
       }
@@ -148,6 +144,40 @@ struct AppTile: View {
           .font(.title3.weight(.heavy))
           .foregroundStyle(.white)
       }
+  }
+}
+
+/// A picture from the server, with something to show until it has arrived. Unlike AsyncImage it
+/// fetches again when a first try was cut short, which happens to rows of a list that is redrawn
+/// while its pictures are on their way.
+struct RemoteImage<Placeholder: View>: View {
+  let url: URL
+  @ViewBuilder var placeholder: Placeholder
+
+  @State private var image: UIImage?
+
+  var body: some View {
+    Group {
+      if let image {
+        Image(uiImage: image).resizable()
+      } else {
+        placeholder
+      }
+    }
+    .task(id: url) {
+      image = nil
+      for attempt in 0..<3 {
+        if attempt > 0 { try? await Task.sleep(for: .seconds(Double(attempt))) }
+        if Task.isCancelled { return }
+        if let (data, response) = try? await URLSession.shared.data(from: url),
+          (response as? HTTPURLResponse)?.statusCode == 200,
+          let loaded = UIImage(data: data)
+        {
+          image = loaded
+          return
+        }
+      }
+    }
   }
 }
 

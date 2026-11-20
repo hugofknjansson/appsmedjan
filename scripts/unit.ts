@@ -71,7 +71,7 @@ assert.ok(!isUdid('00008110-000A1B2C3D4E5F6') && !isUdid('g'.repeat(40)) && !isU
 
 // App icons: the builder's drawing becomes a 1024 px PNG, and only plain, self-contained drawings get through
 {
-  const { IconError, defaultIconSvg, renderIcon } = await import('../server/src/iconart');
+  const { IconError, defaultIconSvg, iconThumbnail, renderIcon } = await import('../server/src/iconart');
   const wrap = (inner: string, box = '0 0 1024 1024') => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${box}">${inner}</svg>`;
   const ground = '<rect width="1024" height="1024" fill="#29999e"/>';
   const good = pngInfo(renderIcon(wrap(`${ground}<circle cx="512" cy="512" r="260" fill="#fff"/>`)));
@@ -93,6 +93,10 @@ assert.ok(!isUdid('00008110-000A1B2C3D4E5F6') && !isUdid('g'.repeat(40)) && !isU
   // The stand-in is always a valid icon, and the same for the same app.
   for (const id of ['abcdefgh1234', 'q9376qgw6anh', 'am4iun4nl0q6', 'vvor4k5lpw6r', 'zzzzzzzz0000']) renderIcon(defaultIconSvg(id));
   assert.equal(defaultIconSvg('abcdefgh1234'), defaultIconSvg('abcdefgh1234'));
+  // A small version for lists, from any icon PNG: the builder's, the stand-in or the person's own.
+  const small = iconThumbnail(renderIcon(defaultIconSvg('abcdefgh1234')), 138);
+  assert.deepEqual([pngInfo(small)?.width, pngInfo(small)?.height], [138, 138]);
+  assert.ok(small.length < 40_000, `a small icon is small (${small.length} bytes)`);
 }
 
 // Clues while the builder works: the phase follows the latest step, and the bar only grows

@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { isValidProjectId, testerPersonProblem, type TesterPerson } from '../../shared/protocol';
 import { hasCredentials } from './agent';
-import { ensureIcon } from './icon';
+import { ensureIcon, smallIcon } from './icon';
 import { config } from './config';
 import * as db from './db';
 import * as direct from './direct';
@@ -619,7 +619,15 @@ api.put('/projects/:id/store/icon', requireUser, express.raw({ type: 'image/png'
 api.get('/projects/:id/store/icon', requireUser, (req, res) => {
   const project = ownProject(req, res);
   if (!project) return;
-  const icon = db.getIcon(project.id);
+  // `size`: a small version for lists. Without it, the icon as it is sent to Apple.
+  const side = Number(req.query.size);
+  let icon: Uint8Array | null;
+  try {
+    icon = Number.isInteger(side) && side >= 32 && side <= 512 ? smallIcon(project.id, side) : db.getIcon(project.id);
+  } catch (err) {
+    console.warn(`[icon] ${project.id}: could not make a small icon (${(err as Error).message})`);
+    icon = db.getIcon(project.id);
+  }
   if (!icon) {
     res.status(404).json({ error: 'not_found' });
     return;

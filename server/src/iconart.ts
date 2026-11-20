@@ -69,3 +69,14 @@ export function defaultIconSvg(projectId: string): string {
 ${motifs[seed[1]! % motifs.length]}
 </svg>`;
 }
+
+/**
+ * The icon made small, for lists: an icon is a megabyte or two at full size when it is a photo the
+ * person chose, which is far too much to fetch for a picture the size of a fingertip.
+ */
+export function iconThumbnail(png: Uint8Array, side: number): Buffer {
+  const picture = `data:image/png;base64,${Buffer.from(png).toString('base64')}`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${side} ${side}"><rect width="${side}" height="${side}" fill="#fff"/><image width="${side}" height="${side}" href="${picture}" xlink:href="${picture}"/></svg>`;
+  const rendered = new Resvg(svg, { fitTo: { mode: 'width', value: side }, font: { loadSystemFonts: false } }).render();
+  return Buffer.from(rendered.asPng());
+}
