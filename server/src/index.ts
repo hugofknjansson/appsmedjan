@@ -7,7 +7,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { isValidProjectId, type ClientToServer, type InputEvent, type ServerToClient } from '../../shared/protocol';
 import { hasCredentials } from './agent';
 import { config } from './config';
-import { keepAlive } from './keepalive';
+import { keepAlive } from '../../shared/keepalive';
 import * as db from './db';
 import { live } from './live';
 import { buildProject, syncViewers } from './preview';

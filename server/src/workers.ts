@@ -13,7 +13,7 @@ import {
   type WorkerToServer,
 } from '../../shared/protocol';
 import { randomId } from './db';
-import { keepAlive } from './keepalive';
+import { keepAlive } from '../../shared/keepalive';
 import { clearFrame, live, sendFrame, setPreview, workersChanged } from './live';
 
 interface Worker {

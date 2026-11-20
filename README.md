@@ -140,7 +140,16 @@ Så här sätter du upp en ny Mac, över SSH eller skärmdelning:
    över skärmdelning, eller i terminalen:
 
    ```bash
-   brew install xcodesorg/made/xcodes && xcodes install --latest
+   brew install xcodesorg/made/xcodes && xcodes list
+   ```
+
+   Välj den nyaste version som Macens macOS klarar, och installera den med `xcodes install <version>`.
+   Xcode 27 kräver macOS Tahoe 26.6 eller senare; på macOS Sequoia 15.6 är Xcode 26.3 den nyaste som
+   går att köra. Scaleways Macar levereras med Sequoia om du inte väljer något annat i beställningen.
+   Apparna som byggs här riktar sig mot iOS 17, så båda fungerar.
+
+   ```bash
+   xcodes install 26.3
    ```
 
    ```bash

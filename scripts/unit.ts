@@ -10,6 +10,9 @@ import { classifyPublishFailure, publishConfigFromEnv } from '../worker/src/publ
 import { listFolders, pruneAfterDays, staleIds, touch } from '../worker/src/prune';
 import { extractErrors, projectSpec } from '../worker/src/xcode';
 import { buildNumberFor, decodeFrame, encodeFrame, isValidSourcePath } from '../shared/protocol';
+import { keepAlive } from '../shared/keepalive';
+import { EventEmitter } from 'node:events';
+import type { WebSocket } from 'ws';
 
 // JPEG splitting across arbitrary chunk boundaries
 const jpg = (n: number) => Buffer.concat([Buffer.from([0xff, 0xd8]), Buffer.alloc(n, 7), Buffer.from([0xff, 0xd9])]);
@@ -234,6 +237,37 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+}
+
+// A connection that stops answering pings is dropped, so its owner can reconnect
+{
+  class FakeSocket extends EventEmitter {
+    OPEN = 1;
+    readyState = 1;
+    pings = 0;
+    terminated = false;
+    answers = true;
+    ping() {
+      this.pings++;
+      if (this.answers) this.emit('pong');
+    }
+    terminate() {
+      this.terminated = true;
+      this.emit('close');
+    }
+  }
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  const sock = new FakeSocket();
+  let dead = 0;
+  keepAlive(sock as unknown as WebSocket, 10, () => dead++);
+  await wait(45);
+  assert.ok(sock.pings >= 2 && !sock.terminated, 'an answering connection is kept');
+  sock.answers = false;
+  await wait(45);
+  assert.ok(sock.terminated && dead === 1, 'a silent connection is dropped once');
+  const pings = sock.pings;
+  await wait(30);
+  assert.equal(sock.pings, pings, 'nothing is sent after it closed');
 }
 
 console.log('Unit checks passed.');

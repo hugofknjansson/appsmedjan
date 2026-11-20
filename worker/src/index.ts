@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import WebSocket from 'ws';
+import { keepAlive } from '../../shared/keepalive';
 import { PROTOCOL_VERSION, encodeFrame, type ServerToWorker, type WorkerToServer } from '../../shared/protocol';
 import type { Driver, Emit, PublishResult } from './driver';
 import { MockDriver } from './mock';
@@ -128,6 +129,8 @@ function connect(): void {
   const ws = new WebSocket(`${SERVER_URL}/worker`, {
     headers: { authorization: `Bearer ${TOKEN}` },
     maxPayload: 32 * 1024 * 1024,
+    // A server that accepts the connection but never answers must not hold the worker forever.
+    handshakeTimeout: 20_000,
   });
   socket = ws;
 
@@ -136,6 +139,8 @@ function connect(): void {
     if (orphanTimer) clearTimeout(orphanTimer);
     orphanTimer = null;
     console.log(`[worker] connected to ${SERVER_URL}`);
+    // Without this a connection that died silently looks open forever and the worker never comes back.
+    keepAlive(ws, 25_000, () => console.error('[worker] the server stopped answering; reconnecting'));
     // After a reconnect the server no longer knows which simulators we hold; start clean.
     if (wasConnected) void driver.shutdown();
     wasConnected = true;
