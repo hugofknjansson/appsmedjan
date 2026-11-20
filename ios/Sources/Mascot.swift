@@ -9,14 +9,19 @@ struct Mascot: View {
   var isDancing = false
   /// Cheering instead of going through the dance: jumping with both arms in the air, for good news.
   var isCheering = false
+  /// Waving hello instead of dancing: standing where it is and waving the arm it has in the air.
+  var isWaving = false
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-  private var moves: Bool { (isDancing || isCheering) && !reduceMotion }
+  private var moves: Bool { (isDancing || isCheering || isWaving) && !reduceMotion }
+
+  /// The one move it keeps to, or nil for the whole dance. Cheering wins over dancing, dancing over waving.
+  private var only: Int? { isCheering ? 1 : isDancing ? nil : isWaving ? 4 : nil }
 
   var body: some View {
     TimelineView(.animation(paused: !moves)) { timeline in
-      let pose = moves ? MascotPose(time: timeline.date.timeIntervalSinceReferenceDate, cheering: isCheering) : .icon
+      let pose = moves ? MascotPose(time: timeline.date.timeIntervalSinceReferenceDate, only: only) : .icon
       Canvas { context, size in
         pose.draw(in: &context, size: size, tile: tile, eyes: eyes)
       }
@@ -71,8 +76,9 @@ nonisolated struct MascotPose {
   }
 
   /// The dance goes through six phrases: the swing, a row of jumps, the swing again, a pirouette, a
-  /// wave and a slide from side to side. Cheering is the jumps, over and over.
-  init(time: Double, cheering: Bool = false) {
+  /// wave and a slide from side to side. `only` keeps it to one of them, over and over: 1 (the
+  /// jumps) is cheering, 4 (the wave) is saying hello.
+  init(time: Double, only: Int? = nil) {
     let local = time.truncatingRemainder(dividingBy: Self.phrase) / Self.phrase
     let angle = time / Self.beat * 2 * .pi
     // A sine that lingers at both ends, so each pose is held for a moment before the swap.
@@ -81,7 +87,7 @@ nonisolated struct MascotPose {
     // 0 at both ends of the phrase, 1 for most of it: what a move adds fades in and out.
     let ease = min(1, local / 0.12, (1 - local) / 0.12)
     let hop = pow(abs(sin(angle)), 3)
-    switch cheering ? 1 : Int(time / Self.phrase) % 6 {
+    switch only ?? Int(time / Self.phrase) % 6 {
     case 1:
       // Jumps: both arms half-way up, straight up and down, squashed on landing and stretched in the air.
       let height = pow(abs(sin(angle)), 0.8)

@@ -70,6 +70,19 @@ struct RoundButtonStyle: ButtonStyle {
   }
 }
 
+/// Anything that is pressed like a button but looks like a card: it gives a little and springs back.
+struct PopButtonStyle: ButtonStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .scaleEffect(configuration.isPressed ? 0.94 : 1)
+      .animation(.bouncy(duration: 0.3), value: configuration.isPressed)
+  }
+}
+
+extension ButtonStyle where Self == PopButtonStyle {
+  static var pop: PopButtonStyle { PopButtonStyle() }
+}
+
 extension ButtonStyle where Self == BouncyButtonStyle {
   static var bouncy: BouncyButtonStyle { BouncyButtonStyle() }
   static var bouncyInverted: BouncyButtonStyle { BouncyButtonStyle(isInverted: true) }
