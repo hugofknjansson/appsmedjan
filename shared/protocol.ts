@@ -5,7 +5,7 @@
  * about. Workers on rented Macs are updated separately from the server; the server says so in its
  * log when one of them is behind (or ahead).
  */
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
 
 // ---------------------------------------------------------------------------
 // Project files
@@ -122,6 +122,28 @@ export const isKeyId = (s: unknown): s is string => typeof s === 'string' && /^[
 export const isIssuerId = (s: unknown): s is string =>
   typeof s === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 
+/**
+ * A public TestFlight link: anyone who opens it can install the app, with no invitation and no
+ * developer account. Apple reviews the first build of an app before the link works.
+ *
+ * processing: Apple is still working on the uploaded build. review: waiting for Apple's beta review.
+ * approved: the link works. rejected: Apple's beta review said no. needs_contact: Apple wants a
+ * person to contact about the test, and nobody has been given.
+ */
+export interface TestLink {
+  status: 'none' | 'working' | 'processing' | 'review' | 'approved' | 'rejected' | 'needs_contact' | 'failed';
+  /** The address to open on the phone. Only useful once the status is approved. */
+  url?: string;
+  /** The build the link was last prepared for. */
+  build?: string;
+  error?: StoreSyncError;
+  /** Apple's explanation when it refused something. */
+  detail?: string;
+  at?: number;
+}
+
+export type ShareState = 'processing' | 'review' | 'approved' | 'rejected';
+
 export interface PublishState {
   /** Whether this person can send the app to TestFlight right now. */
   available: boolean;
@@ -143,6 +165,10 @@ export interface PublishState {
   build?: string;
   /** When the status last changed (ms since epoch). */
   at?: number;
+  /** The public TestFlight link for installing the app on a phone. Missing from servers before it existed. */
+  test?: TestLink;
+  /** True when the signed-in person runs the service, and so is the one who creates apps in App Store Connect. */
+  operator?: boolean;
 }
 
 /** Build numbers must grow with every upload; the UTC minute does that without any stored counter. */
@@ -337,6 +363,14 @@ export function contactComplete(c: ReviewContact): boolean {
   return contactProblem(c) === null;
 }
 
+/** "First Last, +46 70 123 45 67, name@example.com" from the operator's settings. */
+export function parseContact(text: string): ReviewContact | null {
+  const [name = '', phone = '', email = ''] = text.split(',').map((s) => s.trim());
+  const [firstName = '', ...rest] = name.split(/\s+/);
+  const contact = { firstName, lastName: rest.join(' '), phone, email, holder: '' };
+  return contactComplete(contact) ? contact : null;
+}
+
 /** The copyright line Apple shows on the app's page: the year and who holds it. */
 export function copyrightLine(c: ReviewContact, year: number): string {
   return `${year} ${c.holder.trim() || `${c.firstName.trim()} ${c.lastName.trim()}`}`;
@@ -461,6 +495,23 @@ export type ServerToWorker =
       contact?: ReviewContact;
       account?: AppleAccount;
     }
+  /**
+   * Makes an uploaded build installable through a public TestFlight link: the test information, an
+   * external group with a public link, the build in it, and Apple's beta review. `check` only asks
+   * how far that has come.
+   */
+  | {
+      type: 'share';
+      jobId: string;
+      projectId: string;
+      bundleId: string;
+      build: string;
+      check?: boolean;
+      contact?: ReviewContact;
+      /** What the app is, for Apple's reviewers and for testers. */
+      description?: string;
+      account?: AppleAccount;
+    }
   /** Submits the app's prepared version for Apple's review. Only ever sent because its owner pressed the button. */
   | { type: 'submit'; jobId: string; projectId: string; bundleId: string; account?: AppleAccount }
   /** `store`: a full-size picture for the App Store page instead of a small one for the agent. */
@@ -503,6 +554,7 @@ export type WorkerToServer =
   | { type: 'store.progress'; jobId: string; stage: StoreSyncStage }
   | { type: 'store.result'; jobId: string; ok: boolean; error?: StoreSyncError; detail?: string; attached?: StoreBuild }
   | { type: 'submit.result'; jobId: string; ok: boolean; error?: StoreSyncError; detail?: string }
+  | { type: 'share.result'; jobId: string; ok: boolean; state?: ShareState; url?: string; error?: StoreSyncError; detail?: string }
   | { type: 'screenshot.result'; jobId: string; ok: boolean; mime?: string; data?: string; error?: string }
   | { type: 'stream.info'; projectId: string; mime: string }
   | { type: 'sim.stopped'; projectId: string };

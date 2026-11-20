@@ -6,6 +6,7 @@ import type {
   PublishStage,
   PublishTester,
   ReviewContact,
+  ShareState,
   StoreBuild,
   StoreChoices,
   StoreListing,
@@ -39,6 +40,25 @@ export interface StoreJob {
   choices?: StoreChoices;
   contact?: ReviewContact;
   account?: AppleAccount;
+}
+
+/** Makes an uploaded build installable through a public TestFlight link, or asks how far that has come. */
+export interface ShareJob {
+  projectId: string;
+  bundleId: string;
+  build: string;
+  check?: boolean;
+  contact?: ReviewContact;
+  description?: string;
+  account?: AppleAccount;
+}
+
+export interface ShareResult {
+  ok: boolean;
+  state?: ShareState;
+  url?: string;
+  error?: StoreSyncError;
+  detail?: string;
 }
 
 /** Submits the app's prepared version for Apple's review. */
@@ -79,6 +99,8 @@ export interface Driver {
   publish(job: PublishJob, progress: (stage: PublishStage) => void): Promise<PublishResult>;
   /** Fills in the app's App Store page. Only called when init() reported canPublish. */
   store(job: StoreJob, progress: (stage: StoreSyncStage) => void): Promise<StoreResult>;
+  /** Prepares or checks the public TestFlight link. Only called when init() reported canPublish. */
+  share(job: ShareJob): Promise<ShareResult>;
   /** Submits the app for review. Only called when init() reported canPublish. */
   submit(job: SubmitJob): Promise<StoreResult>;
   /** `store`: a full-size picture for the App Store page instead of a small one for the agent to look at. */

@@ -6,39 +6,19 @@ import {
   type PublishState,
   type PublishTester,
 } from '../../shared/protocol';
-import { accountStatus, credentialsFor } from './apple';
-import { config } from './config';
+import { credentialsFor } from './apple';
 import * as db from './db';
 import { live, liveProjectIds, send } from './live';
+import { isOperator, route } from './routing';
+import * as testlink from './testlink';
 import * as workers from './workers';
 
 /** Uploads in progress. Finished ones are read from the database. */
 const working = new Map<string, PublishState>();
 
-/**
- * Uploads to the operator's own Apple developer account are opt-in per person:
- * TESTFLIGHT_USERS lists the emails that may use it ("*" for everyone).
- */
-export function userMayPublish(email: string): boolean {
-  const allowed = config.testflightUsers;
-  return allowed.includes('*') || allowed.includes(email.toLowerCase());
-}
-
-/**
- * Whose developer account an upload from this person goes to. Their own, once connected, always wins:
- * that is the account the app should live in.
- */
-export function route(owner: db.User | null): Pick<PublishState, 'account' | 'available' | 'canConnect'> {
-  const own = owner ? accountStatus(owner.id) : { enabled: false, connected: false };
-  if (own.connected) return { account: 'own', available: workers.canPublish('own'), canConnect: true };
-  if (owner && userMayPublish(owner.email)) {
-    return { account: 'operator', available: workers.canPublish('operator'), canConnect: own.enabled };
-  }
-  return { account: 'none', available: false, canConnect: own.enabled };
-}
-
 export function publishState(project: db.Project): PublishState {
-  const routing = route(db.getUser(project.userId));
+  const owner = db.getUser(project.userId);
+  const routing = { ...route(owner), test: testlink.testLink(project.id), operator: owner ? isOperator(owner.email) : false };
   const current = working.get(project.id);
   if (current) {
     // While the upload waits for the app to be created, the person needs to know which bundle id to pick.
@@ -63,6 +43,9 @@ function push(projectId: string): void {
   const project = db.getProject(projectId);
   if (project) send(projectId, { type: 'publish', publish: publishState(project) });
 }
+
+// The test link moves on by itself while Apple reviews; the open project follows along.
+testlink.onChange(push);
 
 // A publishing worker connecting or leaving changes whether the button is offered.
 workers.onChange(() => {
@@ -107,6 +90,8 @@ async function run(project: db.Project, build: string, account: AppleAccount | u
     outcome = await workers.publish(project, db.getFiles(project.id), build, account, iconText, (stage) => {
       const current = working.get(project.id);
       if (!current) return;
+      // In the operator's account only the operator can create the app: note that it is waited for.
+      if (stage === 'waiting_for_app' && !account) db.requestApp(project.id);
       working.set(project.id, { ...current, stage });
       push(project.id);
     });
@@ -134,5 +119,10 @@ async function run(project: db.Project, build: string, account: AppleAccount | u
     build,
     tester: outcome.ok ? (outcome.tester ?? null) : null,
   });
+  if (outcome.ok) {
+    db.clearAppRequest(project.id);
+    // Straight on to the link that lets anyone install it.
+    testlink.startShare(project);
+  }
   push(project.id);
 }

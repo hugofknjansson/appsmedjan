@@ -11,6 +11,7 @@ import {
   type PublishTester,
   type ReviewContact,
   type ServerToWorker,
+  type ShareState,
   type StoreBuild,
   type StoreChoices,
   type StoreListing,
@@ -202,6 +203,19 @@ export async function store(
   return { ok: res.ok, error: res.error, detail: res.detail, attached: res.attached };
 }
 
+/** Prepares the public TestFlight link for an uploaded build, or (with `check`) asks how far it has come. */
+export async function share(
+  project: { id: string; bundleId: string },
+  job: { build: string; check?: boolean; contact?: ReviewContact; description?: string },
+  account: AppleAccount | undefined,
+): Promise<{ ok: boolean; state?: ShareState; url?: string; error?: StoreSyncError; detail?: string }> {
+  const worker = publisher(account ? 'own' : 'operator');
+  if (!worker) throw new WorkerUnavailable('no publishing worker connected');
+  const res = await request(worker, { type: 'share', jobId: randomId(16), projectId: project.id, bundleId: project.bundleId, ...job, account }, STORE_TIMEOUT_MS);
+  if (res.type !== 'share.result') throw new Error('unexpected worker reply');
+  return { ok: res.ok, state: res.state, url: res.url, error: res.error, detail: res.detail };
+}
+
 /** Submits the app's prepared version for Apple's review, through the worker that holds the account's key. */
 export async function submit(
   project: { id: string; bundleId: string },
@@ -313,6 +327,7 @@ export function attachWorker(ws: WebSocket): void {
       case 'publish.result':
       case 'store.result':
       case 'submit.result':
+      case 'share.result':
       case 'screenshot.result': {
         const p = pending.get(msg.jobId);
         if (!p || p.worker !== worker) break;

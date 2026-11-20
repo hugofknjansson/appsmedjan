@@ -3,7 +3,15 @@
 // API for creating the app; that step stays manual. Node only (server and worker); the web client
 // never loads this file.
 import crypto from 'node:crypto';
-import { copyrightLine, type ReviewContact, type StoreBuild, type StoreChoices, type StoreListing, type StoreSyncStage } from './protocol';
+import {
+  copyrightLine,
+  type ReviewContact,
+  type ShareState,
+  type StoreBuild,
+  type StoreChoices,
+  type StoreListing,
+  type StoreSyncStage,
+} from './protocol';
 
 const DEFAULT_API = 'https://api.appstoreconnect.apple.com';
 const TOKEN_LIFETIME_S = 10 * 60;
@@ -76,6 +84,16 @@ const AGE_FLAGS = [
   'unrestrictedWebAccess',
   'userGeneratedContent',
 ];
+
+/** Name of the external TestFlight group whose public link the service hands out. */
+const LINK_GROUP = 'Appsmedjan link';
+
+/** What Apple's beta review says about a build, in the service's own words. */
+function shareState(reviewState: unknown): ShareState {
+  if (reviewState === 'APPROVED') return 'approved';
+  if (reviewState === 'REJECTED') return 'rejected';
+  return 'review';
+}
 
 /** The territory prices are set in; the free price is the same everywhere. */
 const BASE_TERRITORY = 'USA';
@@ -420,6 +438,147 @@ export class AppStoreConnect {
         relationships: { territory: { data: { type: 'territories', id: t.id } } },
       })),
     });
+  }
+
+  /** The uploaded build with this number, once Apple has finished processing it. */
+  private async readyBuild(appId: string, build: string): Promise<Item | null> {
+    const query = `filter[app]=${encodeURIComponent(appId)}&filter[version]=${encodeURIComponent(build)}&fields[builds]=version,processingState&limit=5`;
+    const found = (await this.send('GET', `/v1/builds?${query}`)).find((b) => b.attributes?.version === build);
+    return found?.attributes?.processingState === 'VALID' ? found : null;
+  }
+
+  /** The app's external group with a public link, if the service has made one. */
+  private async linkGroup(appId: string): Promise<Item | undefined> {
+    const groups = await this.send('GET', `/v1/betaGroups?filter[app]=${encodeURIComponent(appId)}&filter[isInternalGroup]=false&limit=50`);
+    return groups.find((g) => g.attributes?.name === LINK_GROUP) ?? groups.find((g) => g.attributes?.publicLinkEnabled === true);
+  }
+
+  /**
+   * How far a build has come towards being installable through the public link, without changing
+   * anything: still processing, in Apple's beta review, approved or rejected.
+   */
+  async shareStatus(appId: string, build: string): Promise<{ state: ShareState; url?: string }> {
+    const ready = await this.readyBuild(appId, build);
+    if (!ready) return { state: 'processing' };
+    const [submission] = await this.look(`/v1/builds/${encodeURIComponent(ready.id)}/betaAppReviewSubmission`);
+    const group = await this.linkGroup(appId);
+    const url = typeof group?.attributes?.publicLink === 'string' ? group.attributes.publicLink : undefined;
+    return { state: shareState(submission?.attributes?.betaReviewState), url };
+  }
+
+  /**
+   * Makes an uploaded build installable through a public TestFlight link. Apple wants to know who to
+   * contact and what the app is before it reviews a build for outside testers; then the build goes
+   * into a group with a public link and is sent to that review. Safe to run again for the same build.
+   */
+  async shareBuild(
+    appId: string,
+    input: { build: string; contact: ReviewContact; description: string },
+  ): Promise<{ state: ShareState; url?: string }> {
+    const app = encodeURIComponent(appId);
+    const ready = await this.readyBuild(appId, input.build);
+    if (!ready) return { state: 'processing' };
+    const buildId = ready.id;
+    const { contact } = input;
+
+    await this.part('Test contact', async () => {
+      const [detail] = await this.send('GET', `/v1/apps/${app}/betaAppReviewDetail`);
+      if (!detail) throw new StoreError(500, 'The app has no beta review details.');
+      await this.send('PATCH', `/v1/betaAppReviewDetails/${encodeURIComponent(detail.id)}`, {
+        data: {
+          type: 'betaAppReviewDetails',
+          id: detail.id,
+          attributes: {
+            contactFirstName: contact.firstName.trim(),
+            contactLastName: contact.lastName.trim(),
+            contactPhone: contact.phone.trim(),
+            contactEmail: contact.email.trim(),
+            demoAccountRequired: false,
+          },
+        },
+      });
+    });
+
+    const [appInfo] = await this.send('GET', `/v1/apps/${app}?fields[apps]=primaryLocale`);
+    const locale = String(appInfo?.attributes?.primaryLocale ?? 'en-US');
+    await this.part('Test information', async () => {
+      const texts = { description: input.description.slice(0, 4000), feedbackEmail: contact.email.trim() };
+      const existing = (await this.send('GET', `/v1/apps/${app}/betaAppLocalizations?limit=50`)).find((l) => l.attributes?.locale === locale);
+      if (existing) {
+        await this.send('PATCH', `/v1/betaAppLocalizations/${encodeURIComponent(existing.id)}`, {
+          data: { type: 'betaAppLocalizations', id: existing.id, attributes: texts },
+        });
+      } else {
+        await this.send('POST', '/v1/betaAppLocalizations', {
+          data: { type: 'betaAppLocalizations', attributes: { locale, ...texts }, relationships: { app: { data: { type: 'apps', id: appId } } } },
+        });
+      }
+      // "What to test", shown to testers in the TestFlight app.
+      const whatsNew = locale.startsWith('sv') ? 'Prova appen och berätta vad du tycker.' : 'Try the app and say what you think.';
+      const notes = (await this.send('GET', `/v1/builds/${encodeURIComponent(buildId)}/betaBuildLocalizations?limit=50`)).find(
+        (l) => l.attributes?.locale === locale,
+      );
+      if (notes) {
+        if (!notes.attributes?.whatsNew) {
+          await this.send('PATCH', `/v1/betaBuildLocalizations/${encodeURIComponent(notes.id)}`, {
+            data: { type: 'betaBuildLocalizations', id: notes.id, attributes: { whatsNew } },
+          });
+        }
+      } else {
+        await this.send('POST', '/v1/betaBuildLocalizations', {
+          data: {
+            type: 'betaBuildLocalizations',
+            attributes: { locale, whatsNew },
+            relationships: { build: { data: { type: 'builds', id: buildId } } },
+          },
+        });
+      }
+    });
+
+    const group = await this.part('Test group', async () => {
+      let found = await this.linkGroup(appId);
+      if (!found) {
+        [found] = await this.send('POST', '/v1/betaGroups', {
+          data: {
+            type: 'betaGroups',
+            attributes: { name: LINK_GROUP, isInternalGroup: false, publicLinkEnabled: true, publicLinkLimitEnabled: false, feedbackEnabled: true },
+            relationships: { app: { data: { type: 'apps', id: appId } } },
+          },
+        });
+        if (!found) throw new StoreError(500, 'App Store Connect created no group.');
+      } else if (found.attributes?.publicLinkEnabled !== true) {
+        [found] = await this.send('PATCH', `/v1/betaGroups/${encodeURIComponent(found.id)}`, {
+          data: { type: 'betaGroups', id: found.id, attributes: { publicLinkEnabled: true } },
+        });
+        if (!found) throw new StoreError(500, 'App Store Connect returned no group.');
+      }
+      try {
+        await this.send('POST', `/v1/betaGroups/${encodeURIComponent(found.id)}/relationships/builds`, {
+          data: [{ type: 'builds', id: buildId }],
+        });
+      } catch (err) {
+        // 409: the build is in the group already.
+        if (!(err instanceof StoreError && err.status === 409)) throw err;
+      }
+      return found;
+    });
+
+    const state = await this.part('Beta review', async () => {
+      const [existing] = await this.look(`/v1/builds/${encodeURIComponent(buildId)}/betaAppReviewSubmission`);
+      if (existing) return shareState(existing.attributes?.betaReviewState);
+      const [created] = await this.send('POST', '/v1/betaAppReviewSubmissions', {
+        data: { type: 'betaAppReviewSubmissions', relationships: { build: { data: { type: 'builds', id: buildId } } } },
+      });
+      return shareState(created?.attributes?.betaReviewState);
+    });
+
+    // The link is part of the group, which may have been made a moment ago.
+    let url = typeof group.attributes?.publicLink === 'string' ? group.attributes.publicLink : undefined;
+    if (!url) {
+      const fresh = await this.linkGroup(appId);
+      url = typeof fresh?.attributes?.publicLink === 'string' ? fresh.attributes.publicLink : undefined;
+    }
+    return { state, url };
   }
 
   /**

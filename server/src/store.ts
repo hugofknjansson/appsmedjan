@@ -22,7 +22,7 @@ import { pngInfo } from '../../shared/png';
 import { credentialsFor } from './apple';
 import * as db from './db';
 import { live } from './live';
-import { route } from './publish';
+import { route } from './routing';
 import * as workers from './workers';
 
 /** Syncs in progress. Finished ones are read from the database. */

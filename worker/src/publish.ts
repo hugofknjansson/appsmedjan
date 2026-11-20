@@ -25,7 +25,7 @@ import {
 } from '../../shared/protocol';
 import { AppStoreConnect, StoreError, StoreLocked, bundleIdName, waitForApp, type StoreKey } from '../../shared/appstore';
 import { pngInfo } from '../../shared/png';
-import type { PublishJob, PublishResult, StoreJob, StoreResult, SubmitJob } from './driver';
+import type { PublishJob, PublishResult, ShareJob, ShareResult, StoreJob, StoreResult, SubmitJob } from './driver';
 import { exec, mustExec } from './exec';
 import { iconPng } from './icon';
 import { extractErrors, mirrorSources, projectSpec } from './xcode';
@@ -138,7 +138,10 @@ async function writeIcon(file: string, job: PublishJob): Promise<void> {
   }
 }
 
-type Store = Pick<AppStoreConnect, 'ensureBundleId' | 'appId' | 'ensureAccountHolderTests' | 'syncListing' | 'submitForReview'>;
+type Store = Pick<
+  AppStoreConnect,
+  'ensureBundleId' | 'appId' | 'ensureAccountHolderTests' | 'syncListing' | 'submitForReview' | 'shareBuild' | 'shareStatus'
+>;
 
 const PEM = /^-----BEGIN PRIVATE KEY-----[A-Za-z0-9+/=\s]{50,2000}-----END PRIVATE KEY-----\s*$/;
 
@@ -282,6 +285,29 @@ export class Publisher {
       if (!appId) return { ok: false, error: 'no_app_record', detail: `No app with bundle id ${job.bundleId} exists in App Store Connect yet.` };
       await store.submitForReview(appId);
       return { ok: true };
+    } catch (err) {
+      return this.storeFailure(job.projectId, err);
+    }
+  }
+
+  /**
+   * Makes an uploaded build installable through a public TestFlight link, or (with `check`) only
+   * asks Apple how far that has come. Only API calls, so it does not wait in the archive queue.
+   */
+  async share(job: ShareJob): Promise<ShareResult> {
+    if (!isValidProjectId(job.projectId) || !isValidBundleId(job.bundleId) || !/^\d{1,18}$/.test(job.build)) {
+      return { ok: false, error: 'internal', detail: 'Invalid share job.' };
+    }
+    const resolved = this.targetFor(job.account);
+    if ('stop' in resolved) return resolved.stop;
+    const store = this.storeOf(resolved.target);
+    try {
+      const appId = await store.appId(job.bundleId);
+      if (!appId) return { ok: false, error: 'no_app_record', detail: `No app with bundle id ${job.bundleId} exists in App Store Connect yet.` };
+      if (job.check) return { ok: true, ...(await store.shareStatus(appId, job.build)) };
+      if (!job.contact || !contactComplete(job.contact)) return { ok: false, error: 'internal', detail: 'The share job has no complete contact.' };
+      const description = (job.description ?? '').trim() || 'An app built with Appsmedjan.';
+      return { ok: true, ...(await store.shareBuild(appId, { build: job.build, contact: job.contact, description })) };
     } catch (err) {
       return this.storeFailure(job.projectId, err);
     }

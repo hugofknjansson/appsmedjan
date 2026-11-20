@@ -1,7 +1,7 @@
 // A stand-in driver for development on machines without Xcode (Linux, CI).
 // It "builds" instantly and streams a drawn placeholder screen so the whole flow can be exercised.
 import type { BuildStage, InputEvent, PublishStage, StoreSyncStage } from '../../shared/protocol';
-import type { BuildJob, Driver, Emit, PublishJob, PublishResult, StoreJob, StoreResult, SubmitJob } from './driver';
+import type { BuildJob, Driver, Emit, PublishJob, PublishResult, ShareJob, ShareResult, StoreJob, StoreResult, SubmitJob } from './driver';
 
 interface MockSession {
   appName: string;
@@ -18,6 +18,9 @@ const escapeXml = (s: string) => s.replace(/[<>&"]/g, (c) => `&#${c.charCodeAt(0
 export class MockDriver implements Driver {
   private sessions = new Map<string, MockSession>();
   private refuseSubmit = new Set<string>();
+  /** How many times each build's public link has been asked about: it moves on a step each time. */
+  private shareAsked = new Map<string, number>();
+  private uploaded = new Map<string, Record<string, string>>();
 
   constructor(private readonly emit: Emit) {}
 
@@ -68,6 +71,7 @@ export class MockDriver implements Driver {
     if (has('MOCK_BUILD_ERROR')) return { ok: false, error: 'compile' };
     progress('uploading');
     await sleep(600);
+    this.uploaded.set(job.projectId, job.files);
     return { ok: true, tester: has('MOCK_TESTER_MANUAL') ? 'manual' : 'added' };
   }
 
@@ -93,6 +97,25 @@ export class MockDriver implements Driver {
     else this.refuseSubmit.delete(job.projectId);
     // MOCK_BUILD: as if a build had been uploaded, so the submit step can be tried without one.
     return { ok: true, attached: job.build || has('MOCK_BUILD') ? (has('MOCK_PROCESSING') ? 'processing' : 'attached') : 'none' };
+  }
+
+  /**
+   * Pretends to prepare a public TestFlight link. The build is "processing" the first time it is
+   * asked about, "in review" the next two, and then approved, or rejected with MOCK_BETA_REJECTED.
+   */
+  async share(job: ShareJob): Promise<ShareResult> {
+    const files = this.uploaded.get(job.projectId) ?? {};
+    const has = (marker: string) => Object.values(files).some((content) => content.includes(marker));
+    if (has('MOCK_SHARE_REFUSED')) return { ok: false, error: 'rejected', detail: 'Test information: the description is missing.' };
+    const key = `${job.projectId}:${job.build}`;
+    const asked = (this.shareAsked.get(key) ?? 0) + 1;
+    this.shareAsked.set(key, asked);
+    console.log(`[mock] ${job.check ? 'check' : 'share'} ${job.projectId} build ${job.build} (${asked})`);
+    await sleep(150);
+    if (asked === 1) return { ok: true, state: 'processing' };
+    const url = `https://testflight.apple.com/join/mock${job.projectId.slice(0, 4)}`;
+    if (asked <= 3) return { ok: true, state: 'review', url };
+    return { ok: true, state: has('MOCK_BETA_REJECTED') ? 'rejected' : 'approved', url };
   }
 
   /** Pretends to submit for review. A page sent with MOCK_SUBMIT_REFUSED in its description is refused. */

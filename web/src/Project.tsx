@@ -11,6 +11,7 @@ import type {
 import { STORE_SHOT } from '../../shared/protocol';
 import { ApiError, api } from './api';
 import { AppleAccountDialog } from './AppleAccount';
+import { OnPhoneDialog } from './OnPhone';
 import { StoreDialog } from './Store';
 import { Logo } from './Logo';
 import { FrameBus, Phone } from './Phone';
@@ -85,9 +86,9 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
   );
   const bus = useMemo(() => new FrameBus(), []);
   const socket = useRef<WebSocket | null>(null);
-  const [publishError, setPublishError] = useState('');
   const [appleOpen, setAppleOpen] = useState(false);
   const [storeOpen, setStoreOpen] = useState(false);
+  const [phoneOpen, setPhoneOpen] = useState(false);
 
   useEffect(() => {
     let closed = false;
@@ -162,23 +163,6 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
     }
   }
 
-  async function sendToTestFlight() {
-    if (!state) return;
-    // Without an account to upload to, the first step is connecting one.
-    if (state.publish.account === 'none') {
-      setAppleOpen(true);
-      return;
-    }
-    const question = state.publish.account === 'own' ? t.confirmPublishOwn : t.confirmPublish;
-    if (!window.confirm(question.replace('{name}', state.name))) return;
-    setPublishError('');
-    try {
-      await api.testflight(id);
-    } catch (err) {
-      setPublishError(apiErrorText(err instanceof ApiError ? err.code : 'internal'));
-    }
-  }
-
   if (missing) {
     return (
       <div className="page center">
@@ -198,13 +182,8 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
         </button>
         <strong className="project-name">{state?.name ?? ''}</strong>
         {state && (state.publish.available || (state.publish.account === 'none' && state.publish.canConnect)) && (
-          <button
-            className="btn publish-btn"
-            title={t.testflightHint}
-            disabled={state.publish.status === 'working' || state.running}
-            onClick={() => void sendToTestFlight()}
-          >
-            {state.publish.status === 'working' ? `${t.publishStage[state.publish.stage ?? 'queued']}…` : t.testflight}
+          <button className="btn publish-btn" title={t.onPhoneHint} onClick={() => setPhoneOpen(true)}>
+            {state.publish.status === 'working' ? `${t.publishStage[state.publish.stage ?? 'queued']}…` : t.onPhone}
           </button>
         )}
         {state && (state.publish.account !== 'none' || state.publish.canConnect) && (
@@ -227,8 +206,20 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
           </div>
         </div>
       </header>
-      {state && <PublishNote publish={state.publish} requestError={publishError} />}
+      {state && !phoneOpen && <PublishNote publish={state.publish} />}
       {appleOpen && <AppleAccountDialog onClose={() => setAppleOpen(false)} />}
+      {phoneOpen && state && (
+        <OnPhoneDialog
+          id={id}
+          publish={state.publish}
+          running={state.running}
+          onClose={() => setPhoneOpen(false)}
+          onConnect={() => {
+            setPhoneOpen(false);
+            setAppleOpen(true);
+          }}
+        />
+      )}
       {storeOpen && (
         <StoreDialog
           id={id}
@@ -266,19 +257,21 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
 const RECENT_MS = 6 * 3600_000;
 
 /** Tells how the latest upload went. Old results stay quiet so the bar doesn't greet every visit. */
-function PublishNote({ publish, requestError }: { publish: PublishState; requestError: string }) {
+function PublishNote({ publish }: { publish: PublishState }) {
   const [dismissed, setDismissed] = useState<string | null>(null);
 
   let text = '';
   let failed = false;
   let link = false;
-  if (requestError) {
-    text = requestError;
-    failed = true;
-  } else if (publish.status === 'working' && publish.stage === 'waiting_for_app') {
-    // The one step only the person can take; everything after it happens by itself.
-    text = t.publishWaiting.replace('{bundleId}', publish.bundleId ?? '');
-    link = true;
+  if (publish.status === 'working' && publish.stage === 'waiting_for_app') {
+    if (publish.account === 'operator' && !publish.operator) {
+      // Only whoever runs the service can create the app in their account.
+      text = t.phone.waitingOperator;
+    } else {
+      // The one step only the person can take; everything after it happens by itself.
+      text = t.publishWaiting.replace('{bundleId}', publish.bundleId ?? '');
+      link = true;
+    }
   } else if (publish.account !== 'none' && publish.at && Date.now() - publish.at < RECENT_MS) {
     if (publish.status === 'uploaded') {
       text = (publish.tester === 'added' ? t.publishUploadedTester : t.publishUploaded).replace('{build}', publish.build ?? '');
@@ -290,7 +283,7 @@ function PublishNote({ publish, requestError }: { publish: PublishState; request
       failed = true;
     }
   }
-  const key = `${publish.status}:${publish.stage ?? ''}:${publish.at ?? 0}:${requestError}`;
+  const key = `${publish.status}:${publish.stage ?? ''}:${publish.at ?? 0}`;
   if (!text || dismissed === key) return null;
   return (
     <div className="publish-note" data-failed={failed} role="status">

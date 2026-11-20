@@ -17,6 +17,7 @@ import {
   type StoreListing,
   type StorePages,
   type StoreSyncError,
+  type TestLink,
 } from '../../shared/protocol';
 import { config } from './config';
 
@@ -97,6 +98,20 @@ db.exec(`
     project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
     data BLOB NOT NULL,
     updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS test_links (
+    project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+    status TEXT NOT NULL,
+    url TEXT,
+    build TEXT,
+    error TEXT,
+    detail TEXT,
+    checked_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS app_requests (
+    project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
+    requested_at INTEGER NOT NULL
   );
   CREATE TABLE IF NOT EXISTS store_submits (
     project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
@@ -555,6 +570,77 @@ export function setStoreSync(projectId: string, outcome: Omit<StoreSync, 'update
        status = excluded.status, error = excluded.error, detail = excluded.detail,
        attached = excluded.attached, updated_at = excluded.updated_at`,
   ).run(projectId, outcome.status, outcome.error, outcome.detail, outcome.attached, Date.now());
+}
+
+// --- Public TestFlight link ------------------------------------------------------
+
+export interface TestLinkRow extends TestLink {
+  projectId: string;
+  /** When Apple was last asked how the build is doing. */
+  checkedAt: number;
+}
+
+const toTestLink = (r: Record<string, unknown>): TestLinkRow => ({
+  projectId: String(r.project_id),
+  status: r.status as TestLink['status'],
+  url: (r.url as string | null) ?? undefined,
+  build: (r.build as string | null) ?? undefined,
+  error: (r.error as StoreSyncError | null) ?? undefined,
+  detail: (r.detail as string | null) ?? undefined,
+  at: Number(r.updated_at),
+  checkedAt: Number(r.checked_at),
+});
+
+export function getTestLink(projectId: string): TestLinkRow | null {
+  const row = db.prepare('SELECT * FROM test_links WHERE project_id = ?').get(projectId) as Record<string, unknown> | undefined;
+  return row ? toTestLink(row) : null;
+}
+
+/** The links Apple is still working on: builds being processed or reviewed. */
+export function pendingTestLinks(): TestLinkRow[] {
+  const rows = db.prepare("SELECT * FROM test_links WHERE status IN ('processing', 'review')").all() as unknown as Record<string, unknown>[];
+  return rows.map(toTestLink);
+}
+
+/** Saves where the link stands. `changed` false only notes that Apple was asked and nothing moved. */
+export function setTestLink(projectId: string, link: Omit<TestLink, 'at'>, changed = true): void {
+  const now = Date.now();
+  const previous = changed ? null : getTestLink(projectId);
+  db.prepare(
+    `INSERT INTO test_links (project_id, status, url, build, error, detail, checked_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (project_id) DO UPDATE SET
+       status = excluded.status, url = excluded.url, build = excluded.build, error = excluded.error,
+       detail = excluded.detail, checked_at = excluded.checked_at, updated_at = excluded.updated_at`,
+  ).run(projectId, link.status, link.url ?? null, link.build ?? null, link.error ?? null, link.detail ?? null, now, previous?.at ?? now);
+}
+
+// --- Apps the operator has to create in App Store Connect ---------------------------
+
+export function requestApp(projectId: string): void {
+  db.prepare('INSERT OR IGNORE INTO app_requests (project_id, requested_at) VALUES (?, ?)').run(projectId, Date.now());
+}
+
+export function clearAppRequest(projectId: string): void {
+  db.prepare('DELETE FROM app_requests WHERE project_id = ?').run(projectId);
+}
+
+export interface AppRequest {
+  projectId: string;
+  name: string;
+  bundleId: string;
+  email: string;
+  requestedAt: number;
+}
+
+export function listAppRequests(): AppRequest[] {
+  const rows = db
+    .prepare(
+      `SELECT r.project_id, r.requested_at, p.name, p.bundle_id, u.email
+       FROM app_requests r JOIN projects p ON p.id = r.project_id JOIN users u ON u.id = p.user_id
+       ORDER BY r.requested_at`,
+    )
+    .all() as unknown as { project_id: string; requested_at: number; name: string; bundle_id: string; email: string }[];
+  return rows.map((r) => ({ projectId: r.project_id, name: r.name, bundleId: r.bundle_id, email: r.email, requestedAt: r.requested_at }));
 }
 
 // --- Messages ----------------------------------------------------------------

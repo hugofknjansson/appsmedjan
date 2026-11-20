@@ -273,6 +273,31 @@ som redan fanns, så den grenen kan vara oprövad. Räkna med justeringar där, 
 hur fel från `xcodebuild` tolkas (`classifyPublishFailure` i `worker/src/publish.ts`); arbetarens logg
 visar alltid verktygens egna felutskrifter.
 
+### Appen på telefonen
+
+Knappen **På min telefon** i ett projekt ger två sätt att prova appen på en riktig iPhone:
+
+- **Direkt.** En QR-kod som öppnar projektet i telefonens webbläsare, redan inloggad. Appen strömmas
+  från simulatorn och går att trycka och skriva i, men den är inte installerad. Koden är en
+  engångsbiljett som gäller i fem minuter.
+- **Installerad.** En publik TestFlight-länk. Den som öppnar länken behöver bara Apples gratisapp
+  TestFlight: inget utvecklarkonto och ingen inbjudan. Efter varje uppladdning fyller arbetaren i
+  testinformationen, lägger bygget i en extern testgrupp med publik länk och skickar det till Apples
+  betagranskning. Servern frågar sedan Apple hur det går (varje minut medan bygget bearbetas, var
+  femte minut under granskningen) och visar en QR-kod när länken fungerar. Apple granskar första
+  bygget av varje app; hur lång tid det tar varierar.
+
+Två inställningar på servern hör till detta:
+
+- `OPERATOR_EMAILS`: de som driver tjänsten. Apple har inget API för att skapa en app i App Store
+  Connect, så för uppladdningar till ditt eget konto måste du skapa appen för hand. De här
+  användarna ser på sin startsida vilka appar som väntar, med namn och bundle-id.
+- `BETA_CONTACT`: vem Apple får kontakta om appar som testas från ditt konto. Utan den frågas varje
+  person efter egna kontaktuppgifter innan länken skapas.
+
+Anropen för testlänken är skrivna mot Apples dokumentation och enhetstestade mot en ersättare, och
+flödet är kört i webbläsaren mot låtsasarbetaren, men de har **inte körts mot Apple**.
+
 ### Appens sida i App Store
 
 Knappen **App Store** i ett projekt öppnar en guide som förbereder det som syns i butiken och skickar
@@ -414,6 +439,8 @@ eller motsvarande).
 Bygge, simulator, bildström, tryck och text samt uppladdning till TestFlight är körda på riktiga Macar,
 både en egen och en hyrd (se "Hyrda Macar"). Det här är **inte kört på riktigt**:
 
+- Den publika TestFlight-länken: testgrupp, testinformation och betagranskning (se "Appen på
+  telefonen").
 - Delar av uppgifterna som skickas med appens sida: åldersgräns, pris och tillgänglighet (se "Appens
   sida i App Store").
 - Uppladdning med en användares eget kopplade Apple-konto.
@@ -434,6 +461,9 @@ både en egen och en hyrd (se "Hyrda Macar"). Det här är **inte kört på rikt
   andra webbplatser avvisas.
 - Filsökvägar från modellen valideras både i servern och i arbetaren (endast under `Sources/`, endast
   kända filändelser).
+- QR-koden för att öppna ett projekt på telefonen innehåller en inloggningsbiljett. Den fungerar en
+  gång och i fem minuter, och den som skannar den blir inloggad som kontots ägare. Den visas bara
+  för den som redan är inloggad.
 - De publika sidorna under `/a/` kräver ingen inloggning. De byggs som ren HTML av servern, all text
   från användaren kodas om, och svaret tillåter varken skript eller inbäddat innehåll. Det som visas
   (namn och e-postadress) är det ägaren själv valt att göra offentligt.

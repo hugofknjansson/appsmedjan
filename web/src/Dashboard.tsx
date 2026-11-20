@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { ApiError, api, type ProjectSummary, type User } from './api';
+import { ApiError, api, type AppRequest, type ProjectSummary, type User } from './api';
 import { AppleAccountDialog } from './AppleAccount';
 import { Logo } from './Logo';
 import { apiErrorText, lang, t } from './i18n';
@@ -12,6 +12,7 @@ interface Props {
 
 export function Dashboard({ user, navigate, onLogout }: Props) {
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
+  const [requests, setRequests] = useState<AppRequest[]>([]);
   const [prompt, setPrompt] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -21,6 +22,8 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
 
   useEffect(() => {
     api.projects().then((r) => setProjects(r.projects)).catch(() => setProjects([]));
+    // Only people who run the service get an answer; for everyone else there is nothing to show.
+    api.operatorRequests().then((r) => setRequests(r.requests)).catch(() => undefined);
     api.appleAccount().then((s) => setAppleEnabled(s.enabled)).catch(() => undefined);
     fetch('/api/status')
       .then((r) => r.json())
@@ -108,6 +111,25 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
             ))}
           </div>
         </section>
+
+        {requests.length > 0 && (
+          <section>
+            <h2>{t.operatorRequests}</h2>
+            <p className="muted">{t.operatorRequestsText}</p>
+            <ul className="requests">
+              {requests.map((r) => (
+                <li key={r.projectId}>
+                  <strong>{r.name}</strong> <span className="muted">({r.email})</span>
+                  <br />
+                  <code>{r.bundleId}</code>
+                </li>
+              ))}
+            </ul>
+            <a className="link" href="https://appstoreconnect.apple.com/apps" target="_blank" rel="noreferrer">
+              {t.publishWaitingLink}
+            </a>
+          </section>
+        )}
 
         <section>
           <h2>{t.yourApps}</h2>

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import WebSocket from 'ws';
 import { keepAlive } from '../../shared/keepalive';
 import { PROTOCOL_VERSION, encodeFrame, type ServerToWorker, type WorkerToServer } from '../../shared/protocol';
-import type { Driver, Emit, PublishResult, StoreResult } from './driver';
+import type { Driver, Emit, PublishResult, ShareResult, StoreResult } from './driver';
 import { MockDriver } from './mock';
 import { XcodeDriver } from './xcode';
 
@@ -113,6 +113,20 @@ async function handle(msg: ServerToWorker): Promise<void> {
         `[worker] App Store page ${msg.projectId}: ${result.ok ? `sent, build ${result.attached}` : `failed, ${result.error}`} in ${((Date.now() - started) / 1000).toFixed(1)}s`,
       );
       send({ type: 'store.result', jobId: msg.jobId, ok: result.ok, error: result.error, detail: result.detail, attached: result.attached });
+      break;
+    }
+    case 'share': {
+      let result: ShareResult;
+      try {
+        result = await driver.share(msg);
+      } catch (err) {
+        result = { ok: false, error: 'internal', detail: (err as Error).message };
+      }
+      // Checks come often while Apple reviews; only what changes something is worth a line.
+      if (!msg.check || !result.ok) {
+        console.log(`[worker] test link ${msg.projectId} (${msg.build}): ${result.ok ? result.state : `failed, ${result.error}`}`);
+      }
+      send({ type: 'share.result', jobId: msg.jobId, ok: result.ok, state: result.state, url: result.url, error: result.error, detail: result.detail });
       break;
     }
     case 'submit': {

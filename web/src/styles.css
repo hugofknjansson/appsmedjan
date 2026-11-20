@@ -601,6 +601,10 @@ textarea {
   color: var(--muted);
 }
 
+ol.plain-list {
+  list-style: decimal;
+}
+
 .guide-form label.check {
   display: flex;
   align-items: flex-start;
@@ -618,6 +622,45 @@ textarea {
   display: grid;
   gap: 4px;
   justify-content: start;
+}
+
+.qr {
+  width: 168px;
+  height: 168px;
+  flex: none;
+  border-radius: 10px;
+}
+
+.qr-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.qr-row > p,
+.qr-row > ol {
+  flex: 1 1 200px;
+  margin: 0;
+}
+
+.requests {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.requests li {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.requests code {
+  user-select: all;
 }
 
 .choice {

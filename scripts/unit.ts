@@ -22,6 +22,7 @@ import {
   fitWords,
   isValidSourcePath,
   listingProblems,
+  parseContact,
   type StoreListing,
 } from '../shared/protocol';
 import { keepAlive } from '../shared/keepalive';
@@ -319,10 +320,10 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
 
   // A small stand-in for App Store Connect that remembers what it was told.
   interface Row { id: string; attributes?: Record<string, unknown> }
-  const fakeStore = (start: { versions: Row[]; builds: Row[]; priced?: boolean; refuseSubmit?: boolean }) => {
+  const fakeStore = (start: { versions: Row[]; builds: Row[]; priced?: boolean; refuseSubmit?: boolean; review?: string; inGroup?: boolean }) => {
     const calls: Array<{ method: string; path: string; body?: any }> = [];
     const uploads: number[] = [];
-    const state = { ...start, shots: [{ id: 'old1' }, { id: 'old2' }] as Row[], sets: [] as Row[], next: 1 };
+    const state = { ...start, shots: [{ id: 'old1' }, { id: 'old2' }] as Row[], sets: [] as Row[], groups: [] as Row[], next: 1 };
     const fetchImpl = (async (url: string, init: RequestInit) => {
       if (url.startsWith('https://upload.example/')) {
         uploads.push((init.body as Uint8Array).length);
@@ -367,6 +368,23 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
       }
       if (method === 'GET' && bare === '/v1/apps/app1/appAvailabilityV2' && start.priced) return ok({ id: 'av1' });
       if (method === 'GET' && bare === '/v1/territories') return ok([{ id: 'USA' }, { id: 'SWE' }]);
+      // Beta testing: the review details always exist, the rest is made on demand.
+      if (method === 'GET' && bare === '/v1/apps/app1/betaAppReviewDetail') return ok({ id: 'app1' });
+      if (method === 'GET' && bare === '/v1/apps/app1/betaAppLocalizations') return ok([]);
+      if (method === 'GET' && bare === '/v1/builds/b1/betaBuildLocalizations') return ok([]);
+      if (method === 'GET' && bare === '/v1/betaGroups') return ok(state.groups);
+      if (method === 'POST' && bare === '/v1/betaGroups') {
+        // The link is not in the answer to the request that makes the group, only when it is read again.
+        state.groups.push({ id: 'g1', attributes: { name: body.data.attributes.name, publicLinkEnabled: true, publicLink: 'https://testflight.apple.com/join/AbCd1234' } });
+        return ok({ id: 'g1', attributes: { name: body.data.attributes.name, publicLinkEnabled: true } }, 201);
+      }
+      if (method === 'POST' && bare === '/v1/betaGroups/g1/relationships/builds' && start.inGroup) {
+        return new Response(JSON.stringify({ errors: [{ detail: 'The build is already in the group.' }] }), { status: 409 });
+      }
+      if (method === 'GET' && bare === '/v1/builds/b1/betaAppReviewSubmission' && start.review) {
+        return ok({ id: 's1', attributes: { betaReviewState: start.review } });
+      }
+      if (method === 'POST' && bare === '/v1/betaAppReviewSubmissions') return ok({ id: 's1', attributes: { betaReviewState: 'WAITING_FOR_REVIEW' } }, 201);
       if (method === 'GET' && bare === '/v1/reviewSubmissions') return ok([]);
       if (method === 'POST' && bare === '/v1/reviewSubmissions') return ok({ id: 'sub1' }, 201);
       if (method === 'PATCH' && bare === '/v1/reviewSubmissions/sub1' && start.refuseSubmit) {
@@ -485,6 +503,45 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
   );
   await assert.rejects(fakeStore({ versions: [{ id: 'v0', attributes: { appVersionState: 'WAITING_FOR_REVIEW' } }], builds: [] }).store.submitForReview('app1'), StoreLocked);
 
+  // The public test link: nothing can be done until Apple has processed the build.
+  const unprocessed = fakeStore({ versions: [editable], builds: [{ id: 'b1', attributes: { version: '202611200729', processingState: 'PROCESSING' } }] });
+  assert.deepEqual(await unprocessed.store.shareBuild('app1', { build: '202611200729', contact, description: 'En app.' }), { state: 'processing' });
+  assert.ok(unprocessed.calls.every((c) => c.method === 'GET'));
+
+  // Then: who to contact, what the app is, a group with a public link, the build in it, and the review.
+  const shared = fakeStore({ versions: [editable], builds: [build] });
+  assert.deepEqual(await shared.store.shareBuild('app1', { build: '202611200729', contact, description: 'En app.' }), {
+    state: 'review', url: 'https://testflight.apple.com/join/AbCd1234',
+  });
+  const told = (method: string, path: string) => shared.calls.find((c) => c.method === method && c.path.split('?')[0] === path)?.body;
+  assert.equal(told('PATCH', '/v1/betaAppReviewDetails/app1').data.attributes.contactPhone, '+46 70 123 45 67');
+  assert.deepEqual(told('POST', '/v1/betaAppLocalizations').data.attributes, { locale: 'sv', description: 'En app.', feedbackEmail: 'hugo@example.com' });
+  assert.equal(told('POST', '/v1/betaBuildLocalizations').data.attributes.whatsNew, 'Prova appen och berätta vad du tycker.');
+  assert.deepEqual(told('POST', '/v1/betaGroups').data.attributes, {
+    name: 'Appsmedjan link', isInternalGroup: false, publicLinkEnabled: true, publicLinkLimitEnabled: false, feedbackEnabled: true,
+  });
+  assert.deepEqual(told('POST', '/v1/betaGroups/g1/relationships/builds'), { data: [{ type: 'builds', id: 'b1' }] });
+  assert.deepEqual(told('POST', '/v1/betaAppReviewSubmissions').data.relationships.build.data, { type: 'builds', id: 'b1' });
+
+  // Run again for a build that is in the group and in review already: nothing is submitted twice.
+  const again = fakeStore({ versions: [editable], builds: [build], review: 'IN_REVIEW', inGroup: true });
+  assert.equal((await again.store.shareBuild('app1', { build: '202611200729', contact, description: 'En app.' })).state, 'review');
+  assert.ok(!again.calls.some((c) => c.method === 'POST' && c.path === '/v1/betaAppReviewSubmissions'));
+
+  // Asking how it is going changes nothing.
+  const approved = fakeStore({ versions: [editable], builds: [build], review: 'APPROVED' });
+  assert.deepEqual(await approved.store.shareStatus('app1', '202611200729'), { state: 'approved', url: undefined });
+  assert.ok(approved.calls.every((c) => c.method === 'GET'));
+  assert.equal((await fakeStore({ versions: [editable], builds: [build], review: 'REJECTED' }).store.shareStatus('app1', '202611200729')).state, 'rejected');
+  assert.equal((await fakeStore({ versions: [editable], builds: [] }).store.shareStatus('app1', '202611200729')).state, 'processing');
+
+  // The operator's own contact, as one line in the settings.
+  assert.deepEqual(parseContact('Hugo Fredrik Jansson, +46 70 123 45 67, hugo@example.com'), {
+    firstName: 'Hugo', lastName: 'Fredrik Jansson', phone: '+46 70 123 45 67', email: 'hugo@example.com', holder: '',
+  });
+  assert.equal(parseContact(''), null);
+  assert.equal(parseContact('Hugo Jansson, 070 123 45 67, hugo@example.com'), null, 'the country code is needed');
+
   // What the worker tells the server, by what Apple answered
   const job = { projectId: 'abcdefgh1234', bundleId: 'app.appsmedjan.pabcdefgh1234', listing, screenshots: [shot.toString('base64')] };
   const account = { teamId: 'ABCDE12345', keyId: 'KEY1234567', issuerId: '69a6de70-03db-47e3-e053-5b8c7c11a4d1', key: pem };
@@ -496,6 +553,8 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
         appId: async () => appId,
         syncListing: sync,
         submitForReview: async () => { if (appId === 'refuses') throw new StoreError(409, 'not valid', 'App Privacy answers are missing.'); },
+        shareBuild: async () => ({ state: 'review' as const, url: 'https://testflight.apple.com/join/x' }),
+        shareStatus: async () => ({ state: 'approved' as const, url: 'https://testflight.apple.com/join/x' }),
       }),
     });
   const never = async () => { throw new Error('must not be called'); };
@@ -505,6 +564,11 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
   assert.equal((await worker('app1', never).syncStore({ ...job, account, listing: { ...listing, name: '' } }, () => undefined)).error, 'internal');
   assert.equal((await worker('app1', async () => { throw new StoreLocked('in review'); }).syncStore({ ...job, account }, () => undefined)).error, 'locked');
   assert.equal((await worker('app1', async () => { throw new StoreError(401, 'bad token'); }).syncStore({ ...job, account }, () => undefined)).error, 'auth');
+  const shareJob = { projectId: job.projectId, bundleId: job.bundleId, build: '202611200729', account };
+  assert.deepEqual(await worker('app1', never).share({ ...shareJob, contact }), { ok: true, state: 'review', url: 'https://testflight.apple.com/join/x' });
+  assert.deepEqual(await worker('app1', never).share({ ...shareJob, check: true }), { ok: true, state: 'approved', url: 'https://testflight.apple.com/join/x' });
+  assert.equal((await worker('app1', never).share(shareJob)).error, 'internal', 'preparing the link needs a contact');
+  assert.equal((await worker(null, never).share({ ...shareJob, check: true })).error, 'no_app_record');
   assert.deepEqual(await worker('app1', never).submit({ projectId: job.projectId, bundleId: job.bundleId, account }), { ok: true });
   assert.equal((await worker(null, never).submit({ projectId: job.projectId, bundleId: job.bundleId, account })).error, 'no_app_record');
   assert.deepEqual(await worker('refuses', never).submit({ projectId: job.projectId, bundleId: job.bundleId, account }), {

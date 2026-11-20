@@ -10,7 +10,9 @@ import { forget } from './live';
 import { STARTER_FILES } from './prompt';
 import { accountStatus, connectAccount, disconnectAccount } from './apple';
 import { draftListing } from './listing';
-import { accountChanged, startPublish } from './publish';
+import { accountChanged, publishState, startPublish } from './publish';
+import { isOperator } from './routing';
+import * as testlink from './testlink';
 import { renderPage } from './pages';
 import { capture, choicesFrom, contactFrom, listingFrom, pagesFrom, saveIcon, startSubmit, startSync, storeState } from './store';
 import { isRunning, startRun, stopRun } from './runs';
@@ -277,6 +279,77 @@ api.post('/projects/:id/testflight', requireUser, (req, res) => {
     default:
       res.status(202).json({ ok: true });
   }
+});
+
+// --- Getting the app onto a phone ---------------------------------------------------
+
+/**
+ * Prepares the public TestFlight link again for the latest upload. Used when it stopped for want of
+ * contact details (which may come along here) or failed.
+ */
+api.post('/projects/:id/testlink', requireUser, (req, res) => {
+  const project = ownProject(req, res);
+  if (!project) return;
+  const user = (req as Authed).user;
+  const given = (req.body ?? {}) as { contact?: unknown };
+  if (given.contact !== undefined) {
+    const contact = contactFrom(given.contact);
+    if (!contact) {
+      res.status(400).json({ error: 'bad_contact' });
+      return;
+    }
+    db.setReviewContact(user.id, contact);
+  }
+  if (db.getPublish(project.id)?.status !== 'uploaded') {
+    res.status(409).json({ error: 'not_uploaded' });
+    return;
+  }
+  testlink.startShare(project);
+  res.status(202).json({ publish: publishState(project) });
+});
+
+/** Sign-in tickets for opening a project on another device: used once, within a few minutes. */
+const tickets = new Map<string, { userId: string; projectId: string; expiresAt: number }>();
+const TICKET_MS = 5 * 60_000;
+const ticketKey = (ticket: string) => crypto.createHash('sha256').update(ticket).digest('hex');
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, ticket] of tickets) if (ticket.expiresAt < now) tickets.delete(key);
+}, 60_000).unref();
+
+/**
+ * A link that opens this project on the person's phone, already signed in: it goes into a QR code
+ * on their own screen. Whoever opens it within five minutes is signed in as them, once.
+ */
+api.post('/projects/:id/handoff', requireUser, (req, res) => {
+  const project = ownProject(req, res);
+  if (!project) return;
+  const ticket = crypto.randomBytes(24).toString('base64url');
+  tickets.set(ticketKey(ticket), { userId: (req as Authed).user.id, projectId: project.id, expiresAt: Date.now() + TICKET_MS });
+  res.json({ path: `/api/handoff/${ticket}`, expiresInMs: TICKET_MS });
+});
+
+api.get('/handoff/:ticket', authLimiter, (req, res) => {
+  const key = ticketKey(String(req.params.ticket));
+  const ticket = tickets.get(key);
+  tickets.delete(key);
+  if (!ticket || ticket.expiresAt < Date.now() || !db.getUser(ticket.userId)) {
+    // Back to the ordinary front page, which asks them to sign in.
+    res.redirect(302, '/');
+    return;
+  }
+  setSession(res, ticket.userId);
+  res.redirect(302, `/p/${ticket.projectId}`);
+});
+
+/** For the people who run the service: apps that people are waiting for them to create in App Store Connect. */
+api.get('/operator/requests', requireUser, (req, res) => {
+  if (!isOperator((req as Authed).user.email)) {
+    res.status(403).json({ error: 'forbidden' });
+    return;
+  }
+  res.json({ requests: db.listAppRequests() });
 });
 
 // --- Public pages for an app: support and privacy policy -------------------------

@@ -39,6 +39,16 @@ export const config = {
   /** Emails allowed to send apps to TestFlight under the operator's developer account ("*" allows everyone). */
   testflightUsers: (process.env.TESTFLIGHT_USERS ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
   /**
+   * People who run the service (comma separated emails). They are the ones who create apps in App
+   * Store Connect for uploads to the operator's account, so they are shown which apps are waiting.
+   */
+  operatorEmails: (process.env.OPERATOR_EMAILS ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
+  /**
+   * Who Apple may contact about apps tested from the operator's account, when the app's own maker
+   * has not given contact details: "First Last, +46 70 123 45 67, name@example.com".
+   */
+  betaContact: process.env.BETA_CONTACT ?? '',
+  /**
    * Encrypts people's App Store Connect keys in the database. Without it nobody can connect their own
    * Apple developer account. Changing it makes the stored keys unreadable (people connect again).
    */
