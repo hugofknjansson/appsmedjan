@@ -73,7 +73,7 @@ struct DashboardView: View {
           .onDelete(perform: delete)
         }
       }
-      .navigationTitle("Appsmedjan")
+      .navigationTitle("App Dance")
       .navigationDestination(for: ProjectSummary.self) { project in
         ProjectView(project: project, api: model.api)
       }

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Sets up and manages the Appsmedjan build worker on a Mac, so it runs unattended: it starts at
+# Sets up and manages the App Dance build worker on a Mac, so it runs unattended: it starts at
 # login, restarts if it stops, and logs to a file. Made for rented Macs, works on your own too.
 #
 #   scripts/mac-worker.sh check                         what is in place and what is missing (changes nothing)

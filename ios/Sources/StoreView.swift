@@ -114,7 +114,7 @@ struct StoreView: View {
     @Bindable var model = model
     return Section {
       Picker("Sidor", selection: Binding(get: { model.pages.hosted }, set: { model.hostPages($0) })) {
-        Text("Appsmedjan visar dem").tag(true)
+        Text("App Dance visar dem").tag(true)
         Text("Jag har egna").tag(false)
       }
       .pickerStyle(.segmented)

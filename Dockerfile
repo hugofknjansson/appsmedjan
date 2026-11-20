@@ -1,4 +1,4 @@
-# The Appsmedjan server (API, WebSockets, AI agent) together with the built web client.
+# The App Dance server (API, WebSockets, AI agent) together with the built web client.
 # The Mac build worker is not part of this image: it runs on a Mac and connects out to the server.
 FROM node:24-slim
 WORKDIR /app

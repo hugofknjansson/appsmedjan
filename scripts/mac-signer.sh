@@ -30,7 +30,7 @@ cmd_create_user() {
   else
     echo "Creating user $NAME. Choose any password: nothing here uses it afterwards."
     # '-' makes sysadminctl ask for the password, so it never appears in the process list.
-    sysadminctl -addUser "$NAME" -fullName "Appsmedjan signing" -password -
+    sysadminctl -addUser "$NAME" -fullName "App Dance signing" -password -
     id "$NAME" >/dev/null 2>&1 || die "the user was not created"
   fi
   createhomedir -c -u "$NAME" >/dev/null 2>&1 || true

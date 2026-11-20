@@ -87,7 +87,7 @@ struct ChatView: View {
               Text(message.text)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(Color.forge.opacity(0.15), in: .rect(cornerRadius: 16))
+                .background(Color.brand.opacity(0.15), in: .rect(cornerRadius: 16))
                 .frame(maxWidth: .infinity, alignment: .trailing)
             case .assistant:
               PartsView(parts: message.parts, isLive: false)
@@ -193,7 +193,7 @@ private struct PartsView: View {
           Text(text)
             .font(.footnote)
             .padding(10)
-            .background(Color.forge.opacity(0.12), in: .rect(cornerRadius: 10))
+            .background(Color.brand.opacity(0.12), in: .rect(cornerRadius: 10))
         case .steps(_, let steps):
           // Finished work folds away so the conversation stays readable.
           if isLive || steps.count <= 2 {

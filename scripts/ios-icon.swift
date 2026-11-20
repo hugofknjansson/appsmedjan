@@ -1,9 +1,13 @@
-// Draws the Appsmedjan app icon: a white anvil with sparks on the forge's orange.
+// Draws the App Dance app icon: an app tile mid-step, one arm in the air, on the brand orange.
 // The shapes are drawn here by hand; Apple does not allow its SF Symbols in app icons.
 //   swift scripts/ios-icon.swift ios/Sources/Assets.xcassets/AppIcon.appiconset/icon.png
+//
+// The figure is laid out on the same 32-unit grid as the logo in web/src/Logo.tsx (y pointing down),
+// so the two stay the same drawing: change one and copy the numbers to the other.
 import AppKit
 
 let side: CGFloat = 1024
+let unit = side / 32
 // An opaque canvas: Apple refuses icons with an alpha channel.
 let canvas = CGContext(
   data: nil, width: Int(side), height: Int(side), bitsPerComponent: 8, bytesPerRow: 0,
@@ -15,40 +19,40 @@ let top = NSColor(red: 0.96, green: 0.48, blue: 0.14, alpha: 1)
 let bottom = NSColor(red: 0.78, green: 0.25, blue: 0.02, alpha: 1)
 NSGradient(colors: [top, bottom])!.draw(in: NSRect(x: 0, y: 0, width: side, height: side), angle: -60)
 
+/// A point on the 32-unit grid, turned the right way up for AppKit.
+func at(_ x: CGFloat, _ y: CGFloat) -> NSPoint { NSPoint(x: x * unit, y: (32 - y) * unit) }
+
 NSColor.white.set()
 
-// The anvil: horn to the left, heel to the right, a waist and a wide foot.
-let anvil = NSBezierPath()
-let outline: [(CGFloat, CGFloat)] = [
-  (150, 610), (330, 650), (810, 650), (810, 575), (650, 545), (610, 455), (610, 395),
-  (735, 330), (735, 270), (290, 270), (290, 330), (415, 395), (415, 455), (360, 525), (250, 565),
-]
-anvil.move(to: NSPoint(x: outline[0].0, y: outline[0].1))
-for point in outline.dropFirst() { anvil.line(to: NSPoint(x: point.0, y: point.1)) }
-anvil.close()
-anvil.lineJoinStyle = .round
-anvil.lineWidth = 36
-anvil.fill()
-anvil.stroke()
-
-// Sparks flying off the face: four-pointed stars.
-func spark(x: CGFloat, y: CGFloat, size: CGFloat) {
-  let star = NSBezierPath()
-  let thin = size * 0.22
-  star.move(to: NSPoint(x: x, y: y + size))
-  star.line(to: NSPoint(x: x + thin, y: y + thin))
-  star.line(to: NSPoint(x: x + size, y: y))
-  star.line(to: NSPoint(x: x + thin, y: y - thin))
-  star.line(to: NSPoint(x: x, y: y - size))
-  star.line(to: NSPoint(x: x - thin, y: y - thin))
-  star.line(to: NSPoint(x: x - size, y: y))
-  star.line(to: NSPoint(x: x - thin, y: y + thin))
-  star.close()
-  star.fill()
+// Arms and legs: round strokes through the given points.
+func limb(_ points: [(CGFloat, CGFloat)]) {
+  let path = NSBezierPath()
+  path.move(to: at(points[0].0, points[0].1))
+  for point in points.dropFirst() { path.line(to: at(point.0, point.1)) }
+  path.lineWidth = 2.2 * unit
+  path.lineCapStyle = .round
+  path.lineJoinStyle = .round
+  path.stroke()
 }
-spark(x: 560, y: 800, size: 74)
-spark(x: 720, y: 760, size: 46)
-spark(x: 420, y: 755, size: 40)
+limb([(21.5, 12.5), (27.4, 7.2)]) // the arm in the air
+limb([(11, 13.5), (5.8, 15.6), (6.6, 11.2)]) // the other arm, bent at the elbow
+limb([(13.4, 18), (12.6, 22.6), (13.4, 27.2), (10.6, 27.2)]) // the standing leg
+limb([(18, 18.5), (20.8, 23.2), (25.8, 21.8)]) // the kicking leg
+
+// The body: an app tile, leaning into the step.
+let tile = NSBezierPath(roundedRect: NSRect(x: -6.5 * unit, y: -6.5 * unit, width: 13 * unit, height: 13 * unit), xRadius: 3.6 * unit, yRadius: 3.6 * unit)
+var lean = AffineTransform(translationByX: at(16, 12.5).x, byY: at(16, 12.5).y)
+lean.rotate(byDegrees: -10)
+tile.transform(using: lean)
+tile.fill()
+
+// Two eyes, leaning with the tile.
+bottom.set()
+for x in [-2.3, 2.3] as [CGFloat] {
+  let eye = NSBezierPath(roundedRect: NSRect(x: (x - 0.75) * unit, y: -0.6 * unit, width: 1.5 * unit, height: 3 * unit), xRadius: 0.75 * unit, yRadius: 0.75 * unit)
+  eye.transform(using: lean)
+  eye.fill()
+}
 
 NSGraphicsContext.restoreGraphicsState()
 let png = NSBitmapImageRep(cgImage: canvas.makeImage()!).representation(using: .png, properties: [:])!

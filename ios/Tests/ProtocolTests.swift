@@ -1,7 +1,7 @@
 // The app is only as good as its reading of the server's messages: these pin that down.
 import Foundation
 import Testing
-@testable import Appsmedjan
+@testable import AppDance
 
 private func event(_ json: String) throws -> ServerEvent {
   try JSONDecoder().decode(ServerEvent.self, from: Data(json.utf8))

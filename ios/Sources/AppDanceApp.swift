@@ -1,21 +1,21 @@
 import SwiftUI
 
 @main
-struct AppsmedjanApp: App {
+struct AppDanceApp: App {
   @State private var model = AppModel()
 
   var body: some Scene {
     WindowGroup {
       RootView()
         .environment(model)
-        .tint(.forge)
+        .tint(.brand)
     }
   }
 }
 
 extension Color {
-  /// The orange of the forge, as on the web.
-  static let forge = Color(red: 0.85, green: 0.31, blue: 0.04)
+  /// The brand orange, as on the web.
+  static let brand = Color(red: 0.85, green: 0.31, blue: 0.04)
 }
 
 struct RootView: View {

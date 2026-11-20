@@ -1,6 +1,6 @@
-# The Appsmedjan iPhone app: a native client for the same server as the web client.
+# The App Dance iPhone app: a native client for the same server as the web client.
 # Generate the Xcode project with `xcodegen generate` in this folder.
-name: Appsmedjan
+name: AppDance
 options:
   createIntermediateGroups: true
   developmentLanguage: sv
@@ -18,7 +18,7 @@ settings:
     # Lets Xcode see the strings in the code, so the string catalog can be checked against them.
     SWIFT_EMIT_LOC_STRINGS: YES
 targets:
-  Appsmedjan:
+  AppDance:
     type: application
     platform: iOS
     sources:
@@ -26,7 +26,10 @@ targets:
     info:
       path: Info.plist
       properties:
-        CFBundleDisplayName: Appsmedjan
+        CFBundleDisplayName: App Dance
+        # From the build settings, so an upload can be given a new build number on the command line.
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleLocalizations: [sv, en]
         # Only what iOS itself provides (https); saves a question at every upload.
         ITSAppUsesNonExemptEncryption: false
@@ -45,14 +48,14 @@ targets:
         DEVELOPMENT_TEAM: ${APPLE_TEAM_ID}
         CODE_SIGN_STYLE: Automatic
     scheme:
-      testTargets: [AppsmedjanTests]
-  AppsmedjanTests:
+      testTargets: [AppDanceTests]
+  AppDanceTests:
     type: bundle.unit-test
     platform: iOS
     sources:
       - path: Tests
     dependencies:
-      - target: Appsmedjan
+      - target: AppDance
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES

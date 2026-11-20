@@ -55,7 +55,7 @@ struct AuthView: View {
           .font(.footnote)
         }
       }
-      .navigationTitle("Appsmedjan")
+      .navigationTitle("App Dance")
       .task {
         inviteRequired = (try? await model.api.inviteRequired()) ?? false
       }

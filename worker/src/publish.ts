@@ -307,7 +307,7 @@ export class Publisher {
       if (!appId) return { ok: false, error: 'no_app_record', detail: `No app with bundle id ${job.bundleId} exists in App Store Connect yet.` };
       if (job.check) return { ok: true, ...(await store.shareStatus(appId, job.build)) };
       if (!job.contact || !contactComplete(job.contact)) return { ok: false, error: 'internal', detail: 'The share job has no complete contact.' };
-      const description = (job.description ?? '').trim() || 'An app built with Appsmedjan.';
+      const description = (job.description ?? '').trim() || 'An app built with App Dance.';
       return { ok: true, ...(await store.shareBuild(appId, { build: job.build, contact: job.contact, description })) };
     } catch (err) {
       return this.storeFailure(job.projectId, err);

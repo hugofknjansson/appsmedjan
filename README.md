@@ -1,10 +1,13 @@
-# Appsmedjan
+# App Dance
 
 Beskriv en app med egna ord och få en riktig, native iPhone-app (SwiftUI) byggd åt dig. Appen körs i en
 iOS-simulator som strömmas till webbläsaren, så användaren behöver varken Mac, Xcode eller någon
 installation.
 
-"Appsmedjan" är ett arbetsnamn. Det står i `web/src/Logo.tsx`, `web/index.html` och `server/src/prompt.ts`.
+Tjänsten hette tidigare Appsmedjan. Det namnet lever kvar i tekniska namn som inga användare ser och som
+körande system hänger på: adressen `appsmedjan.fly.dev`, kodförrådet, bundle-id-prefixet `app.appsmedjan`,
+databasfilen, launchd-etiketterna `se.appsmedjan.*` och arbetarnas loggfiler. Namnet som visas står i
+`web/src/Logo.tsx`, `web/index.html`, `server/src/prompt.ts`, `shared/appstore.ts` och `ios/project.yml`.
 
 ## Så hänger det ihop
 
@@ -250,7 +253,7 @@ ett betalt medlemskap i Apple Developer Program. Funktionen är avstängd tills 
    skapas, eftersom Apple inte har något API för det. Webbklienten visar under tiden vilket bundle-id som
    ska väljas. Skapa appen i App Store Connect (Apps > + > New App, iOS, välj bundle-id:t i listan), så
    fortsätter uppladdningen av sig själv. Hinner du inte får du trycka på knappen igen.
-5. Kontoägaren läggs automatiskt till som intern TestFlight-testare, i en grupp som heter "Appsmedjan"
+5. Kontoägaren läggs automatiskt till som intern TestFlight-testare, i en grupp som heter "App Dance"
    och får alla byggen. När Apple har bearbetat bygget (några minuter) dyker appen upp i TestFlight-appen
    på telefonen, utan granskning. Går det inte (nyckelns roll får till exempel inte lista användare) säger
    webbklienten att testaren får läggas till för hand. Externa testare kräver en betagranskning av Apple
@@ -429,13 +432,13 @@ var 25:e sekund, annars kopplar Flys proxy ner en tyst arbetare efter ungefär e
 - koppla ett eget Apple-utvecklarkonto, med nyckelfilen vald från Filer
 - för den som driver tjänsten: listan över appar att skapa i App Store Connect
 
-Appen är på svenska och engelska (`Sources/Localizable.xcstrings`). Ikonen ritas av
+Appen är på svenska och engelska (`Sources/Localizable.xcstrings`). Ikonen, en dansande app-ruta, ritas av
 `scripts/ios-icon.swift`.
 
 Bygg och kör i simulatorn (kräver Xcode 26 eller senare och XcodeGen):
 
 ```bash
-cd ios && xcodegen generate && open Appsmedjan.xcodeproj
+cd ios && xcodegen generate && open AppDance.xcodeproj
 ```
 
 Appen pratar med `https://appsmedjan.fly.dev`. En utvecklingsbygge kan pekas mot en annan server med

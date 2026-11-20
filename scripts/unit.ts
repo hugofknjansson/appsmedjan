@@ -102,8 +102,8 @@ const [head, body, sig] = signToken(pem, 'KEY1234567', signing.ASC_ISSUER_ID, 1_
 assert.deepEqual(JSON.parse(Buffer.from(head!, 'base64url').toString()), { alg: 'ES256', kid: 'KEY1234567', typ: 'JWT' });
 assert.deepEqual(JSON.parse(Buffer.from(body!, 'base64url').toString()), { iss: signing.ASC_ISSUER_ID, iat: 1_800_000_000, exp: 1_800_000_600, aud: 'appstoreconnect-v1' });
 assert.ok(crypto.verify('sha256', Buffer.from(`${head}.${body}`), { key: publicKey, dsaEncoding: 'ieee-p1363' }, Buffer.from(sig!, 'base64url')));
-assert.equal(bundleIdName('Min "bästa" app!', 'abc123def456'), 'Appsmedjan Min basta app abc123def456');
-assert.equal(bundleIdName('🎉', 'abc123def456'), 'Appsmedjan abc123def456');
+assert.equal(bundleIdName('Min "bästa" app!', 'abc123def456'), 'App Dance Min basta app abc123def456');
+assert.equal(bundleIdName('🎉', 'abc123def456'), 'App Dance abc123def456');
 
 // App Store Connect: bundle id registration and app lookup, against a scripted API
 const keyFile = path.join(os.tmpdir(), `appsmedjan-unit-${process.pid}.p8`);
@@ -126,9 +126,9 @@ try {
   assert.ok(calls[0]!.url.includes(`filter[identifier]=${id}`) && calls[0]!.auth.startsWith('Bearer '));
 
   calls.length = 0;
-  assert.equal(await scripted([{ status: 200, json: { data: [row(`${id}.widget`)] } }, { status: 201, json: { data: row(id) } }]).ensureBundleId(id, 'Appsmedjan App abc'), 'created');
+  assert.equal(await scripted([{ status: 200, json: { data: [row(`${id}.widget`)] } }, { status: 201, json: { data: row(id) } }]).ensureBundleId(id, 'App Dance App abc'), 'created');
   assert.equal(calls[1]!.method, 'POST');
-  assert.deepEqual(calls[1]!.body, { data: { type: 'bundleIds', attributes: { identifier: id, name: 'Appsmedjan App abc', platform: 'IOS' } } });
+  assert.deepEqual(calls[1]!.body, { data: { type: 'bundleIds', attributes: { identifier: id, name: 'App Dance App abc', platform: 'IOS' } } });
   assert.equal(await scripted([{ status: 200, json: { data: [] } }, { status: 409, json: { errors: [{ detail: 'exists' }] } }]).ensureBundleId(id, 'Name'), 'exists');
 
   assert.equal(await scripted([{ status: 200, json: { data: [{ id: '111', attributes: { bundleId: `${id}2` } }] } }]).hasApp(id), false);
@@ -164,7 +164,7 @@ try {
   assert.deepEqual(calls[2]!.body, {
     data: {
       type: 'betaGroups',
-      attributes: { name: 'Appsmedjan', isInternalGroup: true, hasAccessToAllBuilds: true },
+      attributes: { name: 'App Dance', isInternalGroup: true, hasAccessToAllBuilds: true },
       relationships: { app: { data: { type: 'apps', id: 'app1' } } },
     },
   });
@@ -523,7 +523,7 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
   assert.deepEqual(told('POST', '/v1/betaAppLocalizations').data.attributes, { locale: 'sv', description: 'En app.', feedbackEmail: 'hugo@example.com' });
   assert.equal(told('POST', '/v1/betaBuildLocalizations').data.attributes.whatsNew, 'Prova appen och berätta vad du tycker.');
   assert.deepEqual(told('POST', '/v1/betaGroups').data.attributes, {
-    name: 'Appsmedjan link', isInternalGroup: false, publicLinkEnabled: true, publicLinkLimitEnabled: false, feedbackEnabled: true,
+    name: 'App Dance link', isInternalGroup: false, publicLinkEnabled: true, publicLinkLimitEnabled: false, feedbackEnabled: true,
   });
   assert.deepEqual(told('POST', '/v1/betaGroups/g1/relationships/builds'), { data: [{ type: 'builds', id: 'b1' }] });
   assert.deepEqual(told('POST', '/v1/betaAppReviewSubmissions').data.relationships.build.data, { type: 'builds', id: 'b1' });

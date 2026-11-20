@@ -86,7 +86,7 @@ const AGE_FLAGS = [
 ];
 
 /** Name of the external TestFlight group whose public link the service hands out. */
-const LINK_GROUP = 'Appsmedjan link';
+const LINK_GROUP = 'App Dance link';
 
 /** What Apple's beta review says about a build, in the service's own words. */
 function shareState(reviewState: unknown): ShareState {
@@ -120,7 +120,7 @@ export function signToken(keyPem: string, keyId: string, issuerId: string, nowMs
 /** The identifier's description may only hold letters, digits and spaces. */
 export function bundleIdName(appName: string, projectId: string): string {
   const plain = appName.normalize('NFKD').replace(/[^A-Za-z0-9 ]/g, '').replace(/\s+/g, ' ').trim().slice(0, 30);
-  return `Appsmedjan ${plain ? `${plain} ` : ''}${projectId}`;
+  return `App Dance ${plain ? `${plain} ` : ''}${projectId}`;
 }
 
 interface Resource {
@@ -137,7 +137,7 @@ interface Resource {
 }
 
 /** Name of the internal TestFlight group the service creates in each app. */
-const TESTER_GROUP = 'Appsmedjan';
+const TESTER_GROUP = 'App Dance';
 
 export interface StoreKey {
   keyId: string;

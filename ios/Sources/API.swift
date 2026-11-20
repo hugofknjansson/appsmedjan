@@ -1,4 +1,4 @@
-// Talks to the Appsmedjan server's REST API. The session cookie the server sets at login is kept by
+// Talks to the App Dance server's REST API. The session cookie the server sets at login is kept by
 // URLSession's cookie storage, so being logged in survives restarts of the app.
 import Foundation
 

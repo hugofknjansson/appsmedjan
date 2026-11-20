@@ -461,22 +461,22 @@
         }
       }
     },
-    "Appsmedjan": {
+    "App Dance": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Appsmedjan"
+            "value": "App Dance"
           }
         }
       }
     },
-    "Appsmedjan visar dem": {
+    "App Dance visar dem": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Appsmedjan shows them"
+            "value": "App Dance shows them"
           }
         }
       }
