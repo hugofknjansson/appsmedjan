@@ -313,12 +313,14 @@ in, och det svaret visas i guiden tillsammans med vad man gör åt det.
 Begränsningar i den här versionen: bara appens primära språk, bara en första version (en app som
 redan är släppt eller granskas lämnas orörd), bara iPhone-skärmbilder, och bara gratisappar.
 
-Mot Apple är det här kört: att skicka en sida (texter, skärmbild, kategori och val av bygge gick
-igenom på första försöket) och att skicka in för granskning fram till Apples svar om vad som
-saknades. Vilka av de valbara uppgifterna (åldersgräns, rättigheter, pris, kontakt) som följde med i
-de körningarna framgår inte av loggen, så räkna med justeringar där, och ett inskick som Apple tar
-emot är **inte kört**. Textförslaget (med policyutkastet), skärmbilden i rätt storlek, ikonen och de
-publika sidorna är körda på riktigt. iPhone-klienten har inte den här guiden.
+Mot Apple är hela kedjan körd med en riktig app i tjänstens eget konto: sidan skickades (texter,
+skärmbild, kategori och val av bygge gick igenom på första försöket), Apple avvisade inskicket två
+gånger med besked om vad som saknades, och efter att rättighetsdeklarationen skickats härifrån och
+medicinteknikfrågan besvarats i App Store Connect togs appen emot för granskning. Det visar att
+rättigheter och kontaktuppgifter når Apple. Om åldersgräns, pris och tillgänglighet sattes härifrån
+eller för hand i de körningarna framgår inte av loggen, så räkna med justeringar där. Textförslaget
+(med policyutkastet), skärmbilden i rätt storlek, ikonen och de publika sidorna är också körda på
+riktigt. iPhone-klienten har inte den här guiden.
 
 ### Användarens eget Apple-konto
 
@@ -412,8 +414,8 @@ eller motsvarande).
 Bygge, simulator, bildström, tryck och text samt uppladdning till TestFlight är körda på riktiga Macar,
 både en egen och en hyrd (se "Hyrda Macar"). Det här är **inte kört på riktigt**:
 
-- Ett inskick för granskning som Apple tar emot, och delar av uppgifterna som skickas med sidan (se
-  "Appens sida i App Store").
+- Delar av uppgifterna som skickas med appens sida: åldersgräns, pris och tillgänglighet (se "Appens
+  sida i App Store").
 - Uppladdning med en användares eget kopplade Apple-konto.
 - `scripts/e2e.mjs` (Playwright är inte installerat här).
 - En omstart av den hyrda Macen.
