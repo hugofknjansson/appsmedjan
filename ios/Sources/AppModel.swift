@@ -16,6 +16,9 @@ final class AppModel {
   /// Finds out whether the stored login is still good.
   func start() async {
     guard phase == .starting else { return }
+    #if DEBUG
+    adoptSessionFromLaunchArguments()
+    #endif
     do {
       phase = if let user = try await api.currentUser() { .signedIn(user) } else { .signedOut }
     } catch {
@@ -23,6 +26,16 @@ final class AppModel {
       phase = .signedOut
     }
   }
+
+  #if DEBUG
+  /// Lets a development build start signed in, for trying the app out without typing a password in
+  /// the simulator: launch it with `-sessionCookie <value of the server's "sid" cookie>`.
+  private func adoptSessionFromLaunchArguments() {
+    guard let value = UserDefaults.standard.string(forKey: "sessionCookie"), let host = api.baseURL.host() else { return }
+    let cookie = HTTPCookie(properties: [.name: "sid", .value: value, .domain: host, .path: "/"])
+    if let cookie { HTTPCookieStorage.shared.setCookie(cookie) }
+  }
+  #endif
 
   func logIn(email: String, password: String) async throws(APIError) {
     phase = .signedIn(try await api.logIn(email: email, password: password))

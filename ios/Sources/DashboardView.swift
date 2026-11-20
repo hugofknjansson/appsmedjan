@@ -11,6 +11,8 @@ struct DashboardView: View {
   @State private var errorText: String?
   @State private var notice: String?
   @State private var path: [ProjectSummary] = []
+  @State private var requests: [AppRequest] = []
+  @State private var isShowingAccount = false
 
   private var trimmedPrompt: String { prompt.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -33,6 +35,23 @@ struct DashboardView: View {
             Text(errorText).foregroundStyle(.red)
           } else if let notice {
             Text(notice)
+          }
+        }
+
+        if !requests.isEmpty {
+          Section {
+            ForEach(requests) { request in
+              VStack(alignment: .leading, spacing: 2) {
+                Text(request.name).font(.headline)
+                Text(request.bundleId).font(.footnote.monospaced()).textSelection(.enabled)
+                Text(request.email).font(.caption).foregroundStyle(.secondary)
+              }
+            }
+            Link("Öppna App Store Connect", destination: URL(string: "https://appstoreconnect.apple.com/apps")!)
+          } header: {
+            Text("Appar att skapa i App Store Connect")
+          } footer: {
+            Text("De här väntar på att du skapar appen hos Apple. Välj bundle-id:t i listan när du skapar den.")
           }
         }
 
@@ -62,6 +81,7 @@ struct DashboardView: View {
         ToolbarItem(placement: .topBarTrailing) {
           Menu {
             Text(user.email)
+            Button("Apple-utvecklarkonto", systemImage: "person.badge.key") { isShowingAccount = true }
             Button("Logga ut", role: .destructive) {
               Task { await model.logOut() }
             }
@@ -69,6 +89,9 @@ struct DashboardView: View {
             Label("Konto", systemImage: "person.crop.circle")
           }
         }
+      }
+      .sheet(isPresented: $isShowingAccount) {
+        AppleAccountView(api: model.api)
       }
       .refreshable { await load() }
       .task { await load() }
@@ -83,6 +106,8 @@ struct DashboardView: View {
     do throws(APIError) {
       projects = try await model.api.projects()
       hasLoaded = true
+      // Only people who run the service get an answer; for everyone else there is nothing to show.
+      requests = (try? await model.api.operatorRequests()) ?? []
       let status = try await model.api.status()
       notice = if !status.agentReady {
         String(localized: "Tjänsten saknar API-nyckel, så appar kan inte byggas ännu.")

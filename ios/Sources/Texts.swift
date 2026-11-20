@@ -17,6 +17,29 @@ enum Texts {
     case "busy": String(localized: "Vänta tills det pågående arbetet är klart.")
     case "publish_forbidden": String(localized: "Ditt konto får inte skicka appar till TestFlight.")
     case "publish_unavailable": String(localized: "TestFlight är inte tillgängligt just nu.")
+    case "bad_listing": String(localized: "Texterna gick inte att spara. Kontrollera att inget fält är orimligt långt.")
+    case "screenshot_no_preview": String(localized: "Starta förhandsvisningen först: bilden tas av det som visas i telefonen.")
+    case "screenshot_full": String(localized: "Du har redan så många skärmbilder som App Store tillåter. Ta bort en först.")
+    case "screenshot_failed": String(localized: "Det gick inte att ta bilden. Försök igen.")
+    case "icon_not_png", "icon_wrong_size": String(localized: "Ikonen gick inte att använda. Välj en annan bild.")
+    case "store_forbidden": String(localized: "Koppla ditt Apple-utvecklarkonto för att kunna skicka sidan.")
+    case "store_unavailable": String(localized: "Ingen byggserver som kan nå Apple är ansluten just nu.")
+    case "store_incomplete": String(localized: "Allt är inte ifyllt än.")
+    case "store_not_ready": String(localized: "Skicka först sidan till App Store Connect med ett bygge valt, och fyll i kontaktuppgifterna.")
+    case "bad_contact": String(localized: "Kontaktuppgifterna gick inte att spara.")
+    case "not_uploaded": String(localized: "Appen är inte uppladdad än.")
+    case "no_api_key": String(localized: "Tjänsten är inte färdiginställd ännu (API-nyckel saknas).")
+    case "rate_limited": String(localized: "Det är många som bygger just nu. Vänta en liten stund och försök igen.")
+    case "overloaded": String(localized: "AI-tjänsten svarar inte just nu. Försök igen om en stund.")
+    case "refused": String(localized: "Det gick inte att skriva ett förslag för den här appen.")
+    case "too_long": String(localized: "Appen är för stor för att skriva ett förslag i ett steg.")
+    case "apple_disabled": String(localized: "Koppling av egna Apple-konton är inte påslagen här.")
+    case "apple_bad_input": String(localized: "Key ID eller Issuer ID har fel format. Kopiera dem precis som de står i App Store Connect.")
+    case "apple_key_invalid": String(localized: "Filen är inte en giltig nyckel från App Store Connect.")
+    case "apple_key_rejected": String(localized: "Apple godkände inte nyckeln. Kontrollera att Key ID och Issuer ID hör till just den här filen.")
+    case "apple_key_forbidden": String(localized: "Nyckeln fungerar men saknar behörighet. Skapa en nyckel med rollen Admin.")
+    case "apple_team_needed": String(localized: "Apple visade inte vilket team kontot har. Fyll i ditt Team ID.")
+    case "apple_unreachable": String(localized: "Det gick inte att nå Apple just nu. Försök igen om en stund.")
     default: String(localized: "Något gick fel. Försök igen.")
     }
   }
@@ -114,4 +137,119 @@ enum Texts {
     default: String(localized: "Uppladdningen misslyckades. Försök igen om en stund.")
     }
   }
+
+  // MARK: - App Store page
+
+  /// What stops the page from being sent, by the server's code for it.
+  static func listingProblem(_ code: String) -> String {
+    switch code {
+    case "name_missing": String(localized: "Ett namn")
+    case "name_long": String(localized: "Namnet är för långt")
+    case "subtitle_long": String(localized: "Underrubriken är för lång")
+    case "promo_long": String(localized: "Kampanjtexten är för lång")
+    case "description_missing": String(localized: "En beskrivning")
+    case "description_long": String(localized: "Beskrivningen är för lång")
+    case "keywords_missing": String(localized: "Sökord")
+    case "keywords_long": String(localized: "Sökorden är för långa")
+    case "support_url": String(localized: "En supportsida (en adress som börjar med https://)")
+    case "marketing_url": String(localized: "Webbplatsen måste vara en adress som börjar med https://")
+    case "privacy_url": String(localized: "En integritetspolicy (en adress som börjar med https://)")
+    case "category": String(localized: "En kategori")
+    case "screenshots": String(localized: "Minst en skärmbild")
+    case "page_email": String(localized: "En e-postadress för support")
+    case "page_policy": String(localized: "En integritetspolicy (minst ett par meningar)")
+    default: code
+    }
+  }
+
+  static func storeStage(_ stage: String?) -> String {
+    switch stage {
+    case "version": String(localized: "Öppnar versionen")
+    case "texts": String(localized: "Skickar texter")
+    case "screenshots": String(localized: "Laddar upp skärmbilder")
+    case "build": String(localized: "Väljer bygge")
+    case "details": String(localized: "Fyller i övriga uppgifter")
+    default: String(localized: "Väntar")
+    }
+  }
+
+  /// Why the page could not be sent, or the app not submitted.
+  static func storeError(_ code: String?, detail: String?, submitting: Bool) -> String {
+    switch code {
+    case "no_app_record":
+      String(localized: "Appen finns inte i App Store Connect än. Gör den installerbar först; då får du hjälp att skapa den.")
+    case "auth": String(localized: "Apple godkände inte nyckeln. Kontrollera kopplingen till utvecklarkontot.")
+    case "locked":
+      submitting
+        ? String(localized: "Appen har ingen version som väntar på att skickas in. Den kan redan vara inskickad.")
+        : String(localized: "Appens version granskas eller är redan släppt, så sidan kan inte ändras härifrån.")
+    case "rejected":
+      submitting
+        ? String(localized: "Apple tog inte emot appen än: \(detail ?? "")")
+        : String(localized: "Apple godkände inte allt på sidan: \(detail ?? "")")
+    case "unavailable": String(localized: "Ingen byggserver som kan nå Apple är ansluten just nu.")
+    default:
+      submitting
+        ? String(localized: "Det gick inte att skicka in appen. Försök igen om en stund.")
+        : String(localized: "Det gick inte att skicka sidan. Försök igen om en stund.")
+    }
+  }
+
+  /// What to do about the things Apple most often finds missing when an app is submitted.
+  static func refusalHints(_ detail: String) -> [String] {
+    var hints: [String] = []
+    if detail.localizedCaseInsensitiveContains("contentRightsDeclaration") {
+      hints.append(String(localized: "Rättigheter till innehåll: slå på \"Inget material från andra\" om det stämmer och skicka sidan igen."))
+    }
+    if detail.localizedCaseInsensitiveContains("medical device") {
+      hints.append(String(localized: "Medicinteknisk produkt: det går bara att ange i App Store Connect, under App Compliance. För en vanlig app är svaret nej."))
+    }
+    if detail.localizedCaseInsensitiveContains("privacy") {
+      hints.append(String(localized: "Integritet: svara på frågorna under App Privacy i App Store Connect."))
+    }
+    return hints
+  }
+
+  static func attached(_ state: String?, build: String) -> String {
+    switch state {
+    case "attached": String(localized: "Bygget \(build) är valt för versionen.")
+    case "processing": String(localized: "Apple bearbetar fortfarande bygget \(build). Skicka sidan igen om några minuter.")
+    default: String(localized: "Inget bygge är valt. Gör appen installerbar först och skicka sidan igen.")
+    }
+  }
+
+  static func contactProblem(_ problem: ReviewContact.Problem) -> String {
+    switch problem {
+    case .name: String(localized: "För- och efternamn saknas.")
+    case .phone: String(localized: "Telefonnumret behöver landsnummer, till exempel +46 70 123 45 67.")
+    case .email: String(localized: "E-postadressen ser inte rätt ut.")
+    }
+  }
+
+  /// Apple's primary categories, by their ids.
+  static let categories: [(id: String, name: String)] = [
+    ("BOOKS", String(localized: "Böcker")),
+    ("BUSINESS", String(localized: "Företag")),
+    ("DEVELOPER_TOOLS", String(localized: "Utvecklarverktyg")),
+    ("EDUCATION", String(localized: "Utbildning")),
+    ("ENTERTAINMENT", String(localized: "Nöje")),
+    ("FINANCE", String(localized: "Ekonomi")),
+    ("FOOD_AND_DRINK", String(localized: "Mat och dryck")),
+    ("GRAPHICS_AND_DESIGN", String(localized: "Grafik och design")),
+    ("HEALTH_AND_FITNESS", String(localized: "Hälsa och träning")),
+    ("LIFESTYLE", String(localized: "Livsstil")),
+    ("MEDICAL", String(localized: "Medicin")),
+    ("MUSIC", String(localized: "Musik")),
+    ("NAVIGATION", String(localized: "Navigering")),
+    ("NEWS", String(localized: "Nyheter")),
+    ("PHOTO_AND_VIDEO", String(localized: "Foto och video")),
+    ("PRODUCTIVITY", String(localized: "Produktivitet")),
+    ("REFERENCE", String(localized: "Referens")),
+    ("SHOPPING", String(localized: "Shopping")),
+    ("SOCIAL_NETWORKING", String(localized: "Sociala nätverk")),
+    ("SPORTS", String(localized: "Sport")),
+    ("TRAVEL", String(localized: "Resor")),
+    ("UTILITIES", String(localized: "Verktyg")),
+    ("WEATHER", String(localized: "Väder")),
+  ]
 }

@@ -1,0 +1,2936 @@
+{
+  "sourceLanguage": "sv",
+  "strings": {
+    "%lld steg": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld steps"
+          }
+        }
+      }
+    },
+    "%lld/%lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld/%lld"
+          }
+        }
+      }
+    },
+    "1. Skaffa ett utvecklarkonto": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1. Get a developer account"
+          }
+        }
+      }
+    },
+    "2. Skapa en nyckel": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2. Create a key"
+          }
+        }
+      }
+    },
+    "3. Koppla nyckeln": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3. Connect the key"
+          }
+        }
+      }
+    },
+    "AI-tjänsten svarar inte just nu. Försök igen om en stund.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The AI service is not answering right now. Try again in a while."
+          }
+        }
+      }
+    },
+    "Alla appar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All apps"
+          }
+        }
+      }
+    },
+    "Allt är inte ifyllt än.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not everything is filled in yet."
+          }
+        }
+      }
+    },
+    "Ange en giltig e-postadress och ett lösenord på minst 8 tecken.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enter a valid email address and a password of at least 8 characters."
+          }
+        }
+      }
+    },
+    "App Store": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store"
+          }
+        }
+      }
+    },
+    "Appar att skapa i App Store Connect": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apps to create in App Store Connect"
+          }
+        }
+      }
+    },
+    "Appen behöver läggas upp hos Apple av den som driver tjänsten. Det görs för hand, så det kan ta en stund. Du behöver inte göra något.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app has to be set up with Apple by whoever runs the service. That is done by hand, so it can take a while. You do not need to do anything."
+          }
+        }
+      }
+    },
+    "Appen finns inte i App Store Connect än. Gör den installerbar först; då får du hjälp att skapa den.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app does not exist in App Store Connect yet. Make it installable first; that walks you through creating it."
+          }
+        }
+      }
+    },
+    "Appen finns inte i App Store Connect än. Skapa en ny app där med bundle-id %@ och försök sedan igen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app does not exist in App Store Connect yet. Create a new app there with the bundle ID %@ and then try again."
+          }
+        }
+      }
+    },
+    "Appen går inte att bygga just nu. Be om en rättning i chatten och försök igen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app cannot be built right now. Ask for a fix in the chat and try again."
+          }
+        }
+      }
+    },
+    "Appen har ingen version som väntar på att skickas in. Den kan redan vara inskickad.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app has no version waiting to be submitted. It may already have been submitted."
+          }
+        }
+      }
+    },
+    "Appen hittades inte.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app was not found."
+          }
+        }
+      }
+    },
+    "Appen innehåller inget av det Apple frågar om för åldersgränsen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app has none of the content Apple asks about for the age rating"
+          }
+        }
+      }
+    },
+    "Appen ska vara gratis och finnas i alla länder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app should be free and available in every country"
+          }
+        }
+      }
+    },
+    "Appen skickas nu in till Apple för granskning, i utvecklarkontots namn.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app is now submitted to Apple for review, in the developer account's name."
+          }
+        }
+      }
+    },
+    "Appen visar inget material från andra som jag saknar rätt att använda": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app shows no material from others that I lack the rights to use"
+          }
+        }
+      }
+    },
+    "Appen är för stor för att skriva ett förslag i ett steg.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app is too large to write a suggestion in one step."
+          }
+        }
+      }
+    },
+    "Appen är inskickad för granskning. Apple hör av sig till kontaktpersonen, oftast inom ett par dagar.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app has been submitted for review. Apple gets in touch with the contact person, usually within a couple of days."
+          }
+        }
+      }
+    },
+    "Appen är inte uppladdad än.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app has not been uploaded yet."
+          }
+        }
+      }
+    },
+    "Appen är inte uppladdad än. Gör den installerbar först, så finns det ett bygge att välja.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app has not been uploaded yet. Make it installable first, so there is a build to select."
+          }
+        }
+      }
+    },
+    "Appen är uppdaterad": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app is updated"
+          }
+        }
+      }
+    },
+    "Appens skärm i simulatorn": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app's screen in the simulator"
+          }
+        }
+      }
+    },
+    "Appens version granskas eller är redan släppt, så sidan kan inte ändras härifrån.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app's version is in review or already released, so the page cannot be changed from here."
+          }
+        }
+      }
+    },
+    "Appikon": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App icon"
+          }
+        }
+      }
+    },
+    "Apple bearbetar fortfarande bygget %@. Skicka sidan igen om några minuter.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple is still processing build %@. Send the page again in a few minutes."
+          }
+        }
+      }
+    },
+    "Apple godkände inte allt på sidan: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple did not accept everything on the page: %@"
+          }
+        }
+      }
+    },
+    "Apple godkände inte appen för test. Den som driver tjänsten har fått veta varför.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple did not approve the app for testing. Whoever runs the service has been told why."
+          }
+        }
+      }
+    },
+    "Apple godkände inte nyckeln. Kontrollera App Store Connect-nyckeln.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple did not accept the key. Check the App Store Connect key."
+          }
+        }
+      }
+    },
+    "Apple godkände inte nyckeln. Kontrollera att Key ID och Issuer ID hör till just den här filen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple did not accept the key. Check that the Key ID and Issuer ID belong to this very file."
+          }
+        }
+      }
+    },
+    "Apple godkände inte nyckeln. Kontrollera kopplingen till utvecklarkontot.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple did not accept the key. Check the connection to the developer account."
+          }
+        }
+      }
+    },
+    "Apple går igenom appen innan den får installeras. Första gången kan det ta upp till ett par dagar; nya versioner går fortare.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple looks the app over before it may be installed. The first time that can take up to a couple of days; new versions go faster."
+          }
+        }
+      }
+    },
+    "Apple hör av sig till den här personen om något är oklart. Uppgifterna används för alla dina appar.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple gets in touch with this person if something is unclear. The details are used for all your apps."
+          }
+        }
+      }
+    },
+    "Apple kräver att varje app har en supportsida och en integritetspolicy på webben.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple requires every app to have a support page and a privacy policy on the web."
+          }
+        }
+      }
+    },
+    "Apple kräver båda. E-postadressen visas öppet på sidorna, tillsammans med ditt namn om du har fyllt i kontaktuppgifterna. Du ansvarar för att policyn stämmer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple requires both. The email address is shown openly on the pages, together with your name if you have filled in the contact details. You answer for the policy being true."
+          }
+        }
+      }
+    },
+    "Apple tar emot appen. Det tar oftast en kvart. Du kan stänga den här rutan under tiden.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple is receiving the app. That usually takes a quarter of an hour. You can close this in the meantime."
+          }
+        }
+      }
+    },
+    "Apple tog inte emot appen än: %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple did not take the app yet: %@"
+          }
+        }
+      }
+    },
+    "Apple vill veta vem de kan kontakta om appen. Fyll i det här en gång, så används det för alla dina appar.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple wants to know who to contact about the app. Fill this in once, and it is used for all your apps."
+          }
+        }
+      }
+    },
+    "Apple visade inte vilket team kontot har. Fyll i ditt Team ID.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple did not show which team the account has. Fill in your Team ID."
+          }
+        }
+      }
+    },
+    "Apple-utvecklarkonto": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple developer account"
+          }
+        }
+      }
+    },
+    "Appsmedjan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appsmedjan"
+          }
+        }
+      }
+    },
+    "Appsmedjan visar dem": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appsmedjan shows them"
+          }
+        }
+      }
+    },
+    "Arbetar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Working"
+          }
+        }
+      }
+    },
+    "Beskriv din idé. Få en riktig iPhone-app.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Describe your idea. Get a real iPhone app."
+          }
+        }
+      }
+    },
+    "Beskriv vad du vill ändra eller lägga till": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Describe what you want to change or add"
+          }
+        }
+      }
+    },
+    "Beskrivning": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Description"
+          }
+        }
+      }
+    },
+    "Beskrivningen är för lång": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The description is too long"
+          }
+        }
+      }
+    },
+    "Bilden görs kvadratisk och används från nästa version du gör installerbar. Utan egen ikon får appen en enkel platshållare.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The picture is made square and used from the next version you make installable. Without an icon of its own the app gets a simple placeholder."
+          }
+        }
+      }
+    },
+    "Bygg min app": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Build my app"
+          }
+        }
+      }
+    },
+    "Bygger appen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Building the app"
+          }
+        }
+      }
+    },
+    "Bygger för iPhone": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Building for iPhone"
+          }
+        }
+      }
+    },
+    "Bygget %@ är valt för versionen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Build %@ is selected for the version."
+          }
+        }
+      }
+    },
+    "Böcker": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Books"
+          }
+        }
+      }
+    },
+    "Chatt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chat"
+          }
+        }
+      }
+    },
+    "De här väntar på att du skapar appen hos Apple. Välj bundle-id:t i listan när du skapar den.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "These are waiting for you to create the app with Apple. Pick the bundle ID from the list when you create it."
+          }
+        }
+      }
+    },
+    "Dela länken med andra": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share the link with others"
+          }
+        }
+      }
+    },
+    "Den senaste ändringen gick inte att bygga": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The latest change could not be built"
+          }
+        }
+      }
+    },
+    "Det där är inte nyckelfilen från Apple. Den heter AuthKey_… och slutar på .p8.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That is not the key file from Apple. It is called AuthKey_… and ends in .p8."
+          }
+        }
+      }
+    },
+    "Det ersätter texterna du har skrivit.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This replaces the texts you have written."
+          }
+        }
+      }
+    },
+    "Det finns redan ett konto med den e-postadressen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There is already an account with that email address."
+          }
+        }
+      }
+    },
+    "Det gick inte att nå Apple just nu. Försök igen om en stund.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple could not be reached right now. Try again in a while."
+          }
+        }
+      }
+    },
+    "Det gick inte att nå servern. Kontrollera din uppkoppling.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The server could not be reached. Check your connection."
+          }
+        }
+      }
+    },
+    "Det gick inte att skicka in appen. Försök igen om en stund.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app could not be submitted. Try again in a while."
+          }
+        }
+      }
+    },
+    "Det gick inte att skicka sidan. Försök igen om en stund.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The page could not be sent. Try again in a while."
+          }
+        }
+      }
+    },
+    "Det gick inte att skriva ett förslag för den här appen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A suggestion could not be written for this app."
+          }
+        }
+      }
+    },
+    "Det gick inte att ta bilden. Försök igen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The picture could not be taken. Try again."
+          }
+        }
+      }
+    },
+    "Det här behöver rättas först:": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This has to be put right first:"
+          }
+        }
+      }
+    },
+    "Det här blev för stort för ett enda steg. Be om en mindre del i taget.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This became too large for a single step. Ask for a smaller part at a time."
+          }
+        }
+      }
+    },
+    "Det här går bara att göra i App Store Connect. Gör det där först:": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This can only be done in App Store Connect. Do it there first:"
+          }
+        }
+      }
+    },
+    "Det här kan jag tyvärr inte hjälpa till med. Prova att beskriva det på ett annat sätt.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sorry, I cannot help with this. Try describing it another way."
+          }
+        }
+      }
+    },
+    "Det är många som bygger just nu. Vänta en liten stund och försök igen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Many people are building right now. Wait a moment and try again."
+          }
+        }
+      }
+    },
+    "Din app sparas. Förhandsvisningen startar när en byggserver är ansluten.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your app is saved. The preview starts when a build server is connected."
+          }
+        }
+      }
+    },
+    "Dina appar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your apps"
+          }
+        }
+      }
+    },
+    "Dina appar laddas upp till ditt eget konto och publiceras i ditt namn.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your apps are uploaded to your own account and published in your name."
+          }
+        }
+      }
+    },
+    "Ditt konto får inte skicka appar till TestFlight.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your account is not allowed to send apps to TestFlight."
+          }
+        }
+      }
+    },
+    "Du har inga appar än. Beskriv din första idé här ovanför.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You have no apps yet. Describe your first idea above."
+          }
+        }
+      }
+    },
+    "Du har nått dagens gräns för meddelanden. Välkommen tillbaka i morgon.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You have reached today's message limit. Welcome back tomorrow."
+          }
+        }
+      }
+    },
+    "Du har nått gränsen för antal appar. Ta bort en app för att skapa en ny.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You have reached the limit on the number of apps. Delete one to create a new one."
+          }
+        }
+      }
+    },
+    "Du har redan så många skärmbilder som App Store tillåter. Ta bort en först.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You already have as many screenshots as the App Store allows. Remove one first."
+          }
+        }
+      }
+    },
+    "Du har ändringar som inte är sparade. De sparas innan sidan skickas.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You have unsaved changes. They are saved before the page is sent."
+          }
+        }
+      }
+    },
+    "Då ligger appen på hemskärmen som en vanlig app. Det går via Apples testapp TestFlight, som är gratis. Du behöver inget utvecklarkonto.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Then the app sits on the home screen like any other app. It goes through Apple's testing app TestFlight, which is free. You need no developer account."
+          }
+        }
+      }
+    },
+    "Döper appen till %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Naming the app %@"
+          }
+        }
+      }
+    },
+    "E-post": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Email"
+          }
+        }
+      }
+    },
+    "E-post för support": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Email for support"
+          }
+        }
+      }
+    },
+    "E-postadressen ser inte rätt ut.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The email address does not look right."
+          }
+        }
+      }
+    },
+    "Efternamn": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last name"
+          }
+        }
+      }
+    },
+    "Ekonomi": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finance"
+          }
+        }
+      }
+    },
+    "En beskrivning": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A description"
+          }
+        }
+      }
+    },
+    "En e-postadress för support": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An email address for support"
+          }
+        }
+      }
+    },
+    "En integritetspolicy (en adress som börjar med https://)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A privacy policy (an address starting with https://)"
+          }
+        }
+      }
+    },
+    "En integritetspolicy (minst ett par meningar)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A privacy policy (at least a couple of sentences)"
+          }
+        }
+      }
+    },
+    "En kategori": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A category"
+          }
+        }
+      }
+    },
+    "En supportsida (en adress som börjar med https://)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A support page (an address starting with https://)"
+          }
+        }
+      }
+    },
+    "Endast visning: tryck och text skickas inte till simulatorn just nu.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View only: taps and typing are not sent to the simulator right now."
+          }
+        }
+      }
+    },
+    "Ersätt texterna": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Replace the texts"
+          }
+        }
+      }
+    },
+    "Ett namn": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A name"
+          }
+        }
+      }
+    },
+    "Ett steg görs för hand hos Apple: skapa appen i App Store Connect (Apps > + > New App, iOS) och välj bundle-id %@. Uppladdningen fortsätter av sig själv när appen finns.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "One step is done by hand at Apple: create the app in App Store Connect (Apps > + > New App, iOS) and pick the bundle ID %@. The upload goes on by itself once the app exists."
+          }
+        }
+      }
+    },
+    "Fel e-post eller lösenord.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wrong email or password."
+          }
+        }
+      }
+    },
+    "Filen är inte en giltig nyckel från App Store Connect.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The file is not a valid key from App Store Connect."
+          }
+        }
+      }
+    },
+    "Fortsätt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue"
+          }
+        }
+      }
+    },
+    "Foto och video": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo & Video"
+          }
+        }
+      }
+    },
+    "Fyller i övriga uppgifter": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filling in the other details"
+          }
+        }
+      }
+    },
+    "För att installera appen behövs ett Apple-utvecklarkonto att ladda upp den till.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To install the app, an Apple developer account to upload it to is needed."
+          }
+        }
+      }
+    },
+    "För många försök. Vänta en stund och försök igen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Too many attempts. Wait a while and try again."
+          }
+        }
+      }
+    },
+    "För- och efternamn saknas.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "First and last name are missing."
+          }
+        }
+      }
+    },
+    "Förbereder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparing"
+          }
+        }
+      }
+    },
+    "Föreslå texter från appen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suggest texts from the app"
+          }
+        }
+      }
+    },
+    "Företag": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Business"
+          }
+        }
+      }
+    },
+    "Förhandsvisning": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview"
+          }
+        }
+      }
+    },
+    "Förnamn": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "First name"
+          }
+        }
+      }
+    },
+    "Förslaget bygger på appens kod. Läs igenom det: du står för det som publiceras.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The suggestion is based on the app's code. Read it through: you answer for what is published."
+          }
+        }
+      }
+    },
+    "Förslaget hittade det här i appens kod. Sätt i så fall åldersgränsen själv i App Store Connect:": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The suggestion found this in the app's code. If so, set the age rating yourself in App Store Connect:"
+          }
+        }
+      }
+    },
+    "Förslaget hittade inget sådant i appens kod.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The suggestion found nothing like that in the app's code."
+          }
+        }
+      }
+    },
+    "Försök igen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try again"
+          }
+        }
+      }
+    },
+    "Grafik och design": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Graphics & Design"
+          }
+        }
+      }
+    },
+    "Gå med i Apple Developer Program som privatperson. Det kostar 99 USD per år och du behöver ett Apple-konto med tvåfaktorsautentisering. Apple behöver ibland ett par dagar på sig att godkänna.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Join the Apple Developer Program as an individual. It costs 99 USD per year and you need an Apple Account with two-factor authentication. Apple sometimes needs a couple of days to approve."
+          }
+        }
+      }
+    },
+    "Gå med i programmet": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Join the program"
+          }
+        }
+      }
+    },
+    "Gå till den skärm du vill visa i förhandsvisningen och tryck på kameran där. Minst en bild behövs, högst tio.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go to the screen you want to show in the preview and tap the camera there. At least one picture is needed, at most ten."
+          }
+        }
+      }
+    },
+    "Gör appen installerbar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Make the app installable"
+          }
+        }
+      }
+    },
+    "Har du inte TestFlight installerat hämtar du den gratis i App Store först. Tryck sedan på Godkänn och Installera.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If you do not have TestFlight installed, get it for free from the App Store first. Then tap Accept and Install."
+          }
+        }
+      }
+    },
+    "Har du läst igenom sidan i App Store Connect och svarat på integritetsfrågorna?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Have you read the page through in App Store Connect and answered the privacy questions?"
+          }
+        }
+      }
+    },
+    "Har du redan ett konto? Logga in": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Already have an account? Log in"
+          }
+        }
+      }
+    },
+    "Hem": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Home"
+          }
+        }
+      }
+    },
+    "Hittade ett fel och rättar det": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Found a problem and fixing it"
+          }
+        }
+      }
+    },
+    "Hälsa och träning": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Health & Fitness"
+          }
+        }
+      }
+    },
+    "Här förbereder du det som syns i App Store. När allt är ifyllt skickas det till App Store Connect, där du läser igenom och sedan skickar in appen för granskning.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Here you prepare what people see in the App Store. When everything is filled in it is sent to App Store Connect, where you read it through and then submit the app for review."
+          }
+        }
+      }
+    },
+    "Ikonen gick inte att använda. Välj en annan bild.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The icon could not be used. Choose another picture."
+          }
+        }
+      }
+    },
+    "Inbjudningskod": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Invite code"
+          }
+        }
+      }
+    },
+    "Inbjudningskoden stämmer inte.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The invite code is not right."
+          }
+        }
+      }
+    },
+    "Inga filer än": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No files yet"
+          }
+        }
+      }
+    },
+    "Inga skärmbilder än.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No screenshots yet."
+          }
+        }
+      }
+    },
+    "Ingen byggserver som kan ladda upp är ansluten just nu.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No build server that can upload is connected right now."
+          }
+        }
+      }
+    },
+    "Ingen byggserver som kan nå Apple är ansluten just nu.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No build server that can reach Apple is connected right now."
+          }
+        }
+      }
+    },
+    "Ingen byggserver är ansluten, så förhandsvisningen är avstängd just nu.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No build server is connected, so the preview is off right now."
+          }
+        }
+      }
+    },
+    "Ingen simulator är tillgänglig just nu": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No simulator is available right now"
+          }
+        }
+      }
+    },
+    "Inget bygge är valt. Gör appen installerbar först och skicka sidan igen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No build is selected. Make the app installable first and send the page again."
+          }
+        }
+      }
+    },
+    "Installation på telefonen är inte påslagen för ditt konto. Hör av dig till den som driver tjänsten.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installing on the phone is not turned on for your account. Get in touch with whoever runs the service."
+          }
+        }
+      }
+    },
+    "Installera appen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install the app"
+          }
+        }
+      }
+    },
+    "Installera på telefonen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Install on the phone"
+          }
+        }
+      }
+    },
+    "Installerar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Installing"
+          }
+        }
+      }
+    },
+    "Integritet: svara på frågorna under App Privacy i App Store Connect.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy: answer the questions under App Privacy in App Store Connect."
+          }
+        }
+      }
+    },
+    "Integritetspolicy": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy policy"
+          }
+        }
+      }
+    },
+    "Integritetspolicy, https://": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Privacy policy, https://"
+          }
+        }
+      }
+    },
+    "Issuer ID": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Issuer ID"
+          }
+        }
+      }
+    },
+    "Jag har egna": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I have my own"
+          }
+        }
+      }
+    },
+    "Justerar %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adjusting %@"
+          }
+        }
+      }
+    },
+    "Kampanjtext": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Promotional text"
+          }
+        }
+      }
+    },
+    "Kampanjtexten är för lång": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The promotional text is too long"
+          }
+        }
+      }
+    },
+    "Kategori": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Category"
+          }
+        }
+      }
+    },
+    "Key ID": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Key ID"
+          }
+        }
+      }
+    },
+    "Key ID eller Issuer ID har fel format. Kopiera dem precis som de står i App Store Connect.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Key ID or Issuer ID has the wrong format. Copy them exactly as they appear in App Store Connect."
+          }
+        }
+      }
+    },
+    "Key ID står bredvid nyckeln och Issuer ID överst på samma sida. Nyckeln sparas krypterad och används bara för att ladda upp dina appar.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Key ID is next to the key and the Issuer ID at the top of the same page. The key is stored encrypted and used only to upload your apps."
+          }
+        }
+      }
+    },
+    "Klart": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        }
+      }
+    },
+    "Knappen går att trycka på när sidan är skickad med ett bygge valt, kontaktuppgifterna är ifyllda och inget har ändrats sedan dess.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The button can be pressed when the page has been sent with a build selected, the contact details are filled in and nothing has changed since."
+          }
+        }
+      }
+    },
+    "Kod": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Code"
+          }
+        }
+      }
+    },
+    "Kontakt för granskningen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contact for the review"
+          }
+        }
+      }
+    },
+    "Kontaktperson": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contact person"
+          }
+        }
+      }
+    },
+    "Kontaktuppgifterna gick inte att spara.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The contact details could not be saved."
+          }
+        }
+      }
+    },
+    "Konto": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Account"
+          }
+        }
+      }
+    },
+    "Kontrollerar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checking"
+          }
+        }
+      }
+    },
+    "Koppla ditt Apple-utvecklarkonto": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect your Apple developer account"
+          }
+        }
+      }
+    },
+    "Koppla ditt Apple-utvecklarkonto för att kunna skicka sidan.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect your Apple developer account to send the page."
+          }
+        }
+      }
+    },
+    "Koppla ditt Apple-utvecklarkonto för att kunna skicka sidan. Du kan förbereda allt här redan nu.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect your Apple developer account to send the page. You can prepare everything here already."
+          }
+        }
+      }
+    },
+    "Koppla från": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnect"
+          }
+        }
+      }
+    },
+    "Koppla från Apple-kontot?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnect the Apple account?"
+          }
+        }
+      }
+    },
+    "Koppla kontot": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect the account"
+          }
+        }
+      }
+    },
+    "Kopplat till team %@ med nyckel %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connected to team %@ with key %@."
+          }
+        }
+      }
+    },
+    "Koppling av egna Apple-konton är inte påslagen här.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecting your own Apple account is not turned on here."
+          }
+        }
+      }
+    },
+    "Laddar upp skärmbilder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uploading screenshots"
+          }
+        }
+      }
+    },
+    "Laddar upp till Apple": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uploading to Apple"
+          }
+        }
+      }
+    },
+    "Livsstil": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lifestyle"
+          }
+        }
+      }
+    },
+    "Logga in": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Log in"
+          }
+        }
+      }
+    },
+    "Logga ut": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Log out"
+          }
+        }
+      }
+    },
+    "Läser %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading %@"
+          }
+        }
+      }
+    },
+    "Lösenord": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Password"
+          }
+        }
+      }
+    },
+    "Lösenordet ska ha minst 8 tecken.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The password needs at least 8 characters."
+          }
+        }
+      }
+    },
+    "Mat och dryck": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Food & Drink"
+          }
+        }
+      }
+    },
+    "Medicin": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medical"
+          }
+        }
+      }
+    },
+    "Medicinteknisk produkt: det går bara att ange i App Store Connect, under App Compliance. För en vanlig app är svaret nej.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regulated medical device: this can only be stated in App Store Connect, under App Compliance. For an ordinary app the answer is no."
+          }
+        }
+      }
+    },
+    "Minst en skärmbild": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "At least one screenshot"
+          }
+        }
+      }
+    },
+    "Musik": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Music"
+          }
+        }
+      }
+    },
+    "Namn": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name"
+          }
+        }
+      }
+    },
+    "Namnet är för långt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The name is too long"
+          }
+        }
+      }
+    },
+    "Navigering": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Navigation"
+          }
+        }
+      }
+    },
+    "Ny app": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New app"
+          }
+        }
+      }
+    },
+    "Ny här? Skapa konto": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New here? Create an account"
+          }
+        }
+      }
+    },
+    "Nyckelfilen är vald": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The key file is chosen"
+          }
+        }
+      }
+    },
+    "Nyckeln fungerar men saknar behörighet. Skapa en nyckel med rollen Admin.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The key works but lacks permission. Create a key with the Admin role."
+          }
+        }
+      }
+    },
+    "Nyheter": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "News"
+          }
+        }
+      }
+    },
+    "Något gick fel hos oss. Försök igen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Something went wrong on our side. Try again."
+          }
+        }
+      }
+    },
+    "Något gick fel. Försök igen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Something went wrong. Try again."
+          }
+        }
+      }
+    },
+    "Nöje": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Entertainment"
+          }
+        }
+      }
+    },
+    "Produktivitet": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Productivity"
+          }
+        }
+      }
+    },
+    "Publicera": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Publish"
+          }
+        }
+      }
+    },
+    "Radera": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete"
+          }
+        }
+      }
+    },
+    "Referens": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reference"
+          }
+        }
+      }
+    },
+    "Resor": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Travel"
+          }
+        }
+      }
+    },
+    "Retur": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Return"
+          }
+        }
+      }
+    },
+    "Rättigheter till innehåll: slå på \"Inget material från andra\" om det stämmer och skicka sidan igen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Content rights: turn on \"No material from others\" if that is true and send the page again."
+          }
+        }
+      }
+    },
+    "Shopping": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shopping"
+          }
+        }
+      }
+    },
+    "Sidor": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pages"
+          }
+        }
+      }
+    },
+    "Signeringen misslyckades. Kontrollera team och certifikat i utvecklarkontot.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signing failed. Check the team and the certificates in the developer account."
+          }
+        }
+      }
+    },
+    "Simulatorn är pausad": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The simulator is paused"
+          }
+        }
+      }
+    },
+    "Skapa en nyckel under Users and Access > Integrations > App Store Connect API, med rollen Admin. Ladda ner filen: den går bara att hämta en gång.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create a key under Users and Access > Integrations > App Store Connect API, with the Admin role. Download the file: it can only be fetched once."
+          }
+        }
+      }
+    },
+    "Skapa konto": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create account"
+          }
+        }
+      }
+    },
+    "Skicka": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send"
+          }
+        }
+      }
+    },
+    "Skicka en ny version": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send a new version"
+          }
+        }
+      }
+    },
+    "Skicka först sidan till App Store Connect med ett bygge valt, och fyll i kontaktuppgifterna.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "First send the page to App Store Connect with a build selected, and fill in the contact details."
+          }
+        }
+      }
+    },
+    "Skicka in": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Submit"
+          }
+        }
+      }
+    },
+    "Skicka in för granskning": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Submit for review"
+          }
+        }
+      }
+    },
+    "Skicka till App Store Connect": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send to App Store Connect"
+          }
+        }
+      }
+    },
+    "Skickar in": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Submitting"
+          }
+        }
+      }
+    },
+    "Skickar texter": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sending texts"
+          }
+        }
+      }
+    },
+    "Skriv i appen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type in the app"
+          }
+        }
+      }
+    },
+    "Skriv vad du vill bygga (högst 8000 tecken).": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Write what you want to build (at most 8000 characters)."
+          }
+        }
+      }
+    },
+    "Skriver %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Writing %@"
+          }
+        }
+      }
+    },
+    "Skriver förslag": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Writing a suggestion"
+          }
+        }
+      }
+    },
+    "Skärmbilder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Screenshots"
+          }
+        }
+      }
+    },
+    "Slå bara på det som stämmer. Inget våld, inga vapen, inget sexuellt eller skrämmande innehåll, inget grovt språk, inga droger, inget spel om pengar, inga medicinska råd, ingen fri webbläsare, inget innehåll från andra användare och ingen reklam ger åldersgränsen 4+. Det du lämnar av fyller du i själv i App Store Connect.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn on only what is true. No violence, no weapons, no sexual or frightening content, no crude language, no drugs, no gambling, no medical advice, no open web browser, no content from other users and no advertising gives the rating 4+. What you leave off you fill in yourself in App Store Connect."
+          }
+        }
+      }
+    },
+    "Sociala nätverk": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Social Networking"
+          }
+        }
+      }
+    },
+    "Spara": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save"
+          }
+        }
+      }
+    },
+    "Spara som App Store-bild": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save as App Store picture"
+          }
+        }
+      }
+    },
+    "Sparad som App Store-bild (%lld av 10).": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saved as an App Store picture (%lld of 10)."
+          }
+        }
+      }
+    },
+    "Sport": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sports"
+          }
+        }
+      }
+    },
+    "Starta": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start"
+          }
+        }
+      }
+    },
+    "Starta förhandsvisningen först: bilden tas av det som visas i telefonen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start the preview first: the picture is taken of what the phone shows."
+          }
+        }
+      }
+    },
+    "Startar appen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Starting the app"
+          }
+        }
+      }
+    },
+    "Startar simulatorn": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Starting the simulator"
+          }
+        }
+      }
+    },
+    "Stoppa": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop"
+          }
+        }
+      }
+    },
+    "Stoppat.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stopped."
+          }
+        }
+      }
+    },
+    "Stäng": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        }
+      }
+    },
+    "Supportsida och integritetspolicy": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Support page and privacy policy"
+          }
+        }
+      }
+    },
+    "Supportsida, https://": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Support page, https://"
+          }
+        }
+      }
+    },
+    "Sökord": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keywords"
+          }
+        }
+      }
+    },
+    "Sökord, med komma emellan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keywords, separated by commas"
+          }
+        }
+      }
+    },
+    "Sökorden är för långa": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The keywords are too long"
+          }
+        }
+      }
+    },
+    "Ta bort": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove"
+          }
+        }
+      }
+    },
+    "Ta bort skärmbilden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove the screenshot"
+          }
+        }
+      }
+    },
+    "Tar bort %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Removing %@"
+          }
+        }
+      }
+    },
+    "Team ID": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Team ID"
+          }
+        }
+      }
+    },
+    "Telefon, till exempel +46 70 123 45 67": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phone, for example +46 70 123 45 67"
+          }
+        }
+      }
+    },
+    "Telefonnumret behöver landsnummer, till exempel +46 70 123 45 67.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The phone number needs a country code, for example +46 70 123 45 67."
+          }
+        }
+      }
+    },
+    "TestFlight är inte tillgängligt just nu.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TestFlight is not available right now."
+          }
+        }
+      }
+    },
+    "Texter": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texts"
+          }
+        }
+      }
+    },
+    "Texterna gick inte att spara. Kontrollera att inget fält är orimligt långt.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The texts could not be saved. Check that no field is unreasonably long."
+          }
+        }
+      }
+    },
+    "Till exempel: en app där jag kan hålla koll på mina växter": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For example: an app where I can keep track of my plants"
+          }
+        }
+      }
+    },
+    "Tittar på skärmen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Looking at the screen"
+          }
+        }
+      }
+    },
+    "Tjänsten saknar API-nyckel, så appar kan inte byggas ännu.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The service has no API key, so apps cannot be built yet."
+          }
+        }
+      }
+    },
+    "Tjänsten är inte färdiginställd ännu (API-nyckel saknas).": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The service is not fully set up yet (API key missing)."
+          }
+        }
+      }
+    },
+    "Tjänsten är inte färdiginställd ännu (API-nyckel saknas). Kontakta den som driver tjänsten.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The service is not fully set up yet (API key missing). Contact whoever runs the service."
+          }
+        }
+      }
+    },
+    "Underrubrik": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subtitle"
+          }
+        }
+      }
+    },
+    "Underrubriken är för lång": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The subtitle is too long"
+          }
+        }
+      }
+    },
+    "Uppgifter till Apple": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Details for Apple"
+          }
+        }
+      }
+    },
+    "Upphovsrättsinnehavare (valfritt)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copyright holder (optional)"
+          }
+        }
+      }
+    },
+    "Uppladdningen misslyckades. Försök igen om en stund.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The upload failed. Try again in a while."
+          }
+        }
+      }
+    },
+    "Utbildning": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Education"
+          }
+        }
+      }
+    },
+    "Utvecklarverktyg": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Developer Tools"
+          }
+        }
+      }
+    },
+    "Vad vill du bygga?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What do you want to build?"
+          }
+        }
+      }
+    },
+    "Verktyg": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Utilities"
+          }
+        }
+      }
+    },
+    "Version %@ är uppladdad. Kontoägaren är tillagd som testare, så appen dyker upp i TestFlight-appen när Apple har bearbetat den, oftast efter några minuter.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version %@ is uploaded. The account holder has been added as a tester, so the app shows up in the TestFlight app once Apple has processed it, usually after a few minutes."
+          }
+        }
+      }
+    },
+    "Version %@ är uppladdad. Lägg till dig som testare under TestFlight i App Store Connect, så dyker den upp i TestFlight-appen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Version %@ is uploaded. Add yourself as a tester under TestFlight in App Store Connect, and it shows up in the TestFlight app."
+          }
+        }
+      }
+    },
+    "Visa integritetspolicyn": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show the privacy policy"
+          }
+        }
+      }
+    },
+    "Visa supportsidan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show the support page"
+          }
+        }
+      }
+    },
+    "Vy": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View"
+          }
+        }
+      }
+    },
+    "Väder": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Weather"
+          }
+        }
+      }
+    },
+    "Välj ikon": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose icon"
+          }
+        }
+      }
+    },
+    "Välj kategori": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a category"
+          }
+        }
+      }
+    },
+    "Välj nyckelfilen (.p8)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose the key file (.p8)"
+          }
+        }
+      }
+    },
+    "Väljer bygge": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selecting the build"
+          }
+        }
+      }
+    },
+    "Vänta tills appen är färdigbyggd i chatten.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wait until the app has finished building in the chat."
+          }
+        }
+      }
+    },
+    "Vänta tills det pågående arbetet är klart.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wait until the work in progress is done."
+          }
+        }
+      }
+    },
+    "Väntar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting"
+          }
+        }
+      }
+    },
+    "Väntar på appen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for the app"
+          }
+        }
+      }
+    },
+    "Väntar på en ledig simulator": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting for a free simulator"
+          }
+        }
+      }
+    },
+    "Väntar på tur": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting in line"
+          }
+        }
+      }
+    },
+    "Webbplats, https:// (valfritt)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Website, https:// (optional)"
+          }
+        }
+      }
+    },
+    "Webbplatsen måste vara en adress som börjar med https://": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The website must be an address starting with https://"
+          }
+        }
+      }
+    },
+    "en del av appen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "a part of the app"
+          }
+        }
+      }
+    },
+    "Ändrad %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Changed %@"
+          }
+        }
+      }
+    },
+    "Öppna App Store Connect": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open App Store Connect"
+          }
+        }
+      }
+    },
+    "Öppna i TestFlight": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open in TestFlight"
+          }
+        }
+      }
+    },
+    "Öppna nyckelsidan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open the key page"
+          }
+        }
+      }
+    },
+    "Öppnar versionen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Opening the version"
+          }
+        }
+      }
+    },
+    "• %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "• %@"
+          }
+        }
+      }
+    },
+    "• Ange om appen visar material från andra.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "• Say whether the app shows material from others."
+          }
+        }
+      }
+    },
+    "• Ange om appen är en medicinteknisk produkt (App Compliance). För en vanlig app är svaret nej.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "• Say whether the app is a regulated medical device (App Compliance). For an ordinary app the answer is no."
+          }
+        }
+      }
+    },
+    "• Svara på frågorna om integritet (App Privacy).": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "• Answer the privacy questions (App Privacy)."
+          }
+        }
+      }
+    },
+    "• Svara på frågorna om åldersgräns.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "• Answer the age rating questions."
+          }
+        }
+      }
+    },
+    "• Välj pris och länder.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "• Choose a price and countries."
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

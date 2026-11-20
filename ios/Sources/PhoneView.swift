@@ -3,8 +3,12 @@ import SwiftUI
 
 struct PhoneView: View {
   let store: ProjectStore
+  let api: API
 
   @State private var typed = ""
+  /// What saving the screen as an App Store picture led to, shown for a moment.
+  @State private var captureNote: (text: String, failed: Bool)?
+  @State private var isCapturing = false
   @State private var touchStart: Date?
 
   private var canInput: Bool { store.preview.canInput && store.preview.status == .running }
@@ -25,9 +29,17 @@ struct PhoneView: View {
           Button("Radera", systemImage: "delete.left") { store.input(.key(.backspace)) }
           Button("Retur", systemImage: "return") { store.input(.key(.enter)) }
           Button("Hem", systemImage: "house") { store.input(.home) }
+          Button("Spara som App Store-bild", systemImage: "camera") { capture() }
+            .disabled(isCapturing)
         }
         .labelStyle(.iconOnly)
         .padding(.horizontal)
+        if let captureNote {
+          Text(captureNote.text)
+            .font(.footnote)
+            .foregroundStyle(captureNote.failed ? .red : .secondary)
+            .padding(.horizontal)
+        }
       } else if store.preview.status == .running {
         Text("Endast visning: tryck och text skickas inte till simulatorn just nu.")
           .font(.footnote)
@@ -121,6 +133,20 @@ struct PhoneView: View {
           store.input(.swipe(x1: from.x, y1: from.y, x2: to.x, y2: to.y, durationMs: durationMs))
         }
       }
+  }
+
+  /// Saves what the simulator shows right now as a screenshot for the App Store page.
+  private func capture() {
+    isCapturing = true
+    Task {
+      defer { isCapturing = false }
+      do throws(APIError) {
+        let state = try await api.captureScreenshot(store.id)
+        captureNote = (String(localized: "Sparad som App Store-bild (\(state.screenshots.count) av 10)."), false)
+      } catch {
+        captureNote = (Texts.apiError(error.code), true)
+      }
+    }
   }
 
   private func sendTyped() {

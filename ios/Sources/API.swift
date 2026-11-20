@@ -41,12 +41,17 @@ struct API {
     let _: Empty = try await request(method, path, body: Data("{}".utf8))
   }
 
-  private func request<Response: Decodable>(_ method: String, _ path: String, body: Data?) async throws(APIError) -> Response {
+  private func request<Response: Decodable>(
+    _ method: String,
+    _ path: String,
+    body: Data?,
+    contentType: String = "application/json"
+  ) async throws(APIError) -> Response {
     var request = URLRequest(url: baseURL.appending(path: path))
     request.httpMethod = method
     if let body {
       request.httpBody = body
-      request.setValue("application/json", forHTTPHeaderField: "content-type")
+      request.setValue(contentType, forHTTPHeaderField: "content-type")
     }
 
     let data: Data
@@ -156,5 +161,100 @@ extension API {
 
   func sendToTestFlight(_ id: String) async throws(APIError) {
     try await send("POST", "api/projects/\(id)/testflight")
+  }
+
+  func files(_ id: String) async throws(APIError) -> [String: String] {
+    struct Files: Decodable { let files: [String: String] }
+    let answer: Files = try await get("api/projects/\(id)/files")
+    return answer.files
+  }
+
+  /// Prepares the public TestFlight link again, with contact details when those were what was missing.
+  func shareAgain(_ id: String, contact: ReviewContact? = nil) async throws(APIError) {
+    struct Body: Encodable { let contact: ReviewContact? }
+    let _: Empty = try await send("POST", "api/projects/\(id)/testlink", body: Body(contact: contact))
+  }
+
+  func operatorRequests() async throws(APIError) -> [AppRequest] {
+    struct Requests: Decodable { let requests: [AppRequest] }
+    let answer: Requests = try await get("api/operator/requests")
+    return answer.requests
+  }
+}
+
+// MARK: - App Store page
+
+extension API {
+  func store(_ id: String) async throws(APIError) -> StoreState {
+    try await get("api/projects/\(id)/store")
+  }
+
+  func saveStore(_ id: String, listing: StoreListing, choices: StoreChoices, contact: ReviewContact, pages: StorePages) async throws(APIError) -> StoreState {
+    struct Page: Encodable {
+      let listing: StoreListing
+      let choices: StoreChoices
+      let contact: ReviewContact
+      let pages: StorePages
+    }
+    return try await send("PUT", "api/projects/\(id)/store/listing", body: Page(listing: listing, choices: choices, contact: contact, pages: pages))
+  }
+
+  func draftStore(_ id: String) async throws(APIError) -> StoreDraft {
+    try await request("POST", "api/projects/\(id)/store/draft", body: Data("{}".utf8))
+  }
+
+  func captureScreenshot(_ id: String) async throws(APIError) -> StoreState {
+    try await request("POST", "api/projects/\(id)/store/screenshots", body: Data("{}".utf8))
+  }
+
+  func deleteScreenshot(_ id: String, shot: String) async throws(APIError) -> StoreState {
+    try await request("DELETE", "api/projects/\(id)/store/screenshots/\(shot)", body: nil)
+  }
+
+  func screenshotURL(_ id: String, shot: String) -> URL {
+    baseURL.appending(path: "api/projects/\(id)/store/screenshots/\(shot)")
+  }
+
+  func iconURL(_ id: String) -> URL {
+    baseURL.appending(path: "api/projects/\(id)/store/icon")
+  }
+
+  /// The icon as a 1024 px PNG.
+  func uploadIcon(_ id: String, png: Data) async throws(APIError) -> StoreState {
+    try await request("PUT", "api/projects/\(id)/store/icon", body: png, contentType: "image/png")
+  }
+
+  func deleteIcon(_ id: String) async throws(APIError) -> StoreState {
+    try await request("DELETE", "api/projects/\(id)/store/icon", body: nil)
+  }
+
+  func syncStore(_ id: String) async throws(APIError) -> StoreState {
+    try await request("POST", "api/projects/\(id)/store/sync", body: Data("{}".utf8))
+  }
+
+  func submitStore(_ id: String) async throws(APIError) -> StoreState {
+    try await request("POST", "api/projects/\(id)/store/submit", body: Data("{}".utf8))
+  }
+}
+
+// MARK: - The person's own Apple developer account
+
+extension API {
+  func appleAccount() async throws(APIError) -> AppleStatus {
+    try await get("api/apple-account")
+  }
+
+  func connectApple(key: String, keyID: String, issuerID: String, teamID: String) async throws(APIError) -> AppleStatus {
+    struct Body: Encodable {
+      let key: String
+      let keyId: String
+      let issuerId: String
+      let teamId: String
+    }
+    return try await send("PUT", "api/apple-account", body: Body(key: key, keyId: keyID, issuerId: issuerID, teamId: teamID))
+  }
+
+  func disconnectApple() async throws(APIError) -> AppleStatus {
+    try await request("DELETE", "api/apple-account", body: nil)
   }
 }

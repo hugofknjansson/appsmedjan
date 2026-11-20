@@ -72,6 +72,50 @@ private func summary() -> ProjectSummary {
     #expect(note.text.contains("app.appsmedjan.pabc") && !note.failed)
   }
 
+  @Test func `the public test link arrives with the upload state`() throws {
+    store.apply(try event("""
+      {"type":"publish","publish":{"available":true,"account":"operator","canConnect":true,"status":"uploaded","build":"202611200902",
+       "operator":false,"test":{"status":"approved","url":"https://testflight.apple.com/join/AbCd1234","build":"202611200902","at":1}}}
+      """))
+    #expect(store.publish.test?.status == .approved)
+    #expect(store.publish.test?.url == "https://testflight.apple.com/join/AbCd1234")
+    #expect(store.publish.operator == false)
+
+    store.apply(try event(#"{"type":"publish","publish":{"available":true,"account":"operator","canConnect":true,"status":"uploaded","test":{"status":"needs_contact"}}}"#))
+    #expect(store.publish.test?.status == .needsContact)
+    // A status this version has never heard of is treated as "nothing yet", not as a broken message.
+    store.apply(try event(#"{"type":"publish","publish":{"available":true,"account":"own","canConnect":true,"status":"uploaded","test":{"status":"teleporting"}}}"#))
+    #expect(store.publish.test?.status == TestLink.Status.none)
+  }
+
+  @Test func `the App Store page is read as the server sends it`() throws {
+    let json = """
+      {"listing":{"name":"Borstkoll","subtitle":"","promo":"","description":"En timer.","keywords":"timer","supportUrl":"https://x.example/s",
+        "marketingUrl":"","privacyUrl":"https://x.example/p","category":"HEALTH_AND_FITNESS"},
+       "screenshots":["a1","b2"],"hasIcon":false,"canCapture":true,"available":true,"account":"operator","problems":["subtitle_long"],
+       "build":"202611200729","choices":{"noMatureContent":true,"noThirdPartyContent":false,"free":true},
+       "pages":{"hosted":true,"supportEmail":"hjalp@x.example","privacyText":"Allt sparas på telefonen.","lang":"sv"},
+       "contact":{"firstName":"Hugo","lastName":"Jansson","phone":"+46 70 123 45 67","email":"hugo@x.example","holder":""},
+       "canSubmit":false,"submit":{"status":"failed","error":"rejected","detail":"You must declare whether your app is a regulated medical device."},
+       "sync":{"status":"done","attached":"attached","at":1}}
+      """
+    let state = try JSONDecoder().decode(StoreState.self, from: Data(json.utf8))
+    #expect(state.screenshots == ["a1", "b2"] && state.choices.noMatureContent && state.pages.hosted)
+    #expect(state.sync.status == .done && state.sync.attached == "attached")
+    #expect(state.contact.problem == nil)
+    #expect(Texts.refusalHints(state.submit.detail ?? "").count == 1)
+    #expect(Texts.listingProblem("subtitle_long") != "subtitle_long")
+  }
+
+  @Test(arguments: [
+    (ReviewContact(firstName: "", lastName: "Jansson", phone: "+46 70 123 45 67", email: "a@b.se"), ReviewContact.Problem.name),
+    (ReviewContact(firstName: "Hugo", lastName: "Jansson", phone: "070 123 45 67", email: "a@b.se"), .phone),
+    (ReviewContact(firstName: "Hugo", lastName: "Jansson", phone: "+46 70 123 45 67", email: "a(at)b.se"), .email),
+  ])
+  func `contact details say what is wrong with them`(contact: ReviewContact, problem: ReviewContact.Problem) {
+    #expect(contact.problem == problem)
+  }
+
   @Test(arguments: [
     (InputEvent.tap(x: 0.5, y: 0.25), #"{"kind":"tap","x":0.5,"y":0.25}"#),
     (InputEvent.text("hej"), #"{"kind":"text","text":"hej"}"#),

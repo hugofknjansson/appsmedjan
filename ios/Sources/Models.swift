@@ -162,8 +162,156 @@ nonisolated struct PublishState: Decodable, Equatable {
   var tester: String?
   /// When the status last changed, in milliseconds since 1970.
   var at: Double?
+  /// The public TestFlight link for installing the app. Missing from servers before it existed.
+  var test: TestLink?
+  /// True when the signed-in person runs the service, and so creates apps in App Store Connect.
+  var `operator`: Bool?
 
   static let none = PublishState(available: false, account: .none, canConnect: false, status: .idle)
+}
+
+/// A public TestFlight link: anyone who opens it can install the app, without a developer account.
+nonisolated struct TestLink: Decodable, Equatable {
+  nonisolated enum Status: String, LenientEnum {
+    case none, working, processing, review, approved, rejected, failed
+    case needsContact = "needs_contact"
+    static let fallback = Status.none
+  }
+
+  var status: Status
+  /// The address to open. Only useful once the status is approved.
+  var url: String?
+  var build: String?
+  var error: String?
+  var detail: String?
+}
+
+// MARK: - App Store page
+
+/// The texts and links of the app's page on the App Store.
+nonisolated struct StoreListing: Codable, Equatable {
+  var name = ""
+  var subtitle = ""
+  var promo = ""
+  var description = ""
+  var keywords = ""
+  var supportUrl = ""
+  var marketingUrl = ""
+  var privacyUrl = ""
+  var category = ""
+
+  /// Apple's limits, in characters.
+  nonisolated enum Limit {
+    static let name = 30
+    static let subtitle = 30
+    static let promo = 170
+    static let description = 4000
+    static let keywords = 100
+    static let policy = 12_000
+  }
+}
+
+/// What the person states about the app. Each is only acted on when it is true.
+nonisolated struct StoreChoices: Codable, Equatable {
+  var noMatureContent = false
+  var noThirdPartyContent = false
+  var free = true
+}
+
+/// A support page and a privacy policy shown by the service, for people without a website of their own.
+nonisolated struct StorePages: Codable, Equatable {
+  var hosted = false
+  var supportEmail = ""
+  var privacyText = ""
+  var lang = "en"
+}
+
+/// Who Apple's reviewers can reach about the app. Kept per person, used for all their apps.
+nonisolated struct ReviewContact: Codable, Equatable {
+  var firstName = ""
+  var lastName = ""
+  var phone = ""
+  var email = ""
+  var holder = ""
+
+  /// The first thing that keeps the details from being used, or nil when they are complete.
+  var problem: Problem? {
+    if firstName.trimmingCharacters(in: .whitespaces).isEmpty || lastName.trimmingCharacters(in: .whitespaces).isEmpty { return .name }
+    if phone.trimmingCharacters(in: .whitespaces).wholeMatch(of: /\+[0-9][0-9 ()\-]{6,24}/) == nil { return .phone }
+    if email.trimmingCharacters(in: .whitespaces).wholeMatch(of: /[^\s@]+@[^\s@]+\.[^\s@]+/) == nil { return .email }
+    return nil
+  }
+
+  nonisolated enum Problem { case name, phone, email }
+}
+
+/// Everything the App Store guide shows, as the server holds it.
+nonisolated struct StoreState: Decodable, Equatable {
+  nonisolated struct Progress: Decodable, Equatable {
+    nonisolated enum Status: String, LenientEnum {
+      case idle, working, done, failed
+      static let fallback = Status.idle
+    }
+
+    var status: Status
+    var stage: String?
+    var error: String?
+    var detail: String?
+    /// attached, processing or none: whether the uploaded build is selected for the version.
+    var attached: String?
+  }
+
+  var listing: StoreListing
+  /// Ids of the saved screenshots, in display order.
+  var screenshots: [String]
+  var hasIcon: Bool
+  var canCapture: Bool
+  var available: Bool
+  var account: PublishState.Account
+  /// Codes for what stops the page from being sent ("name_missing", "screenshots").
+  var problems: [String]
+  var build: String?
+  var choices: StoreChoices
+  var pages: StorePages
+  var contact: ReviewContact
+  var canSubmit: Bool
+  var submit: Progress
+  var sync: Progress
+}
+
+/// A suggestion for the page's texts, written from the app's code.
+nonisolated struct StoreDraft: Decodable {
+  nonisolated struct Texts: Decodable {
+    var name: String?
+    var subtitle: String?
+    var promo: String?
+    var description: String?
+    var keywords: String?
+    var category: String?
+  }
+
+  var draft: Texts
+  var ageRatingNotes: [String]
+  var privacyPolicy: String
+}
+
+// MARK: - The person's own Apple developer account
+
+nonisolated struct AppleStatus: Decodable, Equatable {
+  var enabled: Bool
+  var connected: Bool
+  var teamId: String?
+  var keyId: String?
+}
+
+/// An app someone is waiting for the operator to create in App Store Connect.
+nonisolated struct AppRequest: Decodable, Identifiable, Equatable {
+  var projectId: String
+  var name: String
+  var bundleId: String
+  var email: String
+
+  var id: String { projectId }
 }
 
 // MARK: - Events from the server

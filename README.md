@@ -401,23 +401,38 @@ var 25:e sekund, annars kopplar Flys proxy ner en tyst arbetare efter ungefär e
 
 ## iPhone-appen
 
-`ios/` innehåller en första version av Appsmedjan som iPhone-app (SwiftUI, iOS 17+): logga in eller
-skapa konto, se och skapa appar, chatta med agenten medan den arbetar, se simulatorns skärm och styra
-den med tryck, svep och text, samt skicka appen till TestFlight. Den pratar med samma server som
-webbklienten, över samma API och WebSocket.
+`ios/` är en SwiftUI-klient för samma server, med samma flöden som webbklienten:
+
+- logga in eller skapa konto, se och skapa appar
+- chatta med agenten och följa stegen medan den arbetar
+- se simulatorns skärm, trycka, svepa och skriva i den, och spara skärmbilder till App Store
+- läsa appens källkod
+- göra appen installerbar via en publik TestFlight-länk, och öppna länken direkt
+- App Store-guiden: texter med förslag från Claude, supportsida och integritetspolicy, skärmbilder,
+  ikon (valfri bild görs om till rätt format), uppgifter till Apple, skicka sidan och skicka in
+- koppla ett eget Apple-utvecklarkonto, med nyckelfilen vald från Filer
+- för den som driver tjänsten: listan över appar att skapa i App Store Connect
+
+Appen är på svenska och engelska (`Sources/Localizable.xcstrings`). Ikonen ritas av
+`scripts/ios-icon.swift`.
+
+Bygg och kör i simulatorn (kräver Xcode 26 eller senare och XcodeGen):
 
 ```bash
 cd ios && xcodegen generate && open Appsmedjan.xcodeproj
 ```
 
-Appen ansluter till `https://appsmedjan.fly.dev`. En utvecklingsbyggnad kan peka på en annan server med
-startargumentet `-serverURL http://localhost:8787`. Xcode-projektet och `Info.plist` genereras av
-XcodeGen från `ios/project.yml` och är inte incheckade.
+Appen pratar med `https://appsmedjan.fly.dev`. En utvecklingsbygge kan pekas mot en annan server med
+startargumentet `-serverURL http://localhost:8787`, och startas inloggad med `-sessionCookie <värdet
+av serverns sid-kaka>` (finns bara i Debug).
 
-Saknas ännu: kodvyn, koppling av eget Apple-konto (görs på webben), engelsk översättning, appikon, och
-signering för riktig telefon. Enhetstesterna (`Tests/ProtocolTests.swift`) täcker tolkningen av serverns
-meddelanden; flödet konto, ny app, chatt, förhandsvisning och hemknapp är provkört i simulatorn mot en
-riktig byggarbetare.
+För en riktig telefon eller TestFlight behövs ditt team: `APPLE_TEAM_ID=XXXXXXXXXX xcodegen generate`,
+och sedan arkivering i Xcode. Bundle-id:t är `app.appsmedjan.ios`.
+
+Kört i simulatorn mot en teststack med låtsasarbetare: inloggad start, installationsflödet fram till
+"Öppna i TestFlight", App Store-guidens formulär, kodvyn och engelska. **Inte kört**: appen på en
+riktig telefon, koppling av Apple-konto, ikonval från bildbiblioteket, skärmbildsknappen och att
+skicka sidan från appen. Tio enhetstester täcker tolkningen av serverns meddelanden.
 
 ## Tester
 

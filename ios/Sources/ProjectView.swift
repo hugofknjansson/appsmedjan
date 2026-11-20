@@ -1,16 +1,21 @@
 import SwiftUI
 
 struct ProjectView: View {
-  private enum Pane: Hashable { case chat, preview }
+  private enum Pane: Hashable { case chat, preview, code }
+  private enum Sheet: String, Identifiable {
+    case install, store
+    var id: String { rawValue }
+  }
 
   @State private var store: ProjectStore
   @State private var pane = Pane.chat
-  @State private var isConfirmingUpload = false
-  @State private var noteText: String?
+  @State private var sheet: Sheet?
   @Environment(\.dismiss) private var dismiss
+  private let api: API
 
   init(project: ProjectSummary, api: API) {
     _store = State(initialValue: ProjectStore(project: project, api: api))
+    self.api = api
   }
 
   var body: some View {
@@ -18,63 +23,46 @@ struct ProjectView: View {
       Picker("Vy", selection: $pane) {
         Text("Chatt").tag(Pane.chat)
         Text("Förhandsvisning").tag(Pane.preview)
+        Text("Kod").tag(Pane.code)
       }
       .pickerStyle(.segmented)
       .padding(.horizontal)
       .padding(.vertical, 8)
 
-      if let note = noteText.map({ (text: $0, failed: true) }) ?? Texts.publishNote(store.publish) {
-        Text(note.text)
-          .font(.footnote)
-          .foregroundStyle(note.failed ? .red : .primary)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(.horizontal)
-          .padding(.vertical, 8)
-          .background(note.failed ? Color.red.opacity(0.1) : Color.forge.opacity(0.12))
-      }
-
       switch pane {
       case .chat: ChatView(store: store)
-      case .preview: PhoneView(store: store)
+      case .preview: PhoneView(store: store, api: api)
+      case .code: CodeView(store: store, api: api)
       }
     }
     .navigationTitle(store.name)
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
       ToolbarItem(placement: .topBarTrailing) {
-        if store.publish.status == .working {
-          Text(Texts.publishStage(store.publish.stage))
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-        } else if store.publish.available {
-          Button("Till TestFlight") { isConfirmingUpload = true }
-            .disabled(store.isRunning)
+        Menu {
+          Button("Installera på telefonen", systemImage: "arrow.down.app") { sheet = .install }
+          Button("App Store", systemImage: "bag") { sheet = .store }
+        } label: {
+          if store.publish.status == .working {
+            Label(Texts.publishStage(store.publish.stage), systemImage: "arrow.up.circle")
+          } else {
+            Label("Publicera", systemImage: "square.and.arrow.up")
+          }
         }
       }
     }
-    .confirmationDialog("Skicka \(store.name) till TestFlight?", isPresented: $isConfirmingUpload, titleVisibility: .visible) {
-      Button("Skicka") { upload() }
-    } message: {
-      Text(store.publish.account == .own
-        ? "Appen laddas upp till ditt eget Apple-utvecklarkonto."
-        : "Appen laddas upp till tjänstens Apple-utvecklarkonto.")
+    .navigationDestination(for: SourceFile.self) { SourceFileView(file: $0) }
+    .sheet(item: $sheet) { sheet in
+      switch sheet {
+      case .install: InstallView(store: store, api: api)
+      case .store: StoreView(projectID: store.id, api: api)
+      }
     }
     .alert("Appen hittades inte.", isPresented: .constant(store.isMissing)) {
       Button("Alla appar") { dismiss() }
     }
     // The connection lives exactly as long as this screen is open.
     .task { await store.run() }
-  }
-
-  private func upload() {
-    noteText = nil
-    Task {
-      do throws(APIError) {
-        try await store.sendToTestFlight()
-      } catch {
-        noteText = Texts.apiError(error.code)
-      }
-    }
   }
 }
 

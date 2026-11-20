@@ -4,6 +4,7 @@ name: Appsmedjan
 options:
   createIntermediateGroups: true
   developmentLanguage: sv
+  knownRegions: [sv, en]
   deploymentTarget:
     iOS: "17.0"
 settings:
@@ -12,8 +13,10 @@ settings:
     # Everything in a UI app starts on the main actor; concurrency is added only where it is needed.
     SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
     SWIFT_APPROACHABLE_CONCURRENCY: YES
-    MARKETING_VERSION: "0.1"
+    MARKETING_VERSION: "1.0"
     CURRENT_PROJECT_VERSION: "1"
+    # Lets Xcode see the strings in the code, so the string catalog can be checked against them.
+    SWIFT_EMIT_LOC_STRINGS: YES
 targets:
   Appsmedjan:
     type: application
@@ -24,6 +27,9 @@ targets:
       path: Info.plist
       properties:
         CFBundleDisplayName: Appsmedjan
+        CFBundleLocalizations: [sv, en]
+        # Only what iOS itself provides (https); saves a question at every upload.
+        ITSAppUsesNonExemptEncryption: false
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         # Lets a development build talk to a server on this Mac over plain http. Other hosts need https.
@@ -33,6 +39,11 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.appsmedjan.ios
         TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        # For a real phone or TestFlight: `APPLE_TEAM_ID=XXXXXXXXXX xcodegen generate`. Empty is fine for the simulator.
+        DEVELOPMENT_TEAM: ${APPLE_TEAM_ID}
+        CODE_SIGN_STYLE: Automatic
     scheme:
       testTargets: [AppsmedjanTests]
   AppsmedjanTests:
