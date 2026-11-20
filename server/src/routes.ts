@@ -166,7 +166,16 @@ api.get('/status', requireUser, (_req, res) => {
 const publicProject = (p: db.Project) => ({ id: p.id, name: p.name, updatedAt: p.updatedAt, icon: db.iconChangedAt(p.id) });
 
 api.get('/projects', requireUser, (req, res) => {
-  res.json({ projects: db.listProjects((req as Authed).user.id).map(publicProject) });
+  const projects = db.listProjects((req as Authed).user.id);
+  // Apps from before icons were always made get their stand-in the first time they are listed.
+  for (const project of projects) {
+    try {
+      ensureIcon(project.id);
+    } catch (err) {
+      console.warn(`[icon] ${project.id}: no stand-in icon (${(err as Error).message})`);
+    }
+  }
+  res.json({ projects: projects.map(publicProject) });
 });
 
 function promptFrom(body: unknown): string | null {
