@@ -125,7 +125,7 @@ Vad som finns att hyra (priser från leverantörernas sidor i november 2026, kon
 |---|---|---|---|---|
 | Scaleway | Mac mini M4, 16 GB, 256 GB | 0,22 €/timme, cirka 149 €/månad | 24 timmar | Paris |
 | MacStadium | Mac mini M4, 16 GB, 256 GB | 149 $/månad | per månad, i förskott | ej angivet |
-| OakHost | Apple silicon, se deras sida | ej angivet | per månad, eller en vecka på prov | Tyskland |
+| OakHost | Mac mini M6, 16 GB, 256 GB | 120 €/månad exkl. moms | per månad, 14 dagars ångerrätt på första beställningen | Tyskland |
 
 Scaleway är enklast att börja med, eftersom en provdag kostar runt 5 €. En Mac går inte att stänga av
 mellan användningarna för att spara pengar: den kostar lika mycket oavsett om någon bygger.
@@ -152,8 +152,13 @@ Så här sätter du upp en ny Mac, över SSH eller skärmdelning:
    xcodes install 26.3
    ```
 
+   Över SSH är nyckelringen låst, och då kan xcodes inte spara inloggningen. Lås upp den i samma
+   kommando: `security unlock-keychain ~/Library/Keychains/login.keychain-db && xcodes install <version>`.
+   xcodes godkänner licensen och gör förstagångsinställningen själv, men lägger Xcode under ett namn
+   med versionsnummer, så peka ut det och hämta simulatorn:
+
    ```bash
-   sudo xcodebuild -license accept && sudo xcodebuild -runFirstLaunch && xcodebuild -downloadPlatform iOS
+   sudo xcode-select -s /Applications/Xcode-<version>.app && xcodebuild -downloadPlatform iOS
    ```
 
 2. Se till att användaren som ska köra arbetaren är inloggad på skrivbordet, med automatisk inloggning
@@ -182,9 +187,17 @@ Kör därför förhandsvisningar och uppladdningar till TestFlight under två ol
 skriptet men inte körd på en riktig hyrd Mac; signering under en användare utan egen skärmsession kan
 kräva att nyckelringen låses upp för hand.
 
-Skriptet är provkört på en Mac som redan har Xcode: kontrollen, inställningsfilen, startskriptet i
-launchd:s avskalade miljö och den genererade launchd-filen. Själva installationen på en ny, hyrd Mac
-är **inte körd**.
+Installationen är körd på en hyrd Mac mini M6 hos OakHost (macOS 27.2, Xcode 27.2) med
+`--role preview`: från en tom maskin till en arbetare som bygger, startar simulatorn, tar emot tryck
+och text och strömmar bild. Tre saker att känna till därifrån:
+
+- Maskinen levereras med lösenordsinloggning över SSH. Lägg in en nyckel med `ssh-copy-id` först.
+- Homebrew, `xcodes install` och `xcode-select` frågar efter administratörslösenordet och måste köras
+  i en egen terminal (`ssh -t`). Resten går att köra utan.
+- `sudo sysadminctl -autologin set` över SSH gav fel (`SACSetAutoLoginPassword error:22`). Slå på
+  automatisk inloggning i Systeminställningar över skärmdelning i stället.
+
+`--role signing` på en hyrd Mac är **inte kört**.
 
 ### Skicka appar till TestFlight
 
