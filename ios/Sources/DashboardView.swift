@@ -60,7 +60,7 @@ struct DashboardView: View {
           ForEach(projects) { project in
             NavigationLink(value: project) {
               HStack(spacing: 14) {
-                AppTile(name: project.name, seed: project.id)
+                AppTile(name: project.name, seed: project.id, icon: model.api.iconURL(project.id, changedAt: project.icon))
                 VStack(alignment: .leading, spacing: 2) {
                   Text(project.name).font(.headline)
                   Text("Ändrad \(project.updated.formatted(date: .abbreviated, time: .omitted))")

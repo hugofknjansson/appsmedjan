@@ -112,6 +112,8 @@ struct AppTile: View {
   let name: String
   /// Decides the colour and the tilt, so an app keeps its look when it is renamed.
   let seed: String
+  /// The app's own icon, shown in place of the letter once it has loaded.
+  var icon: URL?
 
   private static let palette: [Color] = [
     Color(red: 0.93, green: 0.42, blue: 0.10), Color(red: 0.89, green: 0.27, blue: 0.47), Color(red: 0.55, green: 0.36, blue: 0.87),
@@ -121,16 +123,31 @@ struct AppTile: View {
   private var number: Int { seed.utf8.reduce(0) { ($0 &* 31 &+ Int($1)) & 0xffff } }
 
   var body: some View {
-    RoundedRectangle(cornerRadius: 13, style: .continuous)
+    Group {
+      if let icon {
+        AsyncImage(url: icon) { image in
+          image.resizable()
+        } placeholder: {
+          letter
+        }
+      } else {
+        letter
+      }
+    }
+    .frame(width: 46, height: 46)
+    .clipShape(.rect(cornerRadius: 13, style: .continuous))
+    .rotationEffect(.degrees(number % 2 == 0 ? -7 : 7))
+    .accessibilityHidden(true)
+  }
+
+  private var letter: some View {
+    Rectangle()
       .fill(Self.palette[number % Self.palette.count].gradient)
-      .frame(width: 46, height: 46)
       .overlay {
         Text(name.trimmingCharacters(in: .whitespaces).prefix(1).uppercased())
           .font(.title3.weight(.heavy))
           .foregroundStyle(.white)
       }
-      .rotationEffect(.degrees(number % 2 == 0 ? -7 : 7))
-      .accessibilityHidden(true)
   }
 }
 

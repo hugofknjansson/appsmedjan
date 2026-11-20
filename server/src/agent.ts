@@ -13,6 +13,7 @@ import {
 } from '../../shared/protocol';
 import { config } from './config';
 import * as db from './db';
+import { IconError, drawIcon } from './icon';
 import { addPart, appendText, send, upsertStep } from './live';
 import { buildProject } from './preview';
 import { SYSTEM_PROMPT } from './prompt';
@@ -108,6 +109,17 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
       required: ['name'],
     },
   },
+  {
+    name: 'set_app_icon',
+    description:
+      "Set the app's icon, the picture on the person's home screen, from an SVG you draw. One <svg viewBox=\"0 0 1024 1024\"> with a background that fills the whole square and one bold, simple motif. Plain shapes and gradients only: no text, no images, no scripts.",
+    eager_input_streaming: true,
+    input_schema: {
+      type: 'object',
+      properties: { svg: { type: 'string', description: 'The complete <svg> element, at most 20 000 characters.' } },
+      required: ['svg'],
+    },
+  },
 ];
 
 const Inputs = {
@@ -118,6 +130,7 @@ const Inputs = {
   build_and_run: z.object({}),
   view_screen: z.object({}),
   rename_app: z.object({ name: z.string().min(1) }),
+  set_app_icon: z.object({ svg: z.string().min(1) }),
 };
 type ToolName = keyof typeof Inputs;
 
@@ -129,6 +142,7 @@ const STEP_KIND: Record<ToolName, StepKind> = {
   build_and_run: 'build',
   view_screen: 'look',
   rename_app: 'rename',
+  set_app_icon: 'icon',
 };
 
 const isToolName = (name: string): name is ToolName => name in Inputs;
@@ -207,6 +221,18 @@ async function executeTool(name: ToolName, rawInput: unknown, run: RunState): Pr
       if (!shot) return { content: 'No screenshot is available right now.' };
       const media = shot.mime === 'image/png' ? 'image/png' : 'image/jpeg';
       return { content: [{ type: 'image', source: { type: 'base64', media_type: media, data: shot.data } }] };
+    }
+    case 'set_app_icon': {
+      const { svg } = Inputs.set_app_icon.parse(rawInput);
+      try {
+        if (drawIcon(projectId, svg) === 'kept_own') {
+          return { content: 'The person has chosen an icon of their own for this app, so it was kept. Do not try again.' };
+        }
+      } catch (err) {
+        if (err instanceof IconError) throw new ToolError(`The icon was not saved. ${err.message}`);
+        throw err;
+      }
+      return { content: 'The icon is saved.' };
     }
     case 'rename_app': {
       const name = Inputs.rename_app.parse(rawInput).name.replace(/\s+/g, ' ').trim().slice(0, 30);

@@ -130,12 +130,16 @@ private func summary() -> ProjectSummary {
   }
 
   // The dance must start and end every phrase in the icon's pose, or one move would jump into the next.
-  @Test(arguments: [0.0, 1, 2, 3, 4, 7])
+  @Test(arguments: [0.0, 1, 2, 3, 4, 5, 6, 11])
   func `every phrase of the dance starts in the pose of the icon`(phrase: Double) {
-    let pose = MascotPose(time: phrase * 4.6)
+    let pose = MascotPose(time: phrase * MascotPose.phrase)
     #expect(abs(pose.swing) < 0.001)
     #expect(abs(pose.lift) < 0.001)
     #expect(abs(pose.turn - 1) < 0.001)
+    #expect(abs(pose.slide) < 0.001)
+    #expect(abs(pose.wave) < 0.001)
+    #expect(abs(pose.stretch - 1) < 0.001)
+    #expect(abs(pose.gaze) < 0.001)
   }
 
   @Test func `the dance stays inside what the mascot can do`() {
@@ -144,6 +148,46 @@ private func summary() -> ProjectSummary {
       #expect((0...1).contains(pose.swing))
       #expect((0...2.2).contains(pose.lift))
       #expect((-1...1).contains(pose.turn))
+      #expect((-3...3).contains(pose.slide))
+      #expect((0.9...1.1).contains(pose.stretch))
+      #expect((-0.7...0.7).contains(pose.gaze))
     }
+  }
+
+  @Test func `the clues follow the builder's latest step`() {
+    var number = 0
+    func step(_ kind: Step.Kind, _ status: Step.Status = .done) -> Part {
+      number += 1
+      return .step(Step(id: "s\(number)", kind: kind, detail: "", status: status))
+    }
+    #expect(RunProgress(parts: []).phase == .thinking)
+    #expect(RunProgress(parts: [step(.rename), step(.icon, .running)]).phase == .drawing)
+    #expect(RunProgress(parts: [step(.write), step(.write), step(.write, .running)]).pieces == 2)
+    #expect(RunProgress(parts: [step(.write), step(.build, .running)]).phase == .trying)
+    #expect(RunProgress(parts: [step(.write), step(.build, .error), step(.edit, .running)]).phase == .fixing)
+    #expect(RunProgress(parts: [step(.write), step(.build, .error), step(.edit), step(.build), step(.edit, .running)]).phase == .making)
+    #expect(RunProgress(parts: [step(.write), step(.build), step(.look, .running)]).phase == .looking)
+    let run = [step(.write), step(.write), step(.icon), step(.build, .error), step(.edit), step(.build), step(.look)]
+    let way = run.indices.map { RunProgress(parts: Array(run[...$0])).fraction }
+    #expect(zip(way, way.dropFirst()).allSatisfy { $0 <= $1 })
+    #expect(way.last! <= 0.92)
+  }
+
+  @Test(arguments: [
+    ("Nu är din växtapp grön. Tryck på plus för att lägga till en växt.", "Nu är din växtapp grön."),
+    ("  Klart!\n\nTesta så här:\n- Tryck på ringen", "Klart!"),
+    ("Version 2.0 är klar. Mer text.", "Version 2.0 är klar."),
+    ("Utan punkt", "Utan punkt"),
+    ("", ""),
+  ])
+  func `the install question carries only the first sentence`(text: String, sentence: String) {
+    #expect(text.firstSentence() == sentence)
+  }
+
+  @Test func `a first sentence that runs on is cut at a word`() {
+    let long = ("Appen har " + String(repeating: "många kaféer i sju stadsdelar, ", count: 8) + "och mer.").firstSentence()
+    #expect(long.count <= 141)
+    #expect(long.hasSuffix("…"))
+    #expect(!long.hasSuffix(" …") && !long.hasSuffix(",…"))
   }
 }

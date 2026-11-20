@@ -30,47 +30,86 @@ export interface MascotPose {
   blink: number;
   /** 1 facing us, -1 facing away, and everything between while it spins on the spot. */
   turn: number;
+  /** How far it has slid to the side, in grid units. */
+  slide: number;
+  /** How far the raised arm has swung around its shoulder, in radians: a wave. */
+  wave: number;
+  /** 1 at its own height; below when it is squashed against the ground, above when stretched in the air. */
+  stretch: number;
+  /** How far the eyes have moved to the side, in grid units: it looks where it is going. */
+  gaze: number;
 }
 
-const LOGO: MascotPose = { swing: 0, lift: 0, blink: 0, turn: 1 };
+const LOGO: MascotPose = { swing: 0, lift: 0, blink: 0, turn: 1, slide: 0, wave: 0, stretch: 1, gaze: 0 };
 const BEAT = 1.15;
+/** Four beats. Every phrase starts and ends in the logo's pose, so one move flows into the next. */
+export const PHRASE = BEAT * 4;
 const BLINK_EVERY = 3.4;
 
 /**
- * The dance goes in phrases of four beats: the swing, a row of jumps, the swing again, a pirouette.
- * Every phrase starts and ends in the logo's pose, so one move flows into the next.
+ * The dance goes through six phrases: the swing, a row of jumps, the swing again, a pirouette, a wave
+ * and a slide from side to side. Cheering is the jumps, over and over.
  */
-export function mascotPose(time: number): MascotPose {
-  const phrase = BEAT * 4;
-  const local = (time % phrase) / phrase;
+export function mascotPose(time: number, cheering = false): MascotPose {
+  const local = (time % PHRASE) / PHRASE;
   const angle = (time / BEAT) * 2 * Math.PI;
   // A sine that lingers at both ends, so each pose is held for a moment before the swap.
-  const wave = (1 - Math.cos(angle)) / 2;
-  const swung = wave * wave * (3 - 2 * wave);
-  const blink = time % BLINK_EVERY < 0.13 ? 1 : 0;
-  switch (Math.floor(time / phrase) % 4) {
-    case 1:
-      // Jumps: both arms half-way up, straight up and down.
-      return { swing: 0.5 * Math.min(1, local / 0.12, (1 - local) / 0.12), lift: Math.abs(Math.sin(angle)) ** 0.8 * 2.2, blink, turn: 1 };
+  const sway = (1 - Math.cos(angle)) / 2;
+  const swung = sway * sway * (3 - 2 * sway);
+  // 0 at both ends of the phrase, 1 for most of it: what a move adds fades in and out.
+  const ease = Math.min(1, local / 0.12, (1 - local) / 0.12);
+  const hop = Math.abs(Math.sin(angle)) ** 3;
+  const pose: MascotPose = { ...LOGO, swing: swung, lift: hop, blink: time % BLINK_EVERY < 0.13 ? 1 : 0 };
+  switch (cheering ? 1 : Math.floor(time / PHRASE) % 6) {
+    case 1: {
+      // Jumps: both arms half-way up, straight up and down, squashed on landing and stretched in the air.
+      const height = Math.abs(Math.sin(angle)) ** 0.8;
+      pose.swing = 0.5 * ease;
+      pose.lift = height * 2.2;
+      pose.stretch = 1 + ease * (0.14 * height - 0.08);
+      break;
+    }
     case 3:
       // A pirouette: the swing goes on while it turns around twice.
-      return { swing: swung, lift: Math.abs(Math.sin(angle)) ** 3, blink, turn: Math.cos(local * 4 * Math.PI) };
-    default:
-      return { swing: swung, lift: Math.abs(Math.sin(angle)) ** 3, blink, turn: 1 };
+      pose.turn = Math.cos(local * 4 * Math.PI);
+      break;
+    case 4:
+      // A wave: it stands in the logo's pose, bobbing a little, and waves the arm it has in the air.
+      pose.swing = 0;
+      pose.lift = 0.3 * ease * Math.abs(Math.sin(angle));
+      pose.wave = ease * Math.sin(angle * 2) * 0.38;
+      pose.gaze = 0.35 * ease;
+      break;
+    case 5:
+      // A slide: the swing goes on while it glides out to one side, back, and out to the other.
+      pose.slide = Math.sin(local * 2 * Math.PI) * 3;
+      break;
   }
+  // The eyes follow the arm in the air.
+  pose.gaze += 0.3 * (1 - 2 * pose.swing) * ease;
+  return pose;
 }
 
 const round = (value: number) => Math.round(value * 100) / 100;
 
-function limbsPath(swing: number): string {
-  return LIMBS.map(([from, to]) => 'M' + from.map(([x, y], i) => `${round(x + (to[i]![0] - x) * swing)} ${round(y + (to[i]![1] - y) * swing)}`).join('L')).join('');
+function limbsPath(swing: number, wave = 0): string {
+  return LIMBS.map(([from, to], limb) => {
+    let points = from.map(([x, y], i): Point => [x + (to[i]![0] - x) * swing, y + (to[i]![1] - y) * swing]);
+    // The wave turns the raised arm around its shoulder.
+    if (limb === 0 && wave !== 0) {
+      const [sx, sy] = points[0]!;
+      points = points.map(([x, y]): Point => [sx + (x - sx) * Math.cos(wave) - (y - sy) * Math.sin(wave), sy + (x - sx) * Math.sin(wave) + (y - sy) * Math.cos(wave)]);
+    }
+    return 'M' + points.map(([x, y]) => `${round(x)} ${round(y)}`).join('L');
+  }).join('');
 }
 
-const hopOf = (pose: MascotPose) => `translate(0 ${round(-pose.lift * 1.3)})`;
+const hopOf = (pose: MascotPose) => `translate(${round(pose.slide)} ${round(-pose.lift * 1.3)})`;
 // Turning on the spot: the figure narrows to nothing and widens again as its mirror image.
+// Squashed, it is also a little wider; stretched, a little narrower. Both from where it stands.
 const turnOf = (pose: MascotPose) => {
-  const width = Math.abs(pose.turn) < 0.03 ? (pose.turn < 0 ? -0.03 : 0.03) : pose.turn;
-  return `translate(16 0) scale(${round(width)} 1) translate(-16 0)`;
+  const facing = Math.abs(pose.turn) < 0.03 ? (pose.turn < 0 ? -0.03 : 0.03) : pose.turn;
+  return `translate(16 27.2) scale(${round(facing * (1 + (1 - pose.stretch) * 0.6))} ${round(pose.stretch)}) translate(-16 -27.2)`;
 };
 // The tile leans into the step: ten degrees one way in the logo, ten the other in its mirror image.
 const leanOf = (pose: MascotPose) => `rotate(${round(10 * (1 - 2 * pose.swing))})`;
@@ -89,6 +128,8 @@ function useReducedMotion(): boolean {
 
 interface Props {
   dancing?: boolean;
+  /** Cheering instead of going through the dance: jumping with both arms in the air, for good news. */
+  cheering?: boolean;
   /** The tile and its arms and legs; the eyes. Any CSS colour. */
   tile?: string;
   eyes?: string;
@@ -96,10 +137,10 @@ interface Props {
 }
 
 /** Decoration: what it stands next to says what is going on. */
-export function Mascot({ dancing = false, tile = 'var(--accent)', eyes = '#fff', className }: Props) {
+export function Mascot({ dancing = false, cheering = false, tile = 'var(--accent)', eyes = '#fff', className }: Props) {
   // The hook is called on every render, whether the mascot dances or not: React needs the same hooks each time.
   const reduced = useReducedMotion();
-  const moves = dancing && !reduced;
+  const moves = (dancing || cheering) && !reduced;
   const hop = useRef<SVGGElement>(null);
   const turn = useRef<SVGGElement>(null);
   const limbs = useRef<SVGPathElement>(null);
@@ -110,13 +151,14 @@ export function Mascot({ dancing = false, tile = 'var(--accent)', eyes = '#fff',
     const show = (pose: MascotPose) => {
       hop.current?.setAttribute('transform', hopOf(pose));
       turn.current?.setAttribute('transform', turnOf(pose));
-      limbs.current?.setAttribute('d', limbsPath(pose.swing));
+      limbs.current?.setAttribute('d', limbsPath(pose.swing, pose.wave));
       lean.current?.setAttribute('transform', leanOf(pose));
       const open = eyeOf(pose);
-      for (const eye of lean.current?.querySelectorAll('.mascot-eye') ?? []) {
+      lean.current?.querySelectorAll('.mascot-eye').forEach((eye, i) => {
+        eye.setAttribute('x', String(round((i === 0 ? -3.05 : 1.55) + pose.gaze)));
         eye.setAttribute('height', String(round(open)));
         eye.setAttribute('y', String(round(-0.9 - open / 2)));
-      }
+      });
     };
     if (!moves) {
       show(LOGO);
@@ -125,12 +167,12 @@ export function Mascot({ dancing = false, tile = 'var(--accent)', eyes = '#fff',
     let frame = 0;
     const step = () => {
       // The clock is shared, so every mascot on the page dances in step.
-      show(mascotPose(Date.now() / 1000));
+      show(mascotPose(Date.now() / 1000, cheering));
       frame = requestAnimationFrame(step);
     };
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [moves]);
+  }, [moves, cheering]);
 
   return (
     <svg className={className ? `mascot ${className}` : 'mascot'} viewBox="0 0 32 32" aria-hidden="true">

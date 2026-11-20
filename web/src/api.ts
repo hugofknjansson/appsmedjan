@@ -18,6 +18,8 @@ export interface ProjectSummary {
   id: string;
   name: string;
   updatedAt: number;
+  /** When the app's icon last changed, or null while it has none. Missing from servers before icons were always made. */
+  icon?: number | null;
 }
 
 export interface AppleStatus {

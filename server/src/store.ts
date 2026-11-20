@@ -161,7 +161,7 @@ export function saveIcon(project: db.Project, data: Uint8Array): IconResult {
   const info = pngInfo(data);
   if (!info) return 'not_png';
   if (info.width !== STORE_ICON_SIZE || info.height !== STORE_ICON_SIZE) return 'wrong_size';
-  db.setIcon(project.id, data);
+  db.setIcon(project.id, data, 'own');
   return 'saved';
 }
 

@@ -12,6 +12,8 @@ nonisolated struct ProjectSummary: Codable, Hashable, Identifiable {
   var name: String
   /// Milliseconds since 1970, as JavaScript counts time.
   let updatedAt: Double
+  /// When the app's icon last changed, or nil while it has none (or the server is from before icons were always made).
+  var icon: Double?
 
   var updated: Date { Date(timeIntervalSince1970: updatedAt / 1000) }
 }
@@ -33,7 +35,7 @@ nonisolated extension LenientEnum {
 /// One visible action the agent took, shown as a small progress row.
 nonisolated struct Step: Decodable, Equatable, Identifiable {
   nonisolated enum Kind: String, LenientEnum {
-    case write, edit, delete, read, build, look, rename, other
+    case write, edit, delete, read, build, look, rename, icon, other
     static let fallback = Kind.other
   }
 
@@ -47,6 +49,40 @@ nonisolated struct Step: Decodable, Equatable, Identifiable {
   /// A file path, an app name, or empty. Phrased for people by `StepText`.
   let detail: String
   let status: Status
+}
+
+/// How far the builder has come, read off the steps it has taken so far: clues for the person who
+/// waits. The same reckoning as `runProgress` on the server's side.
+nonisolated struct RunProgress: Equatable {
+  nonisolated enum Phase { case thinking, making, drawing, trying, fixing, looking }
+
+  var phase = Phase.thinking
+  /// How many pieces of the app have been written or changed so far.
+  var pieces = 0
+  /// How far along the whole run is, between 0 and 1: a guess that only ever grows within a run.
+  var fraction = 0.05
+
+  init(parts: [Part]) {
+    let steps = parts.compactMap { part in
+      if case .step(let step) = part { step } else { nil }
+    }
+    pieces = steps.count { ($0.kind == .write || $0.kind == .edit) && $0.status != .running }
+    let tries = steps.count { $0.kind == .build }
+    if let latest = steps.last {
+      switch latest.kind {
+      case .build: phase = latest.status == .error ? .fixing : .trying
+      case .look: phase = .looking
+      case .icon: phase = .drawing
+      // Writing again after a try that did not work is fixing, until the next try.
+      default: phase = steps.last { $0.kind == .build }?.status == .error ? .fixing : .making
+      }
+    }
+    // Up to half for the writing (eight pieces count as plenty), then a share for each try. Never full:
+    // the run is over when the server says so.
+    let written = 0.5 * min(1, Double(pieces) / 8)
+    let tried = tries == 0 ? 0 : 0.25 + 0.15 * min(1, Double(tries - 1) / 3)
+    fraction = min(0.92, 0.05 + written + tried)
+  }
 }
 
 nonisolated enum Part: Decodable, Equatable {
@@ -193,6 +229,8 @@ nonisolated struct DirectInstall: Decodable, Equatable {
   var path: String?
   /// How far this phone has come with fetching the ready build: asked, fetching or fetched.
   var install: String?
+  /// True when the ready build is of the app as it is now. Nil from servers that do not say.
+  var fresh: Bool?
 
   /// Whether there is anything to show: the server offers it, or the person has used it before.
   var isShown: Bool { available || phones > 0 || status != .idle }

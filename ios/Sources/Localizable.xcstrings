@@ -691,6 +691,16 @@
         }
       }
     },
+    "Delar klara: %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pieces done: %lld"
+          }
+        }
+      }
+    },
     "Den senaste ändringen gick inte att bygga": {
       "localizations": {
         "en": {
@@ -1007,6 +1017,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "You can become a tester right away, without waiting for Apple's review. You are then invited to the service's developer account with Apple, with access to your app only. You accept in an email from Apple."
+          }
+        }
+      }
+    },
+    "Du lägger till telefonen en gång. Sedan installeras varje app med ett tryck.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You add the phone once. After that every app installs with one tap."
           }
         }
       }
@@ -1481,6 +1501,16 @@
         }
       }
     },
+    "Gör appen klar för din telefon": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Getting the app ready for your phone"
+          }
+        }
+      }
+    },
     "Gör plats på hemskärmen": {
       "localizations": {
         "en": {
@@ -1527,6 +1557,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Home"
+          }
+        }
+      }
+    },
+    "Hur långt det har kommit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How far it has come"
           }
         }
       }
@@ -2451,6 +2491,26 @@
         }
       }
     },
+    "Ritar ikonen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drawing the icon"
+          }
+        }
+      }
+    },
+    "Rättar en detalj": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fixing a detail"
+          }
+        }
+      }
+    },
     "Rättigheter till innehåll: slå på \"Inget material från andra\" om det stämmer och skicka sidan igen.": {
       "localizations": {
         "en": {
@@ -3071,6 +3131,16 @@
         }
       }
     },
+    "Tänker ut din app": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thinking your app through"
+          }
+        }
+      }
+    },
     "Underrubrik": {
       "localizations": {
         "en": {
@@ -3211,12 +3281,32 @@
         }
       }
     },
+    "Vill du installera den på telefonen och testa?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Do you want to install it on your phone and try it?"
+          }
+        }
+      }
+    },
     "Vill du inte vänta?": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Rather not wait?"
+          }
+        }
+      }
+    },
+    "Vill du testa den på din telefon?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Do you want to try it on your phone?"
           }
         }
       }

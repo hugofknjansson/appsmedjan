@@ -33,7 +33,7 @@ export function isValidBundleId(id: unknown): id is string {
 // Chat
 // ---------------------------------------------------------------------------
 
-export type StepKind = 'write' | 'edit' | 'delete' | 'read' | 'build' | 'look' | 'rename';
+export type StepKind = 'write' | 'edit' | 'delete' | 'read' | 'build' | 'look' | 'rename' | 'icon';
 
 /** One visible action the agent took (shown as a small progress row in the chat). */
 export interface Step {
@@ -238,6 +238,8 @@ export interface DirectInstall {
   build?: string;
   /** How far a phone has come with fetching the ready build, once one has started. */
   install?: DirectFetch;
+  /** True when the ready build is of the app as it is now: nothing has been changed since it was made. */
+  fresh?: boolean;
   /** When the status last changed (ms since epoch). */
   at?: number;
 }
@@ -258,6 +260,60 @@ export function directProgress(direct: Pick<DirectInstall, 'status' | 'stage' | 
   if (direct.status !== 'ready') return null;
   if (!direct.install) return 0.75;
   return { asked: 0.85, fetching: 0.92, fetched: 1 }[direct.install];
+}
+
+/**
+ * How far the builder has come, read off the steps it has taken so far: clues for the person who
+ * waits, in words that say nothing about how an app is made.
+ *
+ * thinking: nothing made yet. making: writing the app. drawing: the icon. trying: running the app to
+ * see that it works. fixing: changing something after a try that did not work. looking: at the screen.
+ */
+export type RunPhase = 'thinking' | 'making' | 'drawing' | 'trying' | 'fixing' | 'looking';
+
+export interface RunProgress {
+  phase: RunPhase;
+  /** How many pieces of the app have been written or changed so far. */
+  pieces: number;
+  /** How far along the whole run is, between 0 and 1: a guess that only ever grows within a run. */
+  fraction: number;
+}
+
+export function runProgress(parts: Part[]): RunProgress {
+  const steps = parts.flatMap((part) => (part.t === 'step' ? [part.step] : []));
+  const pieces = steps.filter((step) => (step.kind === 'write' || step.kind === 'edit') && step.status !== 'running').length;
+  const tries = steps.filter((step) => step.kind === 'build').length;
+  const failed = steps.some((step) => step.kind === 'build' && step.status === 'error');
+  const latest = steps.at(-1);
+
+  let phase: RunPhase = 'thinking';
+  if (latest) {
+    if (latest.kind === 'build') phase = latest.status === 'error' ? 'fixing' : 'trying';
+    else if (latest.kind === 'look') phase = 'looking';
+    else if (latest.kind === 'icon') phase = 'drawing';
+    // Writing again after a try that did not work is fixing, until the next try.
+    else phase = failed && steps.findLast((step) => step.kind === 'build')?.status === 'error' ? 'fixing' : 'making';
+  }
+
+  // Up to half for the writing (eight pieces count as plenty), then a share for each try. Never full:
+  // the run is over when the server says so.
+  const written = 0.5 * Math.min(1, pieces / 8);
+  const tried = tries === 0 ? 0 : 0.25 + 0.15 * Math.min(1, (tries - 1) / 3);
+  return { phase, pieces, fraction: Math.min(0.92, 0.05 + written + tried) };
+}
+
+/**
+ * The first sentence of what the builder said, for the card that asks about installing: the card is
+ * a question, and a long answer above it would bury it. Cut at the first full stop, question mark,
+ * exclamation mark or line break; a first sentence that runs on is cut at a word with an ellipsis.
+ */
+export function firstSentence(text: string, max = 140): string {
+  const line = text.trim().split('\n')[0]!.trim();
+  const end = /[.!?](?=\s|$)/.exec(line);
+  const sentence = end ? line.slice(0, end.index + 1) : line;
+  if (sentence.length <= max) return sentence;
+  const cut = sentence.slice(0, max);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(' '), max - 30)).replace(/[\s,;:–-]+$/, '')}…`;
 }
 
 /** A phone the person has added. The identifier itself stays on the server. */

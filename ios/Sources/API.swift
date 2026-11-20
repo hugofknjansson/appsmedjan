@@ -241,6 +241,12 @@ extension API {
     baseURL.appending(path: "api/projects/\(id)/store/screenshots/\(shot)")
   }
 
+  /// The app's icon as the list shows it: nil while the app has none. The time makes a changed icon load again.
+  func iconURL(_ id: String, changedAt: Double?) -> URL? {
+    guard let changedAt else { return nil }
+    return iconURL(id).appending(queryItems: [URLQueryItem(name: "v", value: String(Int(changedAt)))])
+  }
+
   func iconURL(_ id: String) -> URL {
     baseURL.appending(path: "api/projects/\(id)/store/icon")
   }

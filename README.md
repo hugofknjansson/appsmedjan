@@ -15,6 +15,18 @@ instruerad att svara med ett par korta meningar utan tekniska ord. All väntan h
 på: maskoten dansar sig igenom sving, hopp och piruett, texterna under den byter av varandra, och
 det blir konfetti när byggaren är klar och när appen har kommit fram till telefonen.
 
+Medan byggaren arbetar visar chatten en ruta med ledtrådar: vad som görs just nu i vanliga ord
+("Bygger appen", "Provkör appen", "Rättar en detalj"), en stapel som växer, hur många delar som är
+klara och en klocka. Stegen räknas fram ur byggarens verktygsanrop (`runProgress` i
+`shared/protocol.ts`), men själva anropen visas aldrig. Efter väntan kommer en enda sak: byggarens
+första mening och frågan om man vill installera appen på telefonen och testa.
+
+Varje app får en ikon. Byggaren ritar den som en liten SVG med verktyget `set_app_icon` när appen
+skapas, och servern gör om teckningen till en PNG på 1024 px (`server/src/iconart.ts`). Bara enkla
+former släpps igenom: ingen text, inga bilder utifrån, inga skript, och bakgrunden måste fylla hela
+kvadraten. En app som byggaren inte hann rita åt får en enkel ikon i en egen färg, och en ikon som
+personen själv har valt i App Store-guiden skrivs aldrig över.
+
 ## Så hänger det ihop
 
 ```

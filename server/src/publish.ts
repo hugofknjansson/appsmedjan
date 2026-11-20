@@ -9,6 +9,7 @@ import {
 import { credentialsFor } from './apple';
 import * as db from './db';
 import * as direct from './direct';
+import { ensureIcon } from './icon';
 import { live, liveProjectIds, send } from './live';
 import { isOperator, route } from './routing';
 import * as testlink from './testlink';
@@ -95,6 +96,7 @@ export function startPublish(project: db.Project, user: db.User): StartResult {
 async function run(project: db.Project, build: string, account: AppleAccount | undefined): Promise<void> {
   let outcome: { ok: boolean; error?: PublishError; detail?: string; tester?: PublishTester };
   try {
+    ensureIcon(project.id);
     const icon = db.getIcon(project.id);
     const iconText = icon ? Buffer.from(icon).toString('base64') : undefined;
     outcome = await workers.publish(project, db.getFiles(project.id), build, account, iconText, (stage) => {

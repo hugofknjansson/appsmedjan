@@ -173,6 +173,8 @@ function addColumn(table: string, column: string, type: string): void {
 addColumn('publishes', 'tester', 'TEXT');
 addColumn('store_listings', 'choices', 'TEXT');
 addColumn('store_listings', 'pages', 'TEXT');
+// Whose icon it is: the person's own choice (as every icon was before this column), the builder's drawing, or the stand-in.
+addColumn('store_icons', 'source', "TEXT NOT NULL DEFAULT 'own'");
 
 export interface User {
   id: string;
@@ -541,11 +543,25 @@ export function hasIcon(projectId: string): boolean {
   return db.prepare('SELECT 1 FROM store_icons WHERE project_id = ?').get(projectId) !== undefined;
 }
 
-export function setIcon(projectId: string, data: Uint8Array): void {
+export type IconSource = 'own' | 'drawn' | 'default';
+
+/** `own`: the person chose it. `drawn`: the builder drew it. `default`: the stand-in every app gets. */
+export function setIcon(projectId: string, data: Uint8Array, source: IconSource): void {
   db.prepare(
-    `INSERT INTO store_icons (project_id, data, updated_at) VALUES (?, ?, ?)
-     ON CONFLICT (project_id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`,
-  ).run(projectId, data, Date.now());
+    `INSERT INTO store_icons (project_id, data, source, updated_at) VALUES (?, ?, ?, ?)
+     ON CONFLICT (project_id) DO UPDATE SET data = excluded.data, source = excluded.source, updated_at = excluded.updated_at`,
+  ).run(projectId, data, source, Date.now());
+}
+
+export function iconSource(projectId: string): IconSource | null {
+  const row = db.prepare('SELECT source FROM store_icons WHERE project_id = ?').get(projectId) as { source: IconSource } | undefined;
+  return row?.source ?? null;
+}
+
+/** When the icon last changed, for telling a browser that its copy is old. Null without an icon. */
+export function iconChangedAt(projectId: string): number | null {
+  const row = db.prepare('SELECT updated_at AS at FROM store_icons WHERE project_id = ?').get(projectId) as { at: number } | undefined;
+  return row?.at ?? null;
 }
 
 export function deleteIcon(projectId: string): void {

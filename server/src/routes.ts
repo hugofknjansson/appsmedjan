@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { isValidProjectId, testerPersonProblem, type TesterPerson } from '../../shared/protocol';
 import { hasCredentials } from './agent';
+import { ensureIcon } from './icon';
 import { config } from './config';
 import * as db from './db';
 import * as direct from './direct';
@@ -161,7 +162,8 @@ api.get('/status', requireUser, (_req, res) => {
   res.json({ workers: workers.workerCount(), agentReady: hasCredentials() });
 });
 
-const publicProject = (p: db.Project) => ({ id: p.id, name: p.name, updatedAt: p.updatedAt });
+/** `icon`: when the app's icon last changed, or null while it has none; the picture itself is at /store/icon. */
+const publicProject = (p: db.Project) => ({ id: p.id, name: p.name, updatedAt: p.updatedAt, icon: db.iconChangedAt(p.id) });
 
 api.get('/projects', requireUser, (req, res) => {
   res.json({ projects: db.listProjects((req as Authed).user.id).map(publicProject) });
@@ -620,6 +622,8 @@ api.delete('/projects/:id/store/icon', requireUser, (req, res) => {
   const project = ownProject(req, res);
   if (!project) return;
   db.deleteIcon(project.id);
+  // Never without an icon: the stand-in takes the place of the one that was removed.
+  ensureIcon(project.id);
   res.json(storeState(project, (req as Authed).user));
 });
 

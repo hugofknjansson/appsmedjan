@@ -71,6 +71,18 @@ enum Texts {
     }
   }
 
+  /// What the builder is doing right now, in words that say nothing about how an app is made.
+  static func runPhase(_ phase: RunProgress.Phase) -> String {
+    switch phase {
+    case .thinking: String(localized: "Tänker ut din app")
+    case .making: String(localized: "Bygger appen")
+    case .drawing: String(localized: "Ritar ikonen")
+    case .trying: String(localized: "Provkör appen")
+    case .fixing: String(localized: "Rättar en detalj")
+    case .looking: String(localized: "Tittar hur det blev")
+    }
+  }
+
   static func directStage(_ stage: String?) -> String {
     switch stage {
     case "preparing": String(localized: "Förbereder")
@@ -248,4 +260,21 @@ enum Texts {
     ("UTILITIES", String(localized: "Verktyg")),
     ("WEATHER", String(localized: "Väder")),
   ]
+}
+
+extension String {
+  /// The first sentence, for the card that asks about installing: the card is a question, and a long
+  /// answer above it would bury it. Cut at the first full stop, question mark, exclamation mark or
+  /// line break; a first sentence that runs on is cut at a word with an ellipsis. The same as
+  /// `firstSentence` on the server's side.
+  func firstSentence(max: Int = 140) -> String {
+    let line = trimmingCharacters(in: .whitespacesAndNewlines).split(separator: "\n").first.map { $0.trimmingCharacters(in: .whitespaces) } ?? ""
+    var sentence = line
+    if let end = line.firstMatch(of: /[.!?](?=\s|$)/) { sentence = String(line[..<end.range.upperBound]) }
+    guard sentence.count > max else { return sentence }
+    let cut = sentence.prefix(max)
+    let stop = cut.lastIndex(of: " ").map { cut.distance(from: cut.startIndex, to: $0) } ?? max
+    let kept = cut.prefix(Swift.max(stop, max - 30))
+    return kept.replacing(/[\s,;:–-]+$/, with: "") + "…"
+  }
 }

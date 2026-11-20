@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { buildNumberFor, readPhoneAnswer, type AppleAccount, type DirectError, type DirectFetch, type DirectInstall, type Phone } from '../../shared/protocol';
 import { credentialsFor } from './apple';
+import { ensureIcon } from './icon';
 import { config } from './config';
 import * as db from './db';
 import { live } from './live';
@@ -70,6 +71,7 @@ export function state(project: db.Project): DirectInstall {
     path: saved.status === 'ready' && saved.token ? `/d/i/${saved.token}` : undefined,
     build: saved.build,
     install: saved.status === 'ready' && fetched?.token === saved.token ? fetched.stage : undefined,
+    fresh: saved.status === 'ready' && db.filesChangedAt(project.id) <= saved.updatedAt,
     at: saved.updatedAt,
   };
 }
@@ -135,6 +137,7 @@ export function start(project: db.Project, user: db.User): StartResult {
 async function run(project: db.Project, build: string, phones: db.PhoneRow[], account: AppleAccount | undefined): Promise<void> {
   let outcome: { ok: boolean; error?: DirectError; detail?: string; ipa?: Buffer };
   try {
+    ensureIcon(project.id);
     const icon = db.getIcon(project.id);
     const named = phones.map((p) => ({ udid: p.udid, name: `App Dance ${p.model} ${p.id}`.slice(0, 50) }));
     outcome = await workers.direct(project, db.getFiles(project.id), build, named, account, icon ? Buffer.from(icon).toString('base64') : undefined, (stage) => {

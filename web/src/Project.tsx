@@ -6,9 +6,8 @@ import type {
   PreviewState,
   PublishState,
   ServerToClient,
-  Step,
 } from '../../shared/protocol';
-import { STORE_SHOT } from '../../shared/protocol';
+import { STORE_SHOT, directProgress, firstSentence, runProgress, type DirectInstall } from '../../shared/protocol';
 import { ApiError, api } from './api';
 import { AppleAccountDialog } from './AppleAccount';
 import { DirectInstallSteps } from './Direct';
@@ -272,7 +271,7 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
       )}
 
       <div className="workspace" data-tab={tab}>
-        <section className="chat-pane">{state && <Chat id={id} state={state} />}</section>
+        <section className="chat-pane">{state && <Chat id={id} state={state} phone={phone} onPhone={() => choose('phone')} />}</section>
         <section className="stage-pane">
           {state && tab === 'phone' && phone && (
             <div className="phone-tab">
@@ -350,10 +349,40 @@ function PublishNote({ publish }: { publish: PublishState }) {
 
 // --- Chat ----------------------------------------------------------------------
 
-function Chat({ id, state }: { id: string; state: State }) {
+interface ChatProps {
+  id: string;
+  state: State;
+  /** The person's own phone, when apps can be installed straight onto it. */
+  phone: DirectInstall | null;
+  /** Shows the pane where the phone is added and the app installed. */
+  onPhone: () => void;
+}
+
+function Chat({ id, state, phone, onPhone }: ChatProps) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [asking, setAsking] = useState(false);
+
+  // After the wait, one thing: the question whether to put the app on the phone. The builder's last
+  // words go into that card instead of a bubble of their own.
+  const last = state.messages.at(-1);
+  const asked = phone && !state.running && last?.role === 'assistant' && !last.parts.some((part) => part.t === 'error') ? last : null;
+
+  /** The person said yes: the phone pane has the code to scan, and a build is started if none is waiting. */
+  async function answer() {
+    if (!phone) return;
+    setAsking(true);
+    setError('');
+    try {
+      if (phone.phones > 0 && !(phone.status === 'ready' && phone.fresh !== false)) await api.direct(id);
+      onPhone();
+    } catch (err) {
+      setError(apiErrorText(err instanceof ApiError ? err.code : 'internal'));
+    } finally {
+      setAsking(false);
+    }
+  }
   const scroller = useRef<HTMLDivElement>(null);
   const pinned = useRef(true);
 
@@ -361,7 +390,7 @@ function Chat({ id, state }: { id: string; state: State }) {
   useEffect(() => {
     const el = scroller.current;
     if (el && pinned.current) el.scrollTop = el.scrollHeight;
-  }, [state.messages, state.parts]);
+  }, [state.messages, state.parts, phone?.status]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -395,7 +424,7 @@ function Chat({ id, state }: { id: string; state: State }) {
             <div key={m.id} className="msg user">
               {m.text}
             </div>
-          ) : (
+          ) : m.id === asked?.id ? null : (
             <div key={m.id} className="msg assistant">
               <Parts parts={m.parts} />
             </div>
@@ -404,11 +433,16 @@ function Chat({ id, state }: { id: string; state: State }) {
         {state.running && (
           <div className="msg assistant" aria-live="polite">
             <Parts parts={state.parts} />
-            <div className="working">
-              <MascotBadge dancing />
-              <WaitingCaption lines={tryingOut(state.parts) ? t.wait.trying : t.wait.working} />
-            </div>
+            <ProgressCard {...runClues(state.parts)} timed />
           </div>
+        )}
+        {asked && phone && phone.status === 'working' && (
+          <div className="msg assistant" aria-live="polite">
+            <ProgressCard title={phone.stage === 'signing' ? t.direct.steps[1]! : t.direct.gettingReady} lines={t.wait.phone} fraction={directProgress(phone) ?? 0.05} />
+          </div>
+        )}
+        {asked && phone && phone.status !== 'working' && (
+          <InstallAsk words={lastWords(asked)} phone={phone} busy={asking} onYes={() => void answer()} />
         )}
       </div>
 
@@ -445,13 +479,76 @@ function Chat({ id, state }: { id: string; state: State }) {
   );
 }
 
-/** True when the latest thing the builder started is trying the app out or looking at it. */
-function tryingOut(parts: Part[]): boolean {
-  for (let i = parts.length - 1; i >= 0; i--) {
-    const part = parts[i]!;
-    if (part.t === 'step' && part.step.status === 'running') return part.step.kind === 'build' || part.step.kind === 'look';
-  }
-  return false;
+/** The first sentence of what the builder said last in an answer, without the steps around it. */
+function lastWords(message: ChatMessage): string {
+  const said = message.parts.findLast((part) => part.t === 'text' && part.text.trim() !== '');
+  return said?.t === 'text' ? firstSentence(said.text) : '';
+}
+
+/** What to show while the builder works: its phase in plain words, lines to go with it, and how far it has come. */
+function runClues(parts: Part[]): { title: string; lines: readonly string[]; fraction: number; pieces: number } {
+  const progress = runProgress(parts);
+  const trying = progress.phase === 'trying' || progress.phase === 'looking' || progress.phase === 'fixing';
+  return { title: t.phase[progress.phase], lines: trying ? t.wait.trying : t.wait.working, fraction: progress.fraction, pieces: progress.pieces };
+}
+
+/**
+ * The wait, with clues: what is being done right now in plain words, a line that takes turns under
+ * it, a bar that grows, and how much has been made so far.
+ */
+function ProgressCard({ title, lines, fraction, pieces = 0, timed = false }: { title: string; lines: readonly string[]; fraction: number; pieces?: number; timed?: boolean }) {
+  const [seconds, setSeconds] = useState(0);
+  useEffect(() => {
+    if (!timed) return;
+    const started = Date.now();
+    const timer = setInterval(() => setSeconds(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [timed]);
+  const clock = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  return (
+    <div className="progress-card" role="status">
+      <MascotBadge dancing />
+      <div>
+        <strong>{title}</strong>
+        <WaitingCaption lines={lines} />
+        <progress value={fraction} max={1} aria-label={t.progressLabel} />
+        {(pieces > 0 || timed) && (
+          <small>
+            {[pieces > 0 ? t.pieces.replace('{n}', String(pieces)) : '', timed ? clock : ''].filter(Boolean).join(' · ')}
+          </small>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * What comes after the wait, and the only thing that does: the builder's one sentence and the
+ * question whether to put the app on the phone.
+ */
+function InstallAsk({ words, phone, busy, onYes }: { words: string; phone: DirectInstall; busy: boolean; onYes: () => void }) {
+  const arriving = phone.install === 'asked' || phone.install === 'fetching';
+  const arrived = phone.status === 'ready' && phone.install === 'fetched';
+  const text = t.ask;
+  const question = arrived ? t.direct.fetched : arriving ? t.direct.steps[2]! : phone.phones === 0 ? text.noPhone : text.install;
+  return (
+    <div className="install-ask">
+      <Mascot cheering={arriving} />
+      {words && <p className="muted">{rich(words)}</p>}
+      <strong>{question}</strong>
+      {phone.status === 'failed' && (
+        <p className="form-error" role="alert">
+          {t.direct.error[phone.error ?? 'internal']}
+        </p>
+      )}
+      {!arriving && (
+        <button className="btn primary" disabled={busy || (!phone.available && phone.status !== 'ready')} onClick={onYes}>
+          {phone.phones === 0 ? t.direct.addButton : phone.status === 'failed' ? t.retry : arrived ? text.again : text.yes}
+        </button>
+      )}
+      {phone.phones === 0 && <p className="muted fine">{text.noPhoneNote}</p>}
+    </div>
+  );
 }
 
 /** Bold is shown as such, should the builder use it; nothing is shown as raw marks. */

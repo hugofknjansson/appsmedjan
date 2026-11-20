@@ -1073,6 +1073,10 @@ ol.plain-list {
   transform: rotate(-7deg);
 }
 
+img.app-icon {
+  object-fit: cover;
+}
+
 .app-icon[data-tilt='right'] {
   transform: rotate(7deg);
 }
@@ -1194,6 +1198,86 @@ ol.plain-list {
 
 .working .mascot-badge {
   width: 60px;
+}
+
+/* The wait, with clues: the phase, a line that takes turns, a bar that grows, and how much is done. */
+.progress-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 22px;
+  background: var(--surface);
+  white-space: normal;
+}
+
+.progress-card .mascot-badge {
+  width: 60px;
+}
+
+.progress-card > div {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.progress-card small {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-card progress,
+.install-progress progress {
+  width: 100%;
+  height: 10px;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--sunken);
+  accent-color: var(--accent);
+}
+
+.progress-card progress::-webkit-progress-bar {
+  background: var(--sunken);
+}
+
+.progress-card progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: var(--grad);
+  transition: width 0.6s ease;
+}
+
+.progress-card progress::-moz-progress-bar {
+  background: var(--accent);
+}
+
+/* After the wait: the builder's one sentence and the question whether to put the app on the phone. */
+.install-ask {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 22px;
+  border-radius: 22px;
+  background: var(--surface);
+  text-align: center;
+  white-space: normal;
+}
+
+.install-ask .mascot {
+  width: 92px;
+}
+
+.install-ask strong {
+  font-size: 1.15rem;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+.install-ask .btn {
+  width: 100%;
+  min-height: 46px;
 }
 
 /* One line at a time from a list, each pushing the last one out of the way. */

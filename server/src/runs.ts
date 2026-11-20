@@ -2,6 +2,7 @@
 import { runAgent } from './agent';
 import * as db from './db';
 import * as direct from './direct';
+import { ensureIcon } from './icon';
 import { live, send } from './live';
 import { syncViewers } from './preview';
 
@@ -40,6 +41,12 @@ export function startRun(projectId: string, userText: string): boolean {
       }
       send(projectId, { type: 'run.end' });
       syncViewers(projectId);
+      // An app the builder did not draw an icon for gets the stand-in, before anything is built for a phone.
+      try {
+        ensureIcon(projectId);
+      } catch (err) {
+        console.warn(`[icon] ${projectId}: no stand-in icon (${(err as Error).message})`);
+      }
       // The new version is made ready for the person's own phone, where they try it.
       direct.buildAfterRun(projectId);
     });

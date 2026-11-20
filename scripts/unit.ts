@@ -20,11 +20,14 @@ import {
   decodeFrame,
   directProgress,
   encodeFrame,
+  firstSentence,
   fitWords,
   isUdid,
   isValidSourcePath,
   listingProblems,
   readPhoneAnswer,
+  runProgress,
+  type Part,
   parseContact,
   type StoreListing,
 } from '../shared/protocol';
@@ -64,6 +67,64 @@ assert.ok(!isUdid('00008110-000A1B2C3D4E5F6') && !isUdid('g'.repeat(40)) && !isU
   assert.equal(way.at(-1), 1);
   assert.equal(directProgress({ status: 'idle' }), null);
   assert.equal(directProgress({ status: 'failed' }), null);
+}
+
+// App icons: the builder's drawing becomes a 1024 px PNG, and only plain, self-contained drawings get through
+{
+  const { IconError, defaultIconSvg, renderIcon } = await import('../server/src/iconart');
+  const wrap = (inner: string, box = '0 0 1024 1024') => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${box}">${inner}</svg>`;
+  const ground = '<rect width="1024" height="1024" fill="#29999e"/>';
+  const good = pngInfo(renderIcon(wrap(`${ground}<circle cx="512" cy="512" r="260" fill="#fff"/>`)));
+  assert.deepEqual([good?.width, good?.height], [1024, 1024]);
+  const refused = (svg: string, why: RegExp) => assert.throws(() => renderIcon(svg), (err: unknown) => err instanceof IconError && why.test(err.message), svg.slice(0, 80));
+  refused(wrap('<circle cx="512" cy="512" r="260" fill="#fff"/>'), /background must fill/);
+  refused(wrap('<rect width="1024" height="1024" rx="200" fill="#29999e"/>'), /background must fill/);
+  refused(wrap(ground, '0 0 1024 512'), /must be square/);
+  refused(wrap(`${ground}<text x="10" y="100">Hej</text>`), /<text> is not allowed/);
+  refused(wrap(`${ground}<script>alert(1)</script>`), /<script> is not allowed/);
+  refused(wrap(`${ground}<image href="https://example.com/a.png" width="10" height="10"/>`), /<image> is not allowed/);
+  refused(wrap(`${ground}<rect width="10" height="10" fill="url(https://example.com/x.svg#p)"/>`), /only refer to its own parts/);
+  refused(wrap(`${ground}<use href="file:///etc/passwd"/>`), /only refer to its own parts/);
+  refused(`<!DOCTYPE svg [<!ENTITY x "y">]>${wrap(ground)}`, /one <svg> element|DOCTYPE/);
+  refused(wrap(ground + 'x'.repeat(21_000)), /too long/);
+  refused('<svg viewBox="0 0 1024 1024"><rect', /one <svg> element/);
+  // A drawing may refer to its own gradient.
+  renderIcon(wrap('<defs><linearGradient id="g"><stop offset="0" stop-color="#f57a24"/><stop offset="1" stop-color="#c74005"/></linearGradient></defs><rect width="1024" height="1024" fill="url(#g)"/>'));
+  // The stand-in is always a valid icon, and the same for the same app.
+  for (const id of ['abcdefgh1234', 'q9376qgw6anh', 'am4iun4nl0q6', 'vvor4k5lpw6r', 'zzzzzzzz0000']) renderIcon(defaultIconSvg(id));
+  assert.equal(defaultIconSvg('abcdefgh1234'), defaultIconSvg('abcdefgh1234'));
+}
+
+// Clues while the builder works: the phase follows the latest step, and the bar only grows
+{
+  let n = 0;
+  const step = (kind: string, status = 'done'): Part => ({ t: 'step', step: { id: `s${n++}`, kind, detail: '', status } }) as Part;
+  assert.deepEqual(runProgress([]), { phase: 'thinking', pieces: 0, fraction: 0.05 });
+  assert.equal(runProgress([step('rename'), step('icon', 'running')]).phase, 'drawing');
+  assert.deepEqual(runProgress([step('write'), step('write'), step('write', 'running')]).phase, 'making');
+  assert.equal(runProgress([step('write'), step('write'), step('write', 'running')]).pieces, 2);
+  assert.equal(runProgress([step('write'), step('build', 'running')]).phase, 'trying');
+  assert.equal(runProgress([step('write'), step('build', 'error')]).phase, 'fixing');
+  assert.equal(runProgress([step('write'), step('build', 'error'), step('edit', 'running')]).phase, 'fixing');
+  assert.equal(runProgress([step('write'), step('build', 'error'), step('edit'), step('build', 'running')]).phase, 'trying');
+  assert.equal(runProgress([step('write'), step('build', 'error'), step('edit'), step('build'), step('edit', 'running')]).phase, 'making');
+  assert.equal(runProgress([step('write'), step('build'), step('look', 'running')]).phase, 'looking');
+  const run = [step('write'), step('write'), step('write'), step('icon'), step('build', 'error'), step('edit'), step('build'), step('look'), step('edit'), step('build')];
+  const way = run.map((_, i) => runProgress(run.slice(0, i + 1)).fraction);
+  assert.ok(way.every((value, i) => i === 0 || value >= way[i - 1]!), 'never goes backwards');
+  assert.ok(way.at(-1)! > 0.6 && way.at(-1)! <= 0.92);
+  assert.ok(runProgress(Array.from({ length: 60 }, () => step('write')).concat(Array.from({ length: 12 }, () => step('build')))).fraction <= 0.92);
+}
+
+// The card that asks about installing carries only the builder's first sentence
+assert.equal(firstSentence('Nu är din växtapp grön. Tryck på plus för att lägga till en växt.'), 'Nu är din växtapp grön.');
+assert.equal(firstSentence('  Klart!\n\nTesta så här:\n- Tryck på ringen'), 'Klart!');
+assert.equal(firstSentence('Version 2.0 är klar. Mer text.'), 'Version 2.0 är klar.');
+assert.equal(firstSentence('Utan punkt'), 'Utan punkt');
+assert.equal(firstSentence(''), '');
+{
+  const long = firstSentence(`Appen har ${'många kaféer i sju stadsdelar, '.repeat(8)}och mer.`);
+  assert.ok(long.length <= 141 && long.endsWith('…') && !/[ ,]…$/.test(long), long);
 }
 
 // JPEG splitting across arbitrary chunk boundaries
