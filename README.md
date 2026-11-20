@@ -180,24 +180,49 @@ Så här sätter du upp en ny Mac, över SSH eller skärmdelning:
 5. Serverns logg visar arbetaren som ansluten. Därefter: `scripts/mac-worker.sh status`, `logs`,
    `restart`, och `update` för att hämta ny kod och starta om.
 
-**Håll nycklar borta från användarnas kod.** Appar i simulatorn körs som arbetarens macOS-användare.
-Kör därför förhandsvisningar och uppladdningar till TestFlight under två olika användare på Macen
-(eller på två Macar): en som installeras med `--role preview` och inte har några nycklar, och en med
-`--role signing` som har Apple-nyckeln men aldrig kör simulatorer. Den uppdelningen är förberedd i
-skriptet men inte körd på en riktig hyrd Mac; signering under en användare utan egen skärmsession kan
-kräva att nyckelringen låses upp för hand.
+**Håll nycklar borta från användarnas kod.** Appar i simulatorn körs som arbetarens macOS-användare
+och kan läsa den användarens filer. Kör därför förhandsvisningar och uppladdningar till TestFlight
+under två olika användare på Macen (eller på två Macar): en som installeras med `--role preview` och
+inte har några nycklar, och en med `--role signing` som har Apple-nyckeln men aldrig kör simulatorer.
 
-Installationen är körd på en hyrd Mac mini M6 hos OakHost (macOS 27.2, Xcode 27.2) med
-`--role preview`: från en tom maskin till en arbetare som bygger, startar simulatorn, tar emot tryck
-och text och strömmar bild. Tre saker att känna till därifrån:
+Signeringsanvändaren loggar aldrig in på skärmen, så dess arbetare körs som en systemtjänst.
+`scripts/mac-signer.sh` sköter det som kräver administratör:
+
+1. Från administratörens konto: `sudo scripts/mac-signer.sh create-user`. Skapar användaren `signer`,
+   stänger dess hemkatalog för andra och låter dina SSH-nycklar logga in som den.
+2. Som `signer` (över SSH): hämta koden, lägg `.p8`-nyckeln i `~/.appstoreconnect/private_keys/`
+   och Apple-uppgifterna i `.env`, och kör sedan
+
+   ```bash
+   scripts/mac-worker.sh install --server wss://din-server.example --role signing --skip-tools && scripts/mac-worker.sh keychain
+   ```
+
+   `keychain` skapar en egen nyckelring för signeringen. Inloggningsnyckelringen är låst utan
+   skärmsession, och Xcode behöver någonstans att lägga utvecklingscertifikatet det skapar.
+   `scripts/run-worker.sh` låser upp den vid varje start.
+3. Från administratörens konto: `sudo scripts/mac-signer.sh install-daemon`. Startar arbetaren vid
+   uppstart, som `signer`.
+
+Två saker i tjänstens miljö skiljer sig från en SSH-session, och skriptet hanterar båda:
+
+- En systemtjänst delar systemets säkerhetssession, där bara systemets nyckelring genomsöks. Tjänsten
+  får därför en egen session (`SessionCreate`), annars hittar Xcode inte certifikatets privata nyckel.
+- Signaturen kontrolleras av systemets betrodda tjänst, som inte ser användarens nyckelring. Apples
+  mellanliggande certifikat (WWDR G3 och G6) läggs därför i systemets nyckelring, annars stannar
+  `codesign` med "unable to build chain to self-signed root" och `errSecInternalComponent`.
+
+Allt detta är kört på en hyrd Mac mini M6 hos OakHost (macOS 27.2, Xcode 27.2): en användare med
+`--role preview` som bygger, startar simulatorn, tar emot tryck och text och strömmar bild, och en
+med `--role signing` som har laddat upp ett bygge till TestFlight. Tre saker att känna till därifrån:
 
 - Maskinen levereras med lösenordsinloggning över SSH. Lägg in en nyckel med `ssh-copy-id` först.
-- Homebrew, `xcodes install` och `xcode-select` frågar efter administratörslösenordet och måste köras
-  i en egen terminal (`ssh -t`). Resten går att köra utan.
+- Homebrew, `xcodes install`, `xcode-select` och `mac-signer.sh` frågar efter administratörslösenordet
+  och måste köras i en egen terminal (`ssh -t`). Resten går att köra utan.
 - `sudo sysadminctl -autologin set` över SSH gav fel (`SACSetAutoLoginPassword error:22`). Slå på
   automatisk inloggning i Systeminställningar över skärmdelning i stället.
 
-`--role signing` på en hyrd Mac är **inte kört**.
+Inte provat: en omstart av Macen, och uppladdning med en användares eget anslutna Apple-konto från
+signeringstjänsten.
 
 ### Skicka appar till TestFlight
 

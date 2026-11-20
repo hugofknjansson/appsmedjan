@@ -19,6 +19,19 @@ fi
 exec >>"$LOG" 2>&1
 
 echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [run-worker] starting in $REPO ($(node -v 2>/dev/null || echo 'node not found'))"
+
+# A signing worker that runs without a desktop session has a keychain of its own (made by
+# `scripts/mac-worker.sh keychain`), and Xcode can only sign while it is unlocked. The password goes in
+# on standard input, so it never shows up in the process list.
+KEYCHAIN="$HOME/Library/Keychains/appsmedjan-signing.keychain-db"
+KEYCHAIN_PASSWORD_FILE="$HOME/.appsmedjan-keychain-password"
+if [ -f "$KEYCHAIN" ] && [ -f "$KEYCHAIN_PASSWORD_FILE" ]; then
+  if printf 'unlock-keychain -p "%s" "%s"\n' "$(cat "$KEYCHAIN_PASSWORD_FILE")" "$KEYCHAIN" | security -i; then
+    echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [run-worker] signing keychain unlocked"
+  else
+    echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) [run-worker] could not unlock the signing keychain; uploads will fail"
+  fi
+fi
 cd "$REPO/worker" || exit 1
 # exec: launchd's stop signal goes straight to the worker, which shuts its simulators down before exiting.
 exec node --import tsx src/index.ts

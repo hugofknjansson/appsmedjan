@@ -7,6 +7,7 @@
 #   scripts/mac-worker.sh status | logs | restart | stop | start
 #   scripts/mac-worker.sh update                        fetch the latest code and restart
 #   scripts/mac-worker.sh uninstall                     stop the worker and remove the launchd job
+#   scripts/mac-worker.sh keychain                      make the keychain a signing worker without a screen needs
 #
 # Options for install:
 #   --server URL          the server to connect to, for example wss://appsmedjan.fly.dev
@@ -208,7 +209,13 @@ cmd_install() {
     all) ;;
   esac
 
-  gui_session || die "no desktop session is open for $(id -un). Log in on the Mac's screen or over screen sharing, turn on automatic login, and run this again."
+  if ! gui_session; then
+    # Uploads need no screen, so a signing-only worker can run as a daemon under a user that never logs in.
+    [ "$role" = "signing" ] || die "no desktop session is open for $(id -un). Log in on the Mac's screen or over screen sharing, turn on automatic login, and run this again."
+    echo "Settings written. No desktop session, so nothing was started."
+    echo "Make the keychain with 'scripts/mac-worker.sh keychain', then have an administrator run 'sudo scripts/mac-signer.sh install-daemon'."
+    return 0
+  fi
   echo "Installing the launchd job"
   mkdir -p "$(dirname "$PLIST")" "$(dirname "$LOG")"
   plist >"$PLIST"
@@ -218,6 +225,26 @@ cmd_install() {
 
   echo "Started. Role: $role, simulators at once: $max, server: $server"
   echo "Follow it with: scripts/mac-worker.sh logs"
+}
+
+# A keychain of its own for a signing worker that has no desktop session: the login keychain is locked
+# there, and Xcode needs somewhere to keep the development certificate it creates.
+cmd_keychain() {
+  local keychain="$HOME/Library/Keychains/appsmedjan-signing.keychain-db" pwfile="$HOME/.appsmedjan-keychain-password"
+  umask 077
+  mkdir -p "$(dirname "$keychain")"
+  if [ ! -f "$keychain" ]; then
+    openssl rand -hex 24 >"$pwfile"
+    # Through standard input, so the password never shows up in the process list.
+    printf 'create-keychain -p "%s" "%s"\n' "$(cat "$pwfile")" "$keychain" | security -i
+  fi
+  [ -f "$pwfile" ] || die "$keychain exists but $pwfile is gone: delete the keychain and run this again"
+  printf 'unlock-keychain -p "%s" "%s"\n' "$(cat "$pwfile")" "$keychain" | security -i
+  # No arguments: never lock on a timer or on sleep. Only possible while it is unlocked.
+  security set-keychain-settings "$keychain"
+  security list-keychains -d user -s "$keychain"
+  security default-keychain -d user -s "$keychain"
+  echo "Signing keychain ready: $keychain (unlocked by scripts/run-worker.sh at every start)"
 }
 
 cmd_status() {
@@ -231,7 +258,14 @@ cmd_status() {
 
 cmd_update() {
   (cd "$REPO" && git pull --ff-only && npm ci --no-audit --no-fund)
-  job_loaded && launchctl kickstart -k "$DOMAIN/$LABEL" && echo "Restarted with the new code."
+  if job_loaded; then
+    launchctl kickstart -k "$DOMAIN/$LABEL" && echo "Restarted with the new code."
+  elif pkill -u "$(id -u)" -f "$REPO/scripts/run-worker.sh|tsx src/index.ts" 2>/dev/null; then
+    # A signing worker run as a daemon (scripts/mac-signer.sh): stopping it is enough, launchd starts it again.
+    echo "Stopped the worker; its daemon starts it again with the new code."
+  else
+    echo "Code updated. No running worker was found."
+  fi
 }
 
 case "${1:-}" in
@@ -239,11 +273,12 @@ case "${1:-}" in
   install) shift; cmd_install "$@" ;;
   plist) plist ;;
   status) cmd_status ;;
+  keychain) cmd_keychain ;;
   logs) exec tail -n 50 -f "$LOG" ;;
   start) launchctl bootstrap "$DOMAIN" "$PLIST" ;;
   stop) launchctl bootout "$DOMAIN/$LABEL" ;;
   restart) launchctl kickstart -k "$DOMAIN/$LABEL" ;;
   update) cmd_update ;;
   uninstall) job_loaded && launchctl bootout "$DOMAIN/$LABEL" || true; rm -f "$PLIST"; echo "Removed. Settings in $ENV_FILE and the log are left in place." ;;
-  *) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  *) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
 esac
