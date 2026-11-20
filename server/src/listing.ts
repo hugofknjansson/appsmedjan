@@ -2,7 +2,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod/v4';
-import { MAX_POLICY_CHARS, STORE_CATEGORIES, STORE_LIMITS, type ErrorCode, type StoreListing } from '../../shared/protocol';
+import { MAX_POLICY_CHARS, STORE_CATEGORIES, STORE_LIMITS, fitWords, type ErrorCode, type StoreListing } from '../../shared/protocol';
 import { anthropic, hasCredentials } from './agent';
 import { config } from './config';
 
@@ -76,6 +76,48 @@ function fitKeywords(keywords: string): string {
   return out;
 }
 
+const LIMITED = ['name', 'subtitle', 'promo', 'description'] as const;
+type Limited = (typeof LIMITED)[number];
+type Texts = Record<Limited, string>;
+
+const Shortened = z.object({ name: z.string(), subtitle: z.string(), promo: z.string(), description: z.string() });
+
+/** Apple counts characters the way people do, not UTF-16 units. */
+const length = (s: string) => [...s].length;
+const tooLong = (texts: Texts) => LIMITED.filter((key) => length(texts[key]) > STORE_LIMITS[key]);
+
+/**
+ * Models count characters poorly, and a subtitle one character over Apple's limit cannot be sent.
+ * Fields that came out too long are sent back once with their exact counts to be shortened; whatever
+ * is still too long after that is cut at a word.
+ */
+export async function withinLimits(texts: Texts): Promise<Texts> {
+  let out = { ...texts };
+  const over = tooLong(out);
+  if (over.length > 0) {
+    const lines = over.map((key) => `- ${key}: ${length(out[key])} characters now, at most ${STORE_LIMITS[key] - 2} allowed:\n${out[key]}`);
+    try {
+      const message = await anthropic().beta.messages.parse({
+        model: config.model,
+        max_tokens: 16000,
+        betas: ['server-side-fallback-2026-07-01'],
+        fallbacks: 'default',
+        thinking: { type: 'adaptive' },
+        output_config: { effort: 'low', format: betaZodOutputFormat(Shortened) },
+        system:
+          'You shorten texts for an App Store page so they fit a character limit. Keep the language, the meaning and the tone; drop the least important words rather than abbreviating. Count the characters, spaces included. Give back every field: the shortened text for the ones listed, and an empty string for the others.',
+        messages: [{ role: 'user', content: `These are too long:\n\n${lines.join('\n\n')}` }],
+      });
+      const shorter = message.parsed_output;
+      if (shorter) for (const key of over) if (shorter[key].trim()) out = { ...out, [key]: shorter[key].trim() };
+    } catch (err) {
+      console.warn('[listing] could not shorten the draft:', (err as Error).message);
+    }
+  }
+  for (const key of tooLong(out)) out = { ...out, [key]: fitWords(out[key], STORE_LIMITS[key]) };
+  return out;
+}
+
 export async function draftListing(appName: string, files: Record<string, string>): Promise<DraftResult> {
   if (!hasCredentials()) return { ok: false, error: 'no_api_key' };
   try {
@@ -95,9 +137,10 @@ export async function draftListing(appName: string, files: Record<string, string
     const draft = message.parsed_output;
     if (!draft) return { ok: false, error: 'internal' };
     const { ageRatingNotes, privacyPolicy, ...texts } = draft;
+    const fitted = await withinLimits(texts);
     return {
       ok: true,
-      draft: { ...texts, keywords: fitKeywords(texts.keywords) },
+      draft: { ...texts, ...fitted, keywords: fitKeywords(texts.keywords) },
       ageRatingNotes: ageRatingNotes.slice(0, 12),
       privacyPolicy: privacyPolicy.trim().slice(0, MAX_POLICY_CHARS),
     };

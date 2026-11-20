@@ -305,19 +305,20 @@ det till App Store Connect, till samma konto som TestFlight-uppladdningarna går
   bygge valt och inget har ändrats sedan dess. Personen får en fråga innan. Tjänsten skickar aldrig
   in något på eget initiativ.
 
-Ett steg finns kvar i App Store Connect: integritetsfrågorna (vilka uppgifter appen samlar in). Apple
-har inget API för dem. Saknas de, eller något annat, säger Apple det när appen skickas in, och det
-svaret visas i guiden.
+Två saker finns kvar i App Store Connect, eftersom Apple inte har något API för dem:
+integritetsfrågorna (vilka uppgifter appen samlar in) och, för appar i kategorierna hälsa och medicin,
+deklarationen om appen är en medicinteknisk produkt. Saknas något säger Apple det när appen skickas
+in, och det svaret visas i guiden tillsammans med vad man gör åt det.
 
 Begränsningar i den här versionen: bara appens primära språk, bara en första version (en app som
 redan är släppt eller granskas lämnas orörd), bara iPhone-skärmbilder, och bara gratisappar.
 
-Anropen mot App Store Connect för butikssidan är skrivna mot Apples dokumentation (fältnamnen för
-åldersfrågor, pris, tillgänglighet, kontakt och inskick är kontrollerade där) och enhetstestade mot
-en ersättare, men har **inte körts mot Apple**. Textförslaget (med policyutkastet), skärmbilden i
-rätt storlek, ikonen och de publika sidorna är körda på riktigt; flödet i webbläsaren är kört mot låtsasarbetaren. Räkna med justeringar första
-gången en sida skickas, troligast i uppladdningen av skärmbilder och i pris och tillgänglighet.
-iPhone-klienten har inte den här guiden.
+Mot Apple är det här kört: att skicka en sida (texter, skärmbild, kategori och val av bygge gick
+igenom på första försöket) och att skicka in för granskning fram till Apples svar om vad som
+saknades. Vilka av de valbara uppgifterna (åldersgräns, rättigheter, pris, kontakt) som följde med i
+de körningarna framgår inte av loggen, så räkna med justeringar där, och ett inskick som Apple tar
+emot är **inte kört**. Textförslaget (med policyutkastet), skärmbilden i rätt storlek, ikonen och de
+publika sidorna är körda på riktigt. iPhone-klienten har inte den här guiden.
 
 ### Användarens eget Apple-konto
 
@@ -411,8 +412,8 @@ eller motsvarande).
 Bygge, simulator, bildström, tryck och text samt uppladdning till TestFlight är körda på riktiga Macar,
 både en egen och en hyrd (se "Hyrda Macar"). Det här är **inte kört på riktigt**:
 
-- Att skicka appens sida till App Store Connect och att skicka in appen för granskning (se "Appens
-  sida i App Store").
+- Ett inskick för granskning som Apple tar emot, och delar av uppgifterna som skickas med sidan (se
+  "Appens sida i App Store").
 - Uppladdning med en användares eget kopplade Apple-konto.
 - `scripts/e2e.mjs` (Playwright är inte installerat här).
 - En omstart av den hyrda Macen.

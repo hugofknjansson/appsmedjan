@@ -242,6 +242,15 @@ export const hostedPagePath = (projectId: string, page: 'support' | 'privacy') =
 
 const isEmail = (s: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) && s.length <= 200;
 
+/** Cuts a text at the last whole word that fits in `max` characters. */
+export function fitWords(text: string, max: number): string {
+  const chars = [...text.trim()];
+  if (chars.length <= max) return chars.join('');
+  const cut = chars.slice(0, max + 1).join('');
+  const space = cut.lastIndexOf(' ');
+  return (space > max * 0.5 ? cut.slice(0, space) : chars.slice(0, max).join('')).replace(/[\s,;:.\-–]+$/, '');
+}
+
 export type ListingProblem =
   | 'name_missing'
   | 'name_long'
@@ -316,13 +325,16 @@ export interface ReviewContact {
 
 export const EMPTY_CONTACT: ReviewContact = { firstName: '', lastName: '', phone: '', email: '', holder: '' };
 
+/** The first thing that keeps the contact details from being used, or null when they are complete. */
+export function contactProblem(c: ReviewContact): 'name' | 'phone' | 'email' | null {
+  if (!c.firstName.trim() || !c.lastName.trim()) return 'name';
+  if (!/^\+[0-9][0-9 ()-]{6,24}$/.test(c.phone.trim())) return 'phone';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email.trim())) return 'email';
+  return null;
+}
+
 export function contactComplete(c: ReviewContact): boolean {
-  return (
-    c.firstName.trim().length > 0 &&
-    c.lastName.trim().length > 0 &&
-    /^\+[0-9][0-9 ()-]{6,24}$/.test(c.phone.trim()) &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email.trim())
-  );
+  return contactProblem(c) === null;
 }
 
 /** The copyright line Apple shows on the app's page: the year and who holds it. */

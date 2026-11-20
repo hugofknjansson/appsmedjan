@@ -10,9 +10,10 @@ import {
   STORE_CATEGORIES,
   STORE_LIMITS,
   STORE_SHOT,
-  contactComplete,
+  contactProblem,
   hostedPagePath,
   listingProblems,
+  type ListingProblem,
   type ReviewContact,
   type StoreChoices,
   type StoreListing,
@@ -23,6 +24,43 @@ import { ApiError, api } from './api';
 import { apiErrorText, lang, t } from './i18n';
 
 const CONNECT_URL = 'https://appstoreconnect.apple.com/apps';
+
+/** The field in the dialog where each problem is put right. */
+const PROBLEM_FIELD: Record<ListingProblem, string> = {
+  name_missing: 'name',
+  name_long: 'name',
+  subtitle_long: 'subtitle',
+  promo_long: 'promo',
+  description_missing: 'description',
+  description_long: 'description',
+  keywords_missing: 'keywords',
+  keywords_long: 'keywords',
+  support_url: 'supportUrl',
+  marketing_url: 'marketingUrl',
+  privacy_url: 'privacyUrl',
+  category: 'category',
+  screenshots: 'screenshots',
+  page_email: 'pageEmail',
+  page_policy: 'pagePolicy',
+};
+
+/** What to do about the things Apple most often finds missing, said in the person's own language. */
+function refusalHints(detail: string): string[] {
+  const hints: string[] = [];
+  if (/contentRightsDeclaration/i.test(detail)) hints.push(t.store.hintRights);
+  if (/medical device/i.test(detail)) hints.push(t.store.hintMedical);
+  if (/privacy/i.test(detail)) hints.push(t.store.hintPrivacy);
+  if (/age ?rating/i.test(detail)) hints.push(t.store.hintAge);
+  if (/pric|availab/i.test(detail)) hints.push(t.store.hintPrice);
+  return hints;
+}
+
+/** Brings a field into view and puts the cursor in it. */
+function goTo(field: string): void {
+  const target = document.getElementById(`store-${field}`);
+  target?.scrollIntoView({ block: 'center' });
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement) target.focus();
+}
 
 const errorText = (err: unknown) => apiErrorText(err instanceof ApiError ? err.code : 'internal');
 
@@ -169,6 +207,7 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
 
   const problems = store ? listingProblems(form, store.screenshots.length, pages) : [];
   const sync = store?.sync;
+  const missingContact = contactProblem(contact);
   const check = (key: keyof StoreChoices, label: string, help: string) => (
     <label className="check">
       <input type="checkbox" checked={choices[key]} onChange={(e) => choose(key, e.target.checked)} />
@@ -191,7 +230,7 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
       <span>
         {label} <Counter value={form[key]} max={STORE_LIMITS[key]} />
       </span>
-      <input type="text" value={form[key]} spellCheck onChange={(e) => change(key, e.target.value)} />
+      <input id={`store-${key}`} type="text" value={form[key]} spellCheck onChange={(e) => change(key, e.target.value)} />
       {help && <small>{help}</small>}
     </label>
   );
@@ -199,6 +238,7 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
     <label>
       <span>{label}</span>
       <input
+        id={`store-${key}`}
         type="url"
         inputMode="url"
         placeholder="https://"
@@ -242,12 +282,12 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
                   <span>
                     {t.store.description} <Counter value={form.description} max={STORE_LIMITS.description} />
                   </span>
-                  <textarea rows={9} value={form.description} onChange={(e) => change('description', e.target.value)} />
+                  <textarea id="store-description" rows={9} value={form.description} onChange={(e) => change('description', e.target.value)} />
                 </label>
                 {field('keywords', t.store.keywords, t.store.keywordsHelp)}
                 <label>
                   <span>{t.store.category}</span>
-                  <select value={form.category} onChange={(e) => change('category', e.target.value)}>
+                  <select id="store-category" value={form.category} onChange={(e) => change('category', e.target.value)}>
                     <option value="">{t.store.chooseCategory}</option>
                     {STORE_CATEGORIES.map((c) => (
                       <option key={c} value={c}>
@@ -278,14 +318,14 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
                   <>
                     <label>
                       <span>{t.store.pageEmail}</span>
-                      <input type="email" autoComplete="email" value={pages.supportEmail} onChange={(e) => changePages('supportEmail', e.target.value)} />
+                      <input id="store-pageEmail" type="email" autoComplete="email" value={pages.supportEmail} onChange={(e) => changePages('supportEmail', e.target.value)} />
                       <small>{t.store.pageEmailHelp}</small>
                     </label>
                     <label>
                       <span>
                         {t.store.pagePolicy} <Counter value={pages.privacyText} max={MAX_POLICY_CHARS} />
                       </span>
-                      <textarea rows={9} value={pages.privacyText} onChange={(e) => changePages('privacyText', e.target.value)} />
+                      <textarea id="store-pagePolicy" rows={9} value={pages.privacyText} onChange={(e) => changePages('privacyText', e.target.value)} />
                       <small>{t.store.pagePolicyHelp}</small>
                     </label>
                     <p className="fine">
@@ -315,7 +355,7 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
             </li>
 
             <li>
-              <h3>{t.store.screenshots}</h3>
+              <h3 id="store-screenshots">{t.store.screenshots}</h3>
               <p>{t.store.screenshotsHelp.replace('{max}', String(STORE_SHOT.max))}</p>
               {store.screenshots.length === 0 ? (
                 <p className="muted">{t.store.noShots}</p>
@@ -408,16 +448,20 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
               {store.account !== 'none' && !store.available && <p className="muted">{t.store.notAvailable}</p>}
               {store.account !== 'none' && !store.build && <p className="muted">{t.store.noBuild}</p>}
               {problems.length > 0 && (
-                <div>
+                <div className="form-error" role="status">
                   <p>{t.store.missing}</p>
                   <ul className="plain-list">
                     {problems.map((p) => (
-                      <li key={p}>{t.store.problem[p]}</li>
+                      <li key={p}>
+                        <button className="link" onClick={() => goTo(PROBLEM_FIELD[p])}>
+                          {t.store.problem[p]}
+                        </button>
+                      </li>
                     ))}
                   </ul>
                 </div>
               )}
-              {!contactComplete(contact) && <p className="muted">{t.store.contactMissing}</p>}
+              {missingContact && <p className="muted">{t.store.contactMissing[missingContact]}</p>}
               {dirty && problems.length === 0 && <p className="muted">{t.store.unsaved}</p>}
               <button
                 className="btn primary"
@@ -443,6 +487,13 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
             <li>
               <h3>{t.store.review}</h3>
               <p>{t.store.reviewText}</p>
+              <ul className="plain-list">
+                <li>{t.store.needPrivacy}</li>
+                {(form.category === 'HEALTH_AND_FITNESS' || form.category === 'MEDICAL') && <li>{t.store.needMedical}</li>}
+                {!choices.noMatureContent && <li>{t.store.needAge}</li>}
+                {!choices.noThirdPartyContent && <li>{t.store.needRights}</li>}
+                {!choices.free && <li>{t.store.needPrice}</li>}
+              </ul>
               <a className="link" href={CONNECT_URL} target="_blank" rel="noreferrer">
                 {t.store.open}
               </a>
@@ -460,9 +511,18 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
                 </p>
               )}
               {store.submit.status === 'failed' && (
-                <p className="form-error" role="alert">
-                  {t.store.submitError[store.submit.error ?? 'internal']} {store.submit.error === 'rejected' ? store.submit.detail : ''}
-                </p>
+                <div className="form-error" role="alert">
+                  <p>
+                    {t.store.submitError[store.submit.error ?? 'internal']} {store.submit.error === 'rejected' ? store.submit.detail : ''}
+                  </p>
+                  {store.submit.error === 'rejected' && refusalHints(store.submit.detail ?? '').length > 0 && (
+                    <ul className="plain-list">
+                      {refusalHints(store.submit.detail ?? '').map((hint) => (
+                        <li key={hint}>{hint}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               )}
             </li>
           </ol>

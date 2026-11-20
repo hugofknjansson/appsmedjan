@@ -15,9 +15,11 @@ import {
   EMPTY_LISTING,
   buildNumberFor,
   contactComplete,
+  contactProblem,
   copyrightLine,
   decodeFrame,
   encodeFrame,
+  fitWords,
   isValidSourcePath,
   listingProblems,
   type StoreListing,
@@ -429,6 +431,17 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
   assert.ok(contactComplete(contact));
   assert.ok(!contactComplete({ ...contact, phone: '070-123 45 67' }), 'the country code is needed');
   assert.ok(!contactComplete(EMPTY_CONTACT));
+  assert.equal(contactProblem(EMPTY_CONTACT), 'name');
+  assert.equal(contactProblem({ ...contact, phone: '0701234567' }), 'phone');
+  assert.equal(contactProblem({ ...contact, email: 'hugo(at)example.com' }), 'email');
+  assert.equal(contactProblem(contact), null);
+
+  // A text that is still too long is cut at a word, never in the middle of one.
+  assert.equal(fitWords('Påminnelser och tandborstning varje dag', 30), 'Påminnelser och tandborstning');
+  assert.equal(fitWords('Kort nog', 30), 'Kort nog');
+  assert.equal(fitWords('Borsta tänderna, varje dag', 16), 'Borsta tänderna');
+  assert.equal(fitWords('Ettendalångtordutanmellanslagalls', 10), 'Ettendalån');
+  assert.equal([...fitWords('🪥'.repeat(40), 30)].length, 30);
   assert.equal(copyrightLine(contact, 2026), '2026 Hugo Jansson');
   assert.equal(copyrightLine({ ...contact, holder: 'Smedjan AB' }, 2026), '2026 Smedjan AB');
 
