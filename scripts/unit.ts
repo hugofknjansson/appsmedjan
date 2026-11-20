@@ -33,7 +33,7 @@ import type { WebSocket } from 'ws';
 
 // Phones: what an identifier looks like, and reading one out of what a phone posts when it is added
 assert.ok(isUdid('00008110-000A1B2C3D4E5F60') && isUdid('a'.repeat(40)));
-assert.ok(!isUdid('00008160-0014042E1E40003') && !isUdid('g'.repeat(40)) && !isUdid('') && !isUdid(42));
+assert.ok(!isUdid('00008110-000A1B2C3D4E5F6') && !isUdid('g'.repeat(40)) && !isUdid('') && !isUdid(42));
 {
   const answer = (udid: string, product: string) =>
     Buffer.concat([
