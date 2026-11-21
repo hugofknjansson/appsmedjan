@@ -163,6 +163,16 @@ extension API {
     try await send("POST", "api/projects/\(id)/testflight")
   }
 
+  func plan() async throws(APIError) -> PlanState {
+    try await get("api/plan")
+  }
+
+  /// Asks for a larger plan. There is no payment yet: the people who run the service answer.
+  func requestPlan(_ id: String) async throws(APIError) -> PlanState {
+    struct Body: Encodable { let plan: String }
+    return try await send("POST", "api/plan/request", body: Body(plan: id))
+  }
+
   /// A page for adding this phone, to open in Safari: the profile that hands over the phone's
   /// identifier can only be fetched there. The link lets a phone in without a sign-in, for half an hour.
   func addPhoneURL() async throws(APIError) -> URL {

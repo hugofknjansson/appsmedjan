@@ -3,9 +3,10 @@ import type { IncomingMessage } from 'node:http';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import express, { type NextFunction, type Request, type Response } from 'express';
-import { isValidProjectId, testerPersonProblem, type TesterPerson } from '../../shared/protocol';
+import { isPlanId, isValidProjectId, testerPersonProblem, type PlanNeed, type TesterPerson } from '../../shared/protocol';
 import { hasCredentials } from './agent';
 import { ensureIcon, smallIcon } from './icon';
+import * as plans from './plans';
 import { config } from './config';
 import * as db from './db';
 import * as direct from './direct';
@@ -70,6 +71,17 @@ function ownProject(req: Request, res: Response): db.Project | null {
     return null;
   }
   return project;
+}
+
+/**
+ * Stops the request when the person's plan does not cover what it asks for, and says which plan
+ * would. The answer is 402: nothing is wrong with the request, it needs a larger plan.
+ */
+function planCovers(req: Request, res: Response, need: PlanNeed): boolean {
+  const user = (req as Authed).user;
+  if (plans.allows(user, need)) return true;
+  res.status(402).json({ error: `plan_${need}`, plan: plans.needed(user, need) });
+  return false;
 }
 
 // --- Brute-force protection for the auth endpoints ---------------------------
@@ -197,6 +209,7 @@ api.post('/projects', requireUser, (req, res) => {
     res.status(403).json({ error: 'project_limit' });
     return;
   }
+  if (!planCovers(req, res, 'apps') || !planCovers(req, res, 'messages')) return;
   if (!db.consumeMessage(user.id)) {
     res.status(429).json({ error: 'daily_limit' });
     return;
@@ -236,6 +249,7 @@ api.post('/projects/:id/messages', requireUser, (req, res) => {
     res.status(409).json({ error: 'busy' });
     return;
   }
+  if (!planCovers(req, res, 'messages')) return;
   if (!db.consumeMessage((req as Authed).user.id)) {
     res.status(429).json({ error: 'daily_limit' });
     return;
@@ -280,6 +294,7 @@ api.delete('/apple-account', requireUser, (req, res) => {
 api.post('/projects/:id/testflight', requireUser, (req, res) => {
   const project = ownProject(req, res);
   if (!project) return;
+  if (!planCovers(req, res, 'install')) return;
   switch (startPublish(project, (req as Authed).user)) {
     case 'forbidden':
       res.status(403).json({ error: 'publish_forbidden' });
@@ -304,6 +319,7 @@ api.post('/projects/:id/testflight', requireUser, (req, res) => {
 api.post('/projects/:id/testlink', requireUser, (req, res) => {
   const project = ownProject(req, res);
   if (!project) return;
+  if (!planCovers(req, res, 'install')) return;
   const user = (req as Authed).user;
   const given = (req.body ?? {}) as { contact?: unknown };
   if (given.contact !== undefined) {
@@ -329,6 +345,7 @@ api.post('/projects/:id/testlink', requireUser, (req, res) => {
 api.post('/projects/:id/fasttrack', requireUser, authLimiter, (req, res) => {
   const project = ownProject(req, res);
   if (!project) return;
+  if (!planCovers(req, res, 'install')) return;
   const given = (req.body ?? {}) as Record<string, unknown>;
   const text = (key: string) => (typeof given[key] === 'string' ? (given[key] as string).replace(/\s+/g, ' ').trim().slice(0, 200) : '');
   const person: TesterPerson = { email: text('email').toLowerCase(), firstName: text('firstName'), lastName: text('lastName') };
@@ -387,6 +404,50 @@ api.get('/operator/requests', requireUser, (req, res) => {
   res.json({ requests: db.listAppRequests() });
 });
 
+// --- Plans ------------------------------------------------------------------------
+
+api.get('/plan', requireUser, (req, res) => {
+  res.json(plans.state((req as Authed).user));
+});
+
+/** The person asks for a larger plan. There is no payment yet: the people who run the service answer. */
+api.post('/plan/request', requireUser, authLimiter, (req, res) => {
+  const user = (req as Authed).user;
+  const plan = (req.body as { plan?: unknown } | undefined)?.plan;
+  if (!isPlanId(plan) || plans.ask(user, plan) !== 'asked') {
+    res.status(400).json({ error: 'bad_plan' });
+    return;
+  }
+  res.json(plans.state(user));
+});
+
+/** For the people who run the service: everyone's plan, what they have asked for and what they have used. */
+api.get('/operator/plans', requireUser, (req, res) => {
+  if (!isOperator((req as Authed).user.email)) {
+    res.status(403).json({ error: 'forbidden' });
+    return;
+  }
+  res.json({ enforced: config.paywall, defaultPlan: plans.defaultPlan, people: db.listPlans() });
+});
+
+/** For the people who run the service: gives a person a plan. */
+api.post('/operator/plans', requireUser, (req, res) => {
+  const operator = (req as Authed).user;
+  if (!isOperator(operator.email)) {
+    res.status(403).json({ error: 'forbidden' });
+    return;
+  }
+  const given = (req.body ?? {}) as { email?: unknown; plan?: unknown };
+  const person = typeof given.email === 'string' && isPlanId(given.plan) ? plans.give(given.email, given.plan, `operator ${operator.id}`) : null;
+  if (!person) {
+    res.status(400).json({ error: 'bad_plan' });
+    return;
+  }
+  // Their open projects find out at once what they may now do.
+  accountChanged(person.id);
+  res.json({ enforced: config.paywall, defaultPlan: plans.defaultPlan, people: db.listPlans() });
+});
+
 // --- Straight onto the phone -------------------------------------------------------
 
 /** The phones the person has added. The identifiers themselves stay on the server. */
@@ -406,6 +467,7 @@ api.post('/phones/ticket', requireUser, authLimiter, (req, res) => {
 api.post('/projects/:id/direct', requireUser, (req, res) => {
   const project = ownProject(req, res);
   if (!project) return;
+  if (!planCovers(req, res, 'install')) return;
   const outcome = direct.start(project, (req as Authed).user);
   if (outcome === 'forbidden') {
     res.status(403).json({ error: 'direct_not_offered' });
@@ -550,6 +612,7 @@ api.post('/projects/:id/store/draft', requireUser, async (req, res) => {
     return;
   }
   // It is a model request like a chat message, and counts as one.
+  if (!planCovers(req, res, 'messages')) return;
   if (!db.consumeMessage((req as Authed).user.id)) {
     res.status(429).json({ error: 'daily_limit' });
     return;
@@ -648,6 +711,7 @@ api.delete('/projects/:id/store/icon', requireUser, (req, res) => {
 api.post('/projects/:id/store/sync', requireUser, (req, res) => {
   const project = ownProject(req, res);
   if (!project) return;
+  if (!planCovers(req, res, 'store')) return;
   const user = (req as Authed).user;
   const started = startSync(project, user);
   if (started !== 'started') {
@@ -665,6 +729,7 @@ api.post('/projects/:id/store/sync', requireUser, (req, res) => {
 api.post('/projects/:id/store/submit', requireUser, (req, res) => {
   const project = ownProject(req, res);
   if (!project) return;
+  if (!planCovers(req, res, 'store')) return;
   const user = (req as Authed).user;
   const started = startSubmit(project, user);
   if (started !== 'started') {

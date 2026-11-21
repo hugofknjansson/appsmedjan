@@ -27,6 +27,29 @@ former släpps igenom: ingen text, inga bilder utifrån, inga skript, och bakgru
 kvadraten. En app som byggaren inte hann rita åt får en enkel ikon i en egen färg, och en ikon som
 personen själv har valt i App Store-guiden skrivs aldrig över.
 
+## Planer
+
+Vad en person får göra kan styras av en plan. Det finns tre, och de står i `shared/protocol.ts`
+(`PLANS`), så att servern och klienterna alltid visar samma tal:
+
+| Plan | Appar | Meddelanden per månad | Appen på telefonen | App Store-guiden |
+|---|---|---|---|---|
+| Prova (`free`) | 1 | 20 | nej | nej |
+| Skapa (`create`) | 10 | 300 | ja | nej |
+| Publicera (`publish`) | 50 | 600 | ja | ja |
+
+Gränserna följer det som kostar: meddelanden till byggaren är modellens arbete, och en telefon tar
+en plats i utvecklarkontot. De som driver tjänsten (`OPERATOR_EMAILS`) räknas inte.
+
+Det finns ingen betalning än. En person ber om en större plan under "Min plan", eller från frågan om
+att installera på telefonen, och den som driver tjänsten ser förfrågan längst ned på sin startsida
+på webben och delar ut planen där. När en betaltjänst kopplas in är det den som anropar samma
+funktion (`give` i `server/src/plans.ts`).
+
+Planerna gäller först med `PAYWALL=1` på servern. Utan den är allt öppet för alla som förut, men
+planer kan redan delas ut. `DEFAULT_PLAN` är planen för den som inte har fått någon (`free` om inget
+anges). En begäran som en plan inte täcker besvaras med 402 och namnet på den plan som räcker.
+
 ## Så hänger det ihop
 
 ```

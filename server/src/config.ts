@@ -57,6 +57,13 @@ export const config = {
    * People with their own connected account can always do it; the places are theirs.
    */
   directInstall: process.env.DIRECT_INSTALL === '1',
+  /**
+   * Turns plans on: what a person may do then depends on the plan they have been given (see
+   * shared/protocol.ts). Off, everything is open to everyone who can sign in, as before plans existed.
+   */
+  paywall: process.env.PAYWALL === '1',
+  /** The plan of a person who has not been given one: free, create or publish. */
+  defaultPlan: process.env.DEFAULT_PLAN ?? 'free',
   /** How many phones one person may add. */
   maxPhones: Math.max(1, Number(process.env.MAX_PHONES_PER_USER ?? 2) || 2),
   /** The address people reach the service at, for links that phones open. Worked out from the request when empty. */

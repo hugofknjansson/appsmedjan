@@ -206,8 +206,55 @@ nonisolated struct PublishState: Decodable, Equatable {
   var `operator`: Bool?
   /// Installing straight onto the person's own phone. Missing from servers before it existed.
   var direct: DirectInstall?
+  /// What the owner's plan allows. Missing from servers before plans existed, where everything is open.
+  var plan: PlanAccess?
 
   static let none = PublishState(available: false, account: .none, canConnect: false, status: .idle)
+}
+
+/// What the open project needs to know about the plan, to ask for the right thing at the right moment.
+nonisolated struct PlanAccess: Decodable, Equatable {
+  var id: String
+  var install: Bool
+  var store: Bool
+}
+
+/// What a plan holds.
+nonisolated struct PlanLimits: Decodable, Equatable {
+  var apps: Int
+  var messages: Int
+  var install: Bool
+  var store: Bool
+}
+
+/// The person's plan: what it holds, how much of it is used, and what they have asked for.
+/// There is no payment yet: a person asks for a plan and the people who run the service give it.
+nonisolated struct PlanState: Decodable, Equatable {
+  nonisolated struct Used: Decodable, Equatable {
+    var apps: Int
+    var messages: Int
+  }
+
+  /// From the smallest plan to the largest.
+  static let order = ["free", "create", "publish"]
+
+  /// False while plans are not turned on: everything is open to everyone.
+  var enforced: Bool
+  var plan: String
+  var limits: PlanLimits
+  var used: Used
+  /// A larger plan the person has asked for and not been given yet.
+  var requested: String?
+  /// When the month's count of messages starts over, in milliseconds since 1970.
+  var resetsAt: Double
+  /// Every plan by its id, for showing what a larger one would give.
+  var plans: [String: PlanLimits]
+
+  var resets: Date { Date(timeIntervalSince1970: resetsAt / 1000) }
+
+  func isLarger(_ id: String) -> Bool {
+    (Self.order.firstIndex(of: id) ?? 0) > (Self.order.firstIndex(of: plan) ?? 0)
+  }
 }
 
 /// Straight onto the phone, without TestFlight: the person adds their phone once, and after that

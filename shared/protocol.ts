@@ -203,6 +203,79 @@ export interface PublishState {
   operator?: boolean;
   /** Installing straight onto the person's own phone, without TestFlight. Missing from servers before it existed. */
   direct?: DirectInstall;
+  /** What the owner's plan allows. Missing from servers before plans existed, where everything is open. */
+  plan?: PlanAccess;
+}
+
+// ---------------------------------------------------------------------------
+// Plans
+// ---------------------------------------------------------------------------
+//
+// What a person may do depends on their plan. There is no payment yet: a person asks for a plan and
+// the people who run the service give it to them. The limits follow what costs something: messages
+// to the builder (the model's work), and a place for the person's phone in the developer account.
+
+export type PlanId = 'free' | 'create' | 'publish';
+
+/** From the smallest plan to the largest. */
+export const PLAN_ORDER: PlanId[] = ['free', 'create', 'publish'];
+
+export interface PlanLimits {
+  /** How many apps the person may have at once. */
+  apps: number;
+  /** How many messages to the builder they may send in a calendar month. */
+  messages: number;
+  /** Whether their apps can be put on a phone: straight onto their own, or through TestFlight. */
+  install: boolean;
+  /** Whether they get the App Store guide. */
+  store: boolean;
+}
+
+/** The plans. Changing a number here changes it everywhere: the server enforces it and the clients show it. */
+export const PLANS: Record<PlanId, PlanLimits> = {
+  free: { apps: 1, messages: 20, install: false, store: false },
+  create: { apps: 10, messages: 300, install: true, store: false },
+  publish: { apps: 50, messages: 600, install: true, store: true },
+};
+
+/** What ran into a plan's limit. */
+export type PlanNeed = 'apps' | 'messages' | 'install' | 'store';
+
+export interface PlanState {
+  /** False while the people who run the service have not turned plans on: everything is open to everyone. */
+  enforced: boolean;
+  plan: PlanId;
+  limits: PlanLimits;
+  used: { apps: number; messages: number };
+  /** A larger plan the person has asked for and not been given yet. */
+  requested?: PlanId;
+  /** When the month's count of messages starts over (ms since epoch). */
+  resetsAt: number;
+  /** Every plan, for showing what a larger one would give. */
+  plans: Record<PlanId, PlanLimits>;
+}
+
+/** What the open project needs to know about the plan, to ask for the right thing at the right moment. */
+export interface PlanAccess {
+  id: PlanId;
+  install: boolean;
+  store: boolean;
+}
+
+export function isPlanId(value: unknown): value is PlanId {
+  return value === 'free' || value === 'create' || value === 'publish';
+}
+
+/** The smallest plan that has what is needed, or null when no plan does. */
+export function planFor(need: PlanNeed, used: { apps: number; messages: number }): PlanId | null {
+  return (
+    PLAN_ORDER.find((id) => {
+      const plan = PLANS[id];
+      if (need === 'install') return plan.install;
+      if (need === 'store') return plan.store;
+      return need === 'apps' ? plan.apps > used.apps : plan.messages > used.messages;
+    }) ?? null
+  );
 }
 
 // ---------------------------------------------------------------------------

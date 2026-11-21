@@ -1,4 +1,4 @@
-import type { PublishState, ReviewContact, StoreChoices, StoreListing, StorePages, StoreState, TesterPerson } from '../../shared/protocol';
+import type { PlanId, PlanState, PublishState, ReviewContact, StoreChoices, StoreListing, StorePages, StoreState, TesterPerson } from '../../shared/protocol';
 
 /** An app someone is waiting for the operator to create in App Store Connect. */
 export interface AppRequest {
@@ -20,6 +20,23 @@ export interface ProjectSummary {
   updatedAt: number;
   /** When the app's icon last changed, or null while it has none. Missing from servers before icons were always made. */
   icon?: number | null;
+}
+
+/** A person as the people who run the service see them: their plan, what they ask for and what they have used. */
+export interface PlanPerson {
+  userId: string;
+  email: string;
+  plan: string | null;
+  requested: string | null;
+  requestedAt: number | null;
+  apps: number;
+  messages: number;
+}
+
+interface OperatorPlans {
+  enforced: boolean;
+  defaultPlan: PlanId;
+  people: PlanPerson[];
 }
 
 export interface AppleStatus {
@@ -78,6 +95,11 @@ export const api = {
     call<{ publish: PublishState }>('POST', `/api/projects/${id}/testlink`, contact ? { contact } : {}),
   fastTrack: (id: string, person: TesterPerson) => call<{ publish: PublishState }>('POST', `/api/projects/${id}/fasttrack`, person),
   handoff: (id: string) => call<{ path: string; expiresInMs: number }>('POST', `/api/projects/${id}/handoff`, {}),
+  plan: () => call<PlanState>('GET', '/api/plan'),
+  /** Asks for a larger plan. There is no payment yet: the people who run the service answer. */
+  requestPlan: (plan: PlanId) => call<PlanState>('POST', '/api/plan/request', { plan }),
+  operatorPlans: () => call<OperatorPlans>('GET', '/api/operator/plans'),
+  givePlan: (email: string, plan: PlanId) => call<OperatorPlans>('POST', '/api/operator/plans', { email, plan }),
   /** A link for adding a phone, to open (or scan) on that phone. */
   phoneTicket: () => call<{ path: string; expiresInMs: number }>('POST', '/api/phones/ticket', {}),
   /** Builds the app for the person's own phones. */

@@ -122,6 +122,16 @@ db.exec(`
     checked_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS user_plans (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    plan TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS plan_requests (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    plan TEXT NOT NULL,
+    requested_at INTEGER NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS phones (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -293,6 +303,76 @@ export function consumeMessage(userId: string): boolean {
      ON CONFLICT (user_id, day) DO UPDATE SET messages = messages + 1`,
   ).run(userId, today());
   return true;
+}
+
+/** How many messages the person has sent this calendar month (UTC). */
+export function messagesThisMonth(userId: string): number {
+  const row = db.prepare('SELECT SUM(messages) AS messages FROM usage WHERE user_id = ? AND day LIKE ?').get(userId, `${today().slice(0, 7)}-%`) as
+    | { messages: number | null }
+    | undefined;
+  return row?.messages ?? 0;
+}
+
+// --- Plans -------------------------------------------------------------------
+
+/** The plan the person has been given, or null when they have the default one. */
+export function getPlan(userId: string): string | null {
+  const row = db.prepare('SELECT plan FROM user_plans WHERE user_id = ?').get(userId) as { plan: string } | undefined;
+  return row?.plan ?? null;
+}
+
+/** Gives the person a plan. A request they had waiting is answered by it. */
+export function setPlan(userId: string, plan: string): void {
+  db.prepare(
+    `INSERT INTO user_plans (user_id, plan, updated_at) VALUES (?, ?, ?)
+     ON CONFLICT (user_id) DO UPDATE SET plan = excluded.plan, updated_at = excluded.updated_at`,
+  ).run(userId, plan, Date.now());
+  db.prepare('DELETE FROM plan_requests WHERE user_id = ?').run(userId);
+}
+
+export function getPlanRequest(userId: string): string | null {
+  const row = db.prepare('SELECT plan FROM plan_requests WHERE user_id = ?').get(userId) as { plan: string } | undefined;
+  return row?.plan ?? null;
+}
+
+export function requestPlan(userId: string, plan: string): void {
+  db.prepare(
+    `INSERT INTO plan_requests (user_id, plan, requested_at) VALUES (?, ?, ?)
+     ON CONFLICT (user_id) DO UPDATE SET plan = excluded.plan, requested_at = excluded.requested_at`,
+  ).run(userId, plan, Date.now());
+}
+
+export function userByEmail(email: string): User | null {
+  const row = db.prepare('SELECT id, email FROM users WHERE email = ?').get(email.trim().toLowerCase()) as User | undefined;
+  return row ?? null;
+}
+
+export interface PlanRow {
+  userId: string;
+  email: string;
+  /** Null for a person on the default plan. */
+  plan: string | null;
+  requested: string | null;
+  requestedAt: number | null;
+  apps: number;
+  messages: number;
+}
+
+/** Everyone with an account, with their plan, what they have asked for and what they have used this month. Newest requests first. */
+export function listPlans(limit = 500): PlanRow[] {
+  const rows = db
+    .prepare(
+      `SELECT u.id AS userId, u.email AS email, p.plan AS plan, r.plan AS requested, r.requested_at AS requestedAt,
+         (SELECT COUNT(*) FROM projects WHERE user_id = u.id) AS apps,
+         (SELECT COALESCE(SUM(messages), 0) FROM usage WHERE user_id = u.id AND day LIKE ?) AS messages
+       FROM users u
+       LEFT JOIN user_plans p ON p.user_id = u.id
+       LEFT JOIN plan_requests r ON r.user_id = u.id
+       ORDER BY r.requested_at IS NULL, r.requested_at DESC, u.created_at DESC
+       LIMIT ?`,
+    )
+    .all(`${today().slice(0, 7)}-%`, limit) as unknown as PlanRow[];
+  return rows;
 }
 
 // --- Projects ----------------------------------------------------------------

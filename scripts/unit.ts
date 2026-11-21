@@ -29,6 +29,9 @@ import {
   runProgress,
   type Part,
   parseContact,
+  PLANS,
+  PLAN_ORDER,
+  planFor,
   type StoreListing,
 } from '../shared/protocol';
 import { keepAlive } from '../shared/keepalive';
@@ -130,6 +133,19 @@ assert.equal(firstSentence(''), '');
   const long = firstSentence(`Appen har ${'många kaféer i sju stadsdelar, '.repeat(8)}och mer.`);
   assert.ok(long.length <= 141 && long.endsWith('…') && !/[ ,]…$/.test(long), long);
 }
+
+// Plans: each one holds at least what the one before it holds, and the right one is named for a limit
+for (let i = 1; i < PLAN_ORDER.length; i++) {
+  const smaller = PLANS[PLAN_ORDER[i - 1]!], larger = PLANS[PLAN_ORDER[i]!];
+  assert.ok(larger.apps >= smaller.apps && larger.messages >= smaller.messages, 'more room in a larger plan');
+  assert.ok((larger.install || !smaller.install) && (larger.store || !smaller.store), 'nothing is lost in a larger plan');
+}
+assert.equal(planFor('install', { apps: 0, messages: 0 }), 'create');
+assert.equal(planFor('store', { apps: 0, messages: 0 }), 'publish');
+assert.equal(planFor('apps', { apps: PLANS.free.apps, messages: 0 }), 'create');
+assert.equal(planFor('apps', { apps: PLANS.create.apps, messages: 0 }), 'publish');
+assert.equal(planFor('messages', { apps: 0, messages: PLANS.free.messages }), 'create');
+assert.equal(planFor('messages', { apps: 0, messages: PLANS.publish.messages }), null, 'no plan has room for more');
 
 // JPEG splitting across arbitrary chunk boundaries
 const jpg = (n: number) => Buffer.concat([Buffer.from([0xff, 0xd8]), Buffer.alloc(n, 7), Buffer.from([0xff, 0xd9])]);

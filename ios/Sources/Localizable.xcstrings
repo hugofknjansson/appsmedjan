@@ -1,12 +1,52 @@
 {
   "sourceLanguage": "sv",
   "strings": {
+    "%lld appar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld apps"
+          }
+        }
+      }
+    },
+    "%lld av %lld": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld of %2$lld"
+          }
+        }
+      }
+    },
+    "%lld meddelanden till byggaren i månaden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld messages to the builder a month"
+          }
+        }
+      }
+    },
     "%lld/%lld": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "%lld/%lld"
+          }
+        }
+      }
+    },
+    "1 app": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 app"
           }
         }
       }
@@ -107,6 +147,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "App Store"
+          }
+        }
+      }
+    },
+    "App Store-guiden ingår i planen Publicera. Du ber om den under Min plan.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The App Store guide is part of the plan Publish. You ask for it under My plan."
+          }
+        }
+      }
+    },
+    "Appar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apps"
           }
         }
       }
@@ -217,6 +277,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "The app has none of the content Apple asks about for the age rating"
+          }
+        }
+      }
+    },
+    "Appen på din egen telefon": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app on your own phone"
+          }
+        }
+      }
+    },
+    "Appen på telefonen ingår i planen Skapa. Du ber om den under Min plan.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app on your phone is part of the plan Create. You ask for it under My plan."
           }
         }
       }
@@ -571,6 +651,16 @@
         }
       }
     },
+    "Betalning är inte påslagen än. När du ber om en plan slår vi på den åt dig.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Payment is not turned on yet. When you ask for a plan, we turn it on for you."
+          }
+        }
+      }
+    },
     "Bilden görs kvadratisk och används från nästa version du gör installerbar. Utan egen ikon får appen en enkel platshållare.": {
       "localizations": {
         "en": {
@@ -757,6 +847,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "There is already an account with that email address."
+          }
+        }
+      }
+    },
+    "Det gick inte att be om den planen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "That plan could not be asked for."
           }
         }
       }
@@ -951,6 +1051,26 @@
         }
       }
     },
+    "Din plan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your plan"
+          }
+        }
+      }
+    },
+    "Din plan rymmer inte fler appar. Ta bort en app, eller be om en större plan under Min plan.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your plan has no room for more apps. Delete one, or ask for a larger plan under My plan."
+          }
+        }
+      }
+    },
     "Dina appar": {
       "localizations": {
         "en": {
@@ -997,6 +1117,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "You get it on your phone"
+          }
+        }
+      }
+    },
+    "Du har bett om den här planen. Vi slår på den åt dig och hör av oss.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You have asked for this plan. We turn it on for you and get in touch."
           }
         }
       }
@@ -1671,6 +1801,16 @@
         }
       }
     },
+    "Hjälp att lägga upp appen i App Store": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Help getting the app onto the App Store"
+          }
+        }
+      }
+    },
     "Hur långt det har kommit": {
       "localizations": {
         "en": {
@@ -1967,6 +2107,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "I'm on it!"
+          }
+        }
+      }
+    },
+    "Jag vill ha %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "I want %@"
+          }
+        }
+      }
+    },
+    "Just nu är allt öppet för alla. Planerna börjar gälla senare.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Right now everything is open to everyone. The plans start to apply later."
           }
         }
       }
@@ -2351,6 +2511,26 @@
         }
       }
     },
+    "Meddelanden den här månaden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Messages this month"
+          }
+        }
+      }
+    },
+    "Meddelandena räknas om från %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The messages are counted afresh from %@."
+          }
+        }
+      }
+    },
     "Medicin": {
       "localizations": {
         "en": {
@@ -2367,6 +2547,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Regulated medical device: this can only be stated in App Store Connect, under App Compliance. For an ordinary app the answer is no."
+          }
+        }
+      }
+    },
+    "Min plan": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "My plan"
           }
         }
       }
@@ -2397,6 +2587,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Music"
+          }
+        }
+      }
+    },
+    "Månadens meddelanden är slut i din plan. Be om en större plan under Min plan.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This month's messages are used up in your plan. Ask for a larger plan under My plan."
           }
         }
       }
@@ -2541,6 +2741,16 @@
         }
       }
     },
+    "Prova": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try"
+          }
+        }
+      }
+    },
     "Provkör appen": {
       "localizations": {
         "en": {
@@ -2671,6 +2881,16 @@
         }
       }
     },
+    "Se planer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "See the plans"
+          }
+        }
+      }
+    },
     "Shopping": {
       "localizations": {
         "en": {
@@ -2727,6 +2947,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "The simulator is paused"
+          }
+        }
+      }
+    },
+    "Skapa": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create"
           }
         }
       }
@@ -3417,6 +3647,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Through TestFlight"
+          }
+        }
+      }
+    },
+    "Vill du ha den på din telefon? Det ingår i planen Skapa.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Do you want it on your phone? That is part of the plan Create."
           }
         }
       }

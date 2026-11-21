@@ -174,6 +174,10 @@ struct ChatView: View {
   /// Set when the person said yes to installing before a build was ready: iOS is asked as soon as one is.
   @State private var installsWhenReady = false
   @State private var isAsking = false
+  @State private var isShowingPlan = false
+
+  /// True when the owner's plan has no phone in it: the answer to "yes" is then the plans.
+  private var isLocked: Bool { store.publish.plan?.install == false }
 
   private var trimmedDraft: String { draft.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -217,7 +221,9 @@ struct ChatView: View {
             if phone.status == .working {
               ProgressCard(phone: phone, startedAt: nil)
             } else {
-              InstallAsk(words: asked.lastWords, phone: phone, isBusy: isAsking || !phone.available && phone.status != .ready) { answer(phone) }
+              InstallAsk(words: asked.lastWords, phone: phone, isLocked: isLocked, isBusy: !isLocked && (isAsking || !phone.available && phone.status != .ready)) {
+                if isLocked { isShowingPlan = true } else { answer(phone) }
+              }
             }
           }
         }
@@ -236,6 +242,9 @@ struct ChatView: View {
         guard installsWhenReady, status != .working else { return }
         installsWhenReady = false
         if status == .ready, let path = phone?.path, let url = api.installURL(forPagePath: path) { openURL(url) }
+      }
+      .sheet(isPresented: $isShowingPlan) {
+        PlanView(api: api)
       }
 
       VStack(alignment: .leading, spacing: 6) {
@@ -431,6 +440,8 @@ private struct ProgressCard: View {
 private struct InstallAsk: View {
   let words: String?
   let phone: DirectInstall
+  /// True when the person's plan has no phone in it.
+  var isLocked = false
   let isBusy: Bool
   let yes: () -> Void
 
@@ -438,6 +449,7 @@ private struct InstallAsk: View {
   private var hasArrived: Bool { phone.status == .ready && phone.install == "fetched" }
 
   private var question: String {
+    if isLocked { return String(localized: "Vill du ha den på din telefon? Det ingår i planen Skapa.") }
     if hasArrived { return String(localized: "Klart. Appen ligger på hemskärmen.") }
     if isArriving { return String(localized: "Hämtas till telefonen") }
     if phone.phones == 0 { return String(localized: "Vill du testa den på din telefon?") }
@@ -445,6 +457,7 @@ private struct InstallAsk: View {
   }
 
   private var button: String {
+    if isLocked { return String(localized: "Se planer") }
     if phone.phones == 0 { return String(localized: "Lägg till den här telefonen") }
     if phone.status == .failed { return String(localized: "Försök igen") }
     return hasArrived ? String(localized: "Installera igen") : String(localized: "Installera på telefonen")
@@ -478,7 +491,7 @@ private struct InstallAsk: View {
           .buttonStyle(.bouncy)
           .disabled(isBusy)
       }
-      if phone.phones == 0 {
+      if phone.phones == 0, !isLocked {
         Text("Du lägger till telefonen en gång. Sedan installeras varje app med ett tryck.")
           .font(.footnote)
           .foregroundStyle(.secondary)

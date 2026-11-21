@@ -15,6 +15,11 @@ enum Texts {
     case "too_many_attempts": String(localized: "För många försök. Vänta en stund och försök igen.")
     case "daily_limit": String(localized: "Du har nått dagens gräns för meddelanden. Välkommen tillbaka i morgon.")
     case "project_limit": String(localized: "Du har nått gränsen för antal appar. Ta bort en app för att skapa en ny.")
+    case "plan_apps": String(localized: "Din plan rymmer inte fler appar. Ta bort en app, eller be om en större plan under Min plan.")
+    case "plan_messages": String(localized: "Månadens meddelanden är slut i din plan. Be om en större plan under Min plan.")
+    case "plan_install": String(localized: "Appen på telefonen ingår i planen Skapa. Du ber om den under Min plan.")
+    case "plan_store": String(localized: "App Store-guiden ingår i planen Publicera. Du ber om den under Min plan.")
+    case "bad_plan": String(localized: "Det gick inte att be om den planen.")
     case "bad_prompt": String(localized: "Skriv vad du vill bygga (högst 8000 tecken).")
     case "busy": String(localized: "Vänta tills det pågående arbetet är klart.")
     case "publish_forbidden": String(localized: "Ditt konto får inte skicka appar till TestFlight.")
@@ -81,6 +86,25 @@ enum Texts {
     case .fixing: String(localized: "Rättar en detalj")
     case .looking: String(localized: "Tittar hur det blev")
     }
+  }
+
+  static func planName(_ id: String) -> String {
+    switch id {
+    case "create": String(localized: "Skapa")
+    case "publish": String(localized: "Publicera")
+    default: String(localized: "Prova")
+    }
+  }
+
+  /// What a plan holds, as lines to read.
+  static func planLines(_ limits: PlanLimits) -> [String] {
+    var lines = [
+      limits.apps == 1 ? String(localized: "1 app") : String(localized: "\(limits.apps) appar"),
+      String(localized: "\(limits.messages) meddelanden till byggaren i månaden"),
+    ]
+    if limits.install { lines.append(String(localized: "Appen på din egen telefon")) }
+    if limits.store { lines.append(String(localized: "Hjälp att lägga upp appen i App Store")) }
+    return lines
   }
 
   static func directStage(_ stage: String?) -> String {

@@ -12,6 +12,7 @@ import { ApiError, api } from './api';
 import { AppleAccountDialog } from './AppleAccount';
 import { DirectInstallSteps } from './Direct';
 import { OnPhoneDialog } from './OnPhone';
+import { PlanDialog } from './Plan';
 import { StoreDialog } from './Store';
 import { Logo } from './Logo';
 import { FrameBus, Phone } from './Phone';
@@ -86,6 +87,7 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
   const bus = useMemo(() => new FrameBus(), []);
   const socket = useRef<WebSocket | null>(null);
   const [appleOpen, setAppleOpen] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
   const [storeOpen, setStoreOpen] = useState(false);
   const [phoneOpen, setPhoneOpen] = useState(false);
 
@@ -247,6 +249,7 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
       </header>
       {state && !phoneOpen && <PublishNote publish={state.publish} />}
       {appleOpen && <AppleAccountDialog onClose={() => setAppleOpen(false)} />}
+      {planOpen && <PlanDialog onClose={() => setPlanOpen(false)} />}
       {phoneOpen && state && (
         <OnPhoneDialog
           id={id}
@@ -271,7 +274,7 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
       )}
 
       <div className="workspace" data-tab={tab}>
-        <section className="chat-pane">{state && <Chat id={id} state={state} phone={phone} onPhone={() => choose('phone')} />}</section>
+        <section className="chat-pane">{state && <Chat id={id} state={state} phone={phone} onPhone={() => choose('phone')} onPlans={() => setPlanOpen(true)} />}</section>
         <section className="stage-pane">
           {state && tab === 'phone' && phone && (
             <div className="phone-tab">
@@ -356,9 +359,11 @@ interface ChatProps {
   phone: DirectInstall | null;
   /** Shows the pane where the phone is added and the app installed. */
   onPhone: () => void;
+  /** Shows the plans, for a person whose plan has no phone in it. */
+  onPlans: () => void;
 }
 
-function Chat({ id, state, phone, onPhone }: ChatProps) {
+function Chat({ id, state, phone, onPhone, onPlans }: ChatProps) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -372,6 +377,11 @@ function Chat({ id, state, phone, onPhone }: ChatProps) {
   /** The person said yes: the phone pane has the code to scan, and a build is started if none is waiting. */
   async function answer() {
     if (!phone) return;
+    // A plan without a phone in it: the answer to "yes" is the plans.
+    if (state.publish.plan?.install === false) {
+      onPlans();
+      return;
+    }
     setAsking(true);
     setError('');
     try {
@@ -442,7 +452,7 @@ function Chat({ id, state, phone, onPhone }: ChatProps) {
           </div>
         )}
         {asked && phone && phone.status !== 'working' && (
-          <InstallAsk words={lastWords(asked)} phone={phone} busy={asking} onYes={() => void answer()} />
+          <InstallAsk words={lastWords(asked)} phone={phone} locked={state.publish.plan?.install === false} busy={asking} onYes={() => void answer()} />
         )}
       </div>
 
@@ -526,11 +536,11 @@ function ProgressCard({ title, lines, fraction, pieces = 0, timed = false }: { t
  * What comes after the wait, and the only thing that does: the builder's one sentence and the
  * question whether to put the app on the phone.
  */
-function InstallAsk({ words, phone, busy, onYes }: { words: string; phone: DirectInstall; busy: boolean; onYes: () => void }) {
+function InstallAsk({ words, phone, locked, busy, onYes }: { words: string; phone: DirectInstall; locked: boolean; busy: boolean; onYes: () => void }) {
   const arriving = phone.install === 'asked' || phone.install === 'fetching';
   const arrived = phone.status === 'ready' && phone.install === 'fetched';
   const text = t.ask;
-  const question = arrived ? t.direct.fetched : arriving ? t.direct.steps[2]! : phone.phones === 0 ? text.noPhone : text.install;
+  const question = locked ? text.locked : arrived ? t.direct.fetched : arriving ? t.direct.steps[2]! : phone.phones === 0 ? text.noPhone : text.install;
   return (
     <div className="install-ask">
       <Mascot cheering={arriving} />
@@ -542,11 +552,11 @@ function InstallAsk({ words, phone, busy, onYes }: { words: string; phone: Direc
         </p>
       )}
       {!arriving && (
-        <button className="btn primary" disabled={busy || (!phone.available && phone.status !== 'ready')} onClick={onYes}>
-          {phone.phones === 0 ? t.direct.addButton : phone.status === 'failed' ? t.retry : arrived ? text.again : text.yes}
+        <button className="btn primary" disabled={!locked && (busy || (!phone.available && phone.status !== 'ready'))} onClick={onYes}>
+          {locked ? t.plan.see : phone.phones === 0 ? t.direct.addButton : phone.status === 'failed' ? t.retry : arrived ? text.again : text.yes}
         </button>
       )}
-      {phone.phones === 0 && <p className="muted fine">{text.noPhoneNote}</p>}
+      {phone.phones === 0 && !locked && <p className="muted fine">{text.noPhoneNote}</p>}
     </div>
   );
 }

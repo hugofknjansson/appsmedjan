@@ -13,6 +13,7 @@ import path from 'node:path';
 import { buildNumberFor, readPhoneAnswer, type AppleAccount, type DirectError, type DirectFetch, type DirectInstall, type Phone } from '../../shared/protocol';
 import { credentialsFor } from './apple';
 import { ensureIcon } from './icon';
+import * as plans from './plans';
 import { config } from './config';
 import * as db from './db';
 import { live } from './live';
@@ -98,6 +99,8 @@ export function buildAfterRun(projectId: string): void {
   const project = db.getProject(projectId);
   const owner = project ? db.getUser(project.userId) : null;
   if (!project || !owner) return;
+  // Nothing is built for the phone of a person whose plan has no phone in it.
+  if (!plans.allows(owner, 'install')) return;
   const now = state(project);
   if (!now.available || now.phones === 0 || now.status === 'working') return;
   // Only an app that is known to build: it runs in the simulator, or there is no simulator to say otherwise.

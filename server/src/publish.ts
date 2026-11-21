@@ -10,6 +10,7 @@ import { credentialsFor } from './apple';
 import * as db from './db';
 import * as direct from './direct';
 import { ensureIcon } from './icon';
+import * as plans from './plans';
 import { live, liveProjectIds, send } from './live';
 import { isOperator, route } from './routing';
 import * as testlink from './testlink';
@@ -26,6 +27,7 @@ export function publishState(project: db.Project): PublishState {
     fast: testlink.fastTrack(project),
     operator: owner ? isOperator(owner.email) : false,
     direct: direct.state(project),
+    plan: plans.access(owner),
   };
   const current = working.get(project.id);
   if (current) {

@@ -3,6 +3,7 @@ import { ApiError, api, type AppRequest, type ProjectSummary, type User } from '
 import { AppleAccountDialog } from './AppleAccount';
 import { Logo } from './Logo';
 import { Mascot } from './Mascot';
+import { OperatorPlans, PlanDialog } from './Plan';
 import { apiErrorText, lang, t } from './i18n';
 
 interface Props {
@@ -27,12 +28,15 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
   const [notice, setNotice] = useState('');
   const [appleEnabled, setAppleEnabled] = useState(false);
   const [appleOpen, setAppleOpen] = useState(false);
+  const [plansOn, setPlansOn] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
 
   useEffect(() => {
     api.projects().then((r) => setProjects(r.projects)).catch(() => setProjects([]));
     // Only people who run the service get an answer; for everyone else there is nothing to show.
     api.operatorRequests().then((r) => setRequests(r.requests)).catch(() => undefined);
     api.appleAccount().then((s) => setAppleEnabled(s.enabled)).catch(() => undefined);
+    api.plan().then((p) => setPlansOn(p.enforced)).catch(() => undefined);
     fetch('/api/status')
       .then((r) => r.json())
       .then((s: { workers: number; agentReady: boolean }) => {
@@ -75,6 +79,11 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
               {t.appleAccount}
             </button>
           )}
+          {plansOn && (
+            <button className="btn ghost" onClick={() => setPlanOpen(true)}>
+              {t.plan.title}
+            </button>
+          )}
           <button className="btn ghost" onClick={onLogout}>
             {t.logout}
           </button>
@@ -82,6 +91,7 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
       </header>
 
       {appleOpen && <AppleAccountDialog onClose={() => setAppleOpen(false)} />}
+      {planOpen && <PlanDialog onClose={() => setPlanOpen(false)} />}
 
       <main className="dash">
         <section className="hero">
@@ -179,6 +189,7 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
             ))}
           </ul>
         </section>
+        <OperatorPlans />
       </main>
     </div>
   );

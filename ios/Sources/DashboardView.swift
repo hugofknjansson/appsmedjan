@@ -13,6 +13,7 @@ struct DashboardView: View {
   @State private var path: [ProjectSummary] = []
   @State private var requests: [AppRequest] = []
   @State private var isShowingAccount = false
+  @State private var isShowingPlan = false
   @FocusState private var isWriting: Bool
   /// Counts the ideas picked, so each pick is felt as a tick.
   @State private var picks = 0
@@ -104,6 +105,7 @@ struct DashboardView: View {
         ToolbarItem(placement: .topBarTrailing) {
           Menu {
             Text(user.email)
+            Button("Min plan", systemImage: "star.circle") { isShowingPlan = true }
             Button("Apple-utvecklarkonto", systemImage: "person.badge.key") { isShowingAccount = true }
             Button("Logga ut", role: .destructive) {
               Task { await model.logOut() }
@@ -121,6 +123,9 @@ struct DashboardView: View {
       }
       .sheet(isPresented: $isShowingAccount) {
         AppleAccountView(api: model.api)
+      }
+      .sheet(isPresented: $isShowingPlan) {
+        PlanView(api: model.api)
       }
       .refreshable { await load() }
       .task { await load() }
