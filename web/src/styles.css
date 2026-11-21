@@ -1669,3 +1669,230 @@ img.app-icon {
     animation-duration: 2.4s;
   }
 }
+
+/* The wait as a show: while the app is built, the whole page is the mascot and what is being made. */
+.show {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  overflow: hidden auto;
+  background: var(--grad);
+  color: #fff;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .show {
+    animation: show-in 0.4s ease-out;
+  }
+}
+
+@keyframes show-in {
+  from {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+}
+
+/* App tiles drifting up behind the mascot, like bubbles in a glass. */
+.show-tiles {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.show-tiles i {
+  position: absolute;
+  top: 100%;
+  width: var(--side);
+  height: var(--side);
+  margin-left: calc(var(--side) / -2);
+  border-radius: 28%;
+  background: #fff;
+  transform: translateY(-40vh) rotate(var(--tilt));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .show-tiles i {
+    animation: tile-rise linear infinite;
+  }
+}
+
+@keyframes tile-rise {
+  from {
+    transform: translateY(0) rotate(calc(var(--tilt) * -1));
+  }
+  to {
+    transform: translateY(calc(-100vh - 100%)) rotate(var(--tilt));
+  }
+}
+
+.show-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(100%, 560px);
+  padding: 24px 26px;
+}
+
+/* The floor it dances on: a shadow under its feet. */
+.show-mascot {
+  position: relative;
+  width: min(230px, 34vh);
+}
+
+.show-mascot::before {
+  content: '';
+  position: absolute;
+  left: 28%;
+  right: 28%;
+  top: 85%;
+  height: 5%;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 13%);
+}
+
+.show-mascot .mascot {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.show-words {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  width: 100%;
+}
+
+.show h2 {
+  margin: 0;
+  font-size: clamp(1.7rem, 5.2vw, 2.5rem);
+  font-weight: 800;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .show h2 {
+    animation: caption-in 0.5s var(--bounce);
+  }
+}
+
+.show .caption {
+  min-height: 3.2em;
+  color: rgb(255 255 255 / 90%);
+  font-size: 1.15rem;
+  font-weight: 500;
+}
+
+.show progress {
+  appearance: none;
+  width: 100%;
+  height: 10px;
+  margin-top: 14px;
+  border: 0;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 25%);
+}
+
+.show progress::-webkit-progress-bar {
+  background: rgb(255 255 255 / 25%);
+}
+
+.show progress::-webkit-progress-value {
+  border-radius: 999px;
+  background: #fff;
+  transition: width 0.6s ease;
+}
+
+.show progress::-moz-progress-bar {
+  border-radius: 999px;
+  background: #fff;
+}
+
+.show small {
+  min-height: 1.5em;
+  margin-top: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+.show-earlier {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 5.4em;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.95rem;
+  opacity: 0.8;
+}
+
+.show-earlier li::before {
+  content: '✓ ';
+  font-weight: 800;
+}
+
+.show-actions {
+  display: flex;
+  gap: 10px;
+  min-height: 46px;
+  margin-top: 18px;
+}
+
+.show-actions button {
+  min-height: 46px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 20%);
+  color: #fff;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.3s var(--bounce), background 0.15s;
+}
+
+.show-actions button:hover {
+  background: rgb(255 255 255 / 30%);
+}
+
+.show-actions button:active {
+  transform: scale(0.94);
+}
+
+.show-actions button:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* The progress card in the chat is the way back into the show. */
+.progress-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.3s var(--bounce);
+}
+
+.progress-open:active {
+  transform: scale(0.98);
+}

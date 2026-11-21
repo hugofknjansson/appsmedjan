@@ -12,6 +12,14 @@ struct ProjectView: View {
   /// The person has asked to see the streamed simulator, although their own phone is where apps are tried.
   @State private var showsSimulator = false
   @State private var cheers = 0
+  /// The show that fills the screen while the app is built; nil when there is none to see.
+  @State private var show: BuildShow.Stage?
+  /// False once the person has chosen the chat over the show, until the next time something is built.
+  @State private var watchesShow = true
+  /// When the builder started on what it is doing now, for the clock beside the clues.
+  @State private var runStartedAt: Date?
+
+  private var isShowUp: Bool { show != nil && watchesShow }
 
   /// The person's own phone comes first when apps can be installed straight onto it.
   private var phone: DirectInstall? {
@@ -33,7 +41,7 @@ struct ProjectView: View {
         .padding(.vertical, 8)
 
       switch pane {
-      case .chat: ChatView(store: store, api: api)
+      case .chat: ChatView(store: store, api: api, runStartedAt: runStartedAt) { watchesShow = true }
       case .preview:
         if let phone, !showsSimulator {
           PhoneTestView(store: store, api: api, direct: phone) { showsSimulator = true }
@@ -49,11 +57,56 @@ struct ProjectView: View {
       }
     }
     .background(Color(.paper))
+    .accessibilityHidden(isShowUp)
+    // While the app is built, the wait is a show that takes the whole screen.
+    .overlay {
+      if let show, watchesShow {
+        BuildShow(
+          stage: show,
+          progress: RunProgress(parts: store.liveParts),
+          said: store.liveParts.said,
+          phone: phone,
+          startedAt: runStartedAt,
+          showChat: { watchesShow = false },
+          stop: { Task { await store.stop() } }
+        )
+        .transition(.opacity.combined(with: .scale(scale: 1.04)))
+      }
+    }
+    .animation(.smooth(duration: 0.4), value: isShowUp)
+    .toolbar(isShowUp ? .hidden : .visible, for: .navigationBar)
     // Something to cheer about: the builder has finished, or the app has arrived on the phone.
     .overlay { Confetti(trigger: cheers) }
     .sensoryFeedback(.success, trigger: cheers)
-    .onChange(of: store.isRunning) { was, running in
-      if was && !running && !store.lastRunFailed { cheers += 1 }
+    .onChange(of: store.isRunning, initial: true) { was, running in
+      if running {
+        runStartedAt = runStartedAt ?? .now
+        if show != .building {
+          show = .building
+          watchesShow = true
+          // The keyboard steps aside for the show, whichever field it was up for.
+          UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        }
+      } else {
+        runStartedAt = nil
+        if store.lastRunFailed || !was {
+          show = nil
+        } else {
+          cheers += 1
+          show = .done
+        }
+      }
+    }
+    // The cheer lasts a moment. Then the show goes on if the app is being made ready for the phone,
+    // and otherwise gives way to the question that comes after the wait.
+    .task(id: show) {
+      guard show == .done else { return }
+      try? await Task.sleep(for: .seconds(1.8))
+      guard !Task.isCancelled, show == .done else { return }
+      show = phone?.status == .working ? .phone : nil
+    }
+    .onChange(of: phone?.status) { _, status in
+      if show == .phone, status != .working { show = nil }
     }
     .onChange(of: store.publish.direct) { before, now in
       // Only when it was seen arriving: not for an app that had already arrived when the screen was opened.
@@ -164,13 +217,15 @@ private struct PaneSwitcher: View {
 struct ChatView: View {
   let store: ProjectStore
   let api: API
+  /// When the builder started on what it is doing now, for the clock beside the clues.
+  let runStartedAt: Date?
+  /// Brings back the show that fills the screen while the app is built.
+  let showBuild: () -> Void
 
   @Environment(\.openURL) private var openURL
   @State private var draft = ""
   @State private var isSending = false
   @State private var errorText: String?
-  /// When the builder started on what it is doing now, for the clock beside the clues.
-  @State private var runStartedAt: Date?
   /// Set when the person said yes to installing before a build was ready: iOS is asked as soon as one is.
   @State private var installsWhenReady = false
   @State private var isAsking = false
@@ -216,7 +271,11 @@ struct ChatView: View {
           }
           if store.isRunning {
             PartsView(parts: store.liveParts)
-            ProgressCard(progress: RunProgress(parts: store.liveParts), startedAt: runStartedAt)
+            Button(action: showBuild) {
+              ProgressCard(progress: RunProgress(parts: store.liveParts), said: store.liveParts.said.last, startedAt: runStartedAt)
+            }
+            .buttonStyle(.pop)
+            .accessibilityHint("Visar bygget över hela skärmen")
           } else if let asked, let phone {
             if phone.status == .working {
               ProgressCard(phone: phone, startedAt: nil)
@@ -234,9 +293,6 @@ struct ChatView: View {
       // Follows new content, like a chat should.
       .defaultScrollAnchor(.bottom)
       .scrollDismissesKeyboard(.interactively)
-      .onChange(of: store.isRunning, initial: true) { _, running in
-        runStartedAt = running ? (runStartedAt ?? .now) : nil
-      }
       // The build was asked for with the install button: iOS takes over the moment it is ready.
       .onChange(of: phone?.status) { _, status in
         guard installsWhenReady, status != .working else { return }
@@ -384,8 +440,8 @@ private struct ProgressCard: View {
   let startedAt: Date?
 
   /// While the builder works on the app.
-  init(progress: RunProgress, startedAt: Date?) {
-    title = Texts.runPhase(progress.phase)
+  init(progress: RunProgress, said: String?, startedAt: Date?) {
+    title = said ?? Texts.runPhase(progress.phase)
     lines = switch progress.phase {
     case .trying, .looking, .fixing: WaitingLines.trying
     case .thinking, .making, .drawing: WaitingLines.working

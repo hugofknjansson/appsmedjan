@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type FormEvent } from 'react';
 import type {
   ChatMessage,
   InputEvent,
@@ -7,9 +7,10 @@ import type {
   PublishState,
   ServerToClient,
 } from '../../shared/protocol';
-import { STORE_SHOT, directProgress, firstSentence, runProgress, type DirectInstall } from '../../shared/protocol';
+import { STORE_SHOT, directProgress, firstSentence, latestSaid, runProgress, type DirectInstall } from '../../shared/protocol';
 import { ApiError, api } from './api';
 import { AppleAccountDialog } from './AppleAccount';
+import { BuildShow, type ShowStage } from './BuildShow';
 import { DirectInstallSteps } from './Direct';
 import { OnPhoneDialog } from './OnPhone';
 import { PlanDialog } from './Plan';
@@ -188,10 +189,40 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
   const wasRunning = useRef(false);
   const running = state?.running ?? false;
   const lastFailed = state?.messages.at(-1)?.parts.some((part) => part.t === 'error') ?? false;
+  // While the app is built, the wait is a show that takes the whole page; null when there is none to see.
+  const [show, setShow] = useState<ShowStage | null>(null);
+  // False once the person has chosen the chat over the show, until the next time something is built.
+  const [watching, setWatching] = useState(true);
+  const [runStartedAt, setRunStartedAt] = useState<number | null>(null);
   useEffect(() => {
-    if (wasRunning.current && !running && !lastFailed) setCheers((n) => n + 1);
+    if (running && !wasRunning.current) {
+      setShow('building');
+      setWatching(true);
+      setRunStartedAt(Date.now());
+    } else if (!running && wasRunning.current) {
+      setRunStartedAt(null);
+      if (lastFailed) {
+        setShow(null);
+      } else {
+        setCheers((n) => n + 1);
+        setShow('done');
+      }
+    }
     wasRunning.current = running;
   }, [running, lastFailed]);
+  // The cheer lasts a moment. Then the show goes on if the app is being made ready for the phone,
+  // and otherwise gives way to the question that comes after the wait.
+  const phoneWorking = useRef(false);
+  phoneWorking.current = direct?.status === 'working';
+  useEffect(() => {
+    if (show !== 'done') return;
+    const timer = setTimeout(() => setShow(phoneWorking.current ? 'phone' : null), 1800);
+    return () => clearTimeout(timer);
+  }, [show]);
+  useEffect(() => {
+    if (show === 'phone' && direct?.status !== 'working') setShow(null);
+  }, [show, direct?.status]);
+  const leaveShow = useCallback(() => setWatching(false), []);
   // Only when it was seen arriving: not for an app that had already arrived when the page was opened.
   const install = direct?.status === 'ready' ? (direct.install ?? 'ready') : undefined;
   const lastInstall = useRef(install);
@@ -215,6 +246,9 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
   return (
     <div className="page project">
       <Confetti trigger={cheers} />
+      {state && show && watching && (
+        <BuildShow stage={show} parts={state.parts} phone={phone} startedAt={runStartedAt} onChat={leaveShow} onStop={() => void api.stop(id).catch(() => undefined)} />
+      )}
       <header className="topbar">
         <button className="btn ghost" onClick={() => navigate('/')} aria-label={t.back}>
           ← <span className="hide-narrow">{t.back}</span>
@@ -274,7 +308,7 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
       )}
 
       <div className="workspace" data-tab={tab}>
-        <section className="chat-pane">{state && <Chat id={id} state={state} phone={phone} onPhone={() => choose('phone')} onPlans={() => setPlanOpen(true)} />}</section>
+        <section className="chat-pane">{state && <Chat id={id} state={state} phone={phone} onPhone={() => choose('phone')} onPlans={() => setPlanOpen(true)} onShow={() => setWatching(true)} />}</section>
         <section className="stage-pane">
           {state && tab === 'phone' && phone && (
             <div className="phone-tab">
@@ -361,9 +395,11 @@ interface ChatProps {
   onPhone: () => void;
   /** Shows the plans, for a person whose plan has no phone in it. */
   onPlans: () => void;
+  /** Brings back the show that fills the page while the app is built. */
+  onShow: () => void;
 }
 
-function Chat({ id, state, phone, onPhone, onPlans }: ChatProps) {
+function Chat({ id, state, phone, onPhone, onPlans, onShow }: ChatProps) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -443,7 +479,9 @@ function Chat({ id, state, phone, onPhone, onPlans }: ChatProps) {
         {state.running && (
           <div className="msg assistant" aria-live="polite">
             <Parts parts={state.parts} />
-            <ProgressCard {...runClues(state.parts)} timed />
+            <button type="button" className="progress-open" title={t.show.open} onClick={onShow}>
+              <ProgressCard {...runClues(state.parts)} timed />
+            </button>
           </div>
         )}
         {asked && phone && phone.status === 'working' && (
@@ -499,7 +537,7 @@ function lastWords(message: ChatMessage): string {
 function runClues(parts: Part[]): { title: string; lines: readonly string[]; fraction: number; pieces: number } {
   const progress = runProgress(parts);
   const trying = progress.phase === 'trying' || progress.phase === 'looking' || progress.phase === 'fixing';
-  return { title: t.phase[progress.phase], lines: trying ? t.wait.trying : t.wait.working, fraction: progress.fraction, pieces: progress.pieces };
+  return { title: latestSaid(parts) ?? t.phase[progress.phase], lines: trying ? t.wait.trying : t.wait.working, fraction: progress.fraction, pieces: progress.pieces };
 }
 
 /**

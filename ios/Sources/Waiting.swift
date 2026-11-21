@@ -19,6 +19,44 @@ enum WaitingLines {
     String(localized: "Trycker på alla knappar"),
     String(localized: "Tittar hur det blev"),
   ]
+  /// The show that fills the screen while the app is built: how an app is made, a line at a time.
+  static func show(_ phase: RunProgress.Phase) -> [String] {
+    switch phase {
+    case .thinking: [
+      String(localized: "Läser det du skrev, ord för ord"),
+      String(localized: "Bestämmer vilka skärmar appen behöver"),
+      String(localized: "Skissar hur allt ska hänga ihop"),
+    ]
+    case .making: [
+      String(localized: "Varje skärm ritas upp, en i taget"),
+      String(localized: "Knapparna får lära sig vad de ska göra"),
+      String(localized: "Färger och former väljs så att de passar ihop"),
+      String(localized: "Appen får ett minne, så att inget försvinner"),
+      String(localized: "Dansar fram din app"),
+      String(localized: "Texterna skrivs så att de är lätta att läsa"),
+      String(localized: "Tar en piruett medan det blir klart"),
+    ]
+    case .drawing: [
+      String(localized: "Ikonen är den lilla bilden på hemskärmen"),
+      String(localized: "Den ritas för att synas bland dina andra appar"),
+    ]
+    case .trying: [
+      String(localized: "Appen startas på en provtelefon"),
+      String(localized: "Alla knappar trycks på, en efter en"),
+      String(localized: "Fungerar allt får du den snart"),
+    ]
+    case .fixing: [
+      String(localized: "Något satt lite snett, det rättas nu"),
+      String(localized: "Sedan provkörs appen en gång till"),
+      String(localized: "Så går det till när appar byggs"),
+    ]
+    case .looking: [
+      String(localized: "Skärmen granskas, precis som du kommer att se den"),
+      String(localized: "Blev det som du bad om?"),
+    ]
+    }
+  }
+
   /// The preview is starting.
   static let starting = [
     String(localized: "Värmer upp"),
@@ -111,7 +149,7 @@ struct Confetti: View {
   }
 
   /// A number between 0 and 1 that is always the same for the same piece and purpose.
-  private static func noise(_ piece: Int, _ salt: Int) -> Double {
+  static func noise(_ piece: Int, _ salt: Int) -> Double {
     let mixed = sin(Double(piece * 97 + salt * 131) * 12.9898) * 43758.5453
     return mixed - mixed.rounded(.down)
   }

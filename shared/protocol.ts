@@ -33,7 +33,8 @@ export function isValidBundleId(id: unknown): id is string {
 // Chat
 // ---------------------------------------------------------------------------
 
-export type StepKind = 'write' | 'edit' | 'delete' | 'read' | 'build' | 'look' | 'rename' | 'icon';
+/** say: the builder telling the person, in a few plain words, what it is making right now. */
+export type StepKind = 'write' | 'edit' | 'delete' | 'read' | 'build' | 'look' | 'rename' | 'icon' | 'say';
 
 /** One visible action the agent took (shown as a small progress row in the chat). */
 export interface Step {
@@ -352,8 +353,18 @@ export interface RunProgress {
   fraction: number;
 }
 
+/** What the builder last said it is making, or null when it has said nothing yet. */
+export function latestSaid(parts: Part[]): string | null {
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i]!;
+    if (part.t === 'step' && part.step.kind === 'say' && part.step.detail.trim()) return part.step.detail.trim();
+  }
+  return null;
+}
+
 export function runProgress(parts: Part[]): RunProgress {
-  const steps = parts.flatMap((part) => (part.t === 'step' ? [part.step] : []));
+  // What the builder says along the way is not work of its own.
+  const steps = parts.flatMap((part) => (part.t === 'step' && part.step.kind !== 'say' ? [part.step] : []));
   const pieces = steps.filter((step) => (step.kind === 'write' || step.kind === 'edit') && step.status !== 'running').length;
   const tries = steps.filter((step) => step.kind === 'build').length;
   const failed = steps.some((step) => step.kind === 'build' && step.status === 'error');

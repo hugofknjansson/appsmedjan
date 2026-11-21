@@ -23,6 +23,7 @@ import {
   firstSentence,
   fitWords,
   isUdid,
+  latestSaid,
   isValidSourcePath,
   listingProblems,
   readPhoneAnswer,
@@ -121,6 +122,13 @@ assert.ok(!isUdid('00008110-000A1B2C3D4E5F6') && !isUdid('g'.repeat(40)) && !isU
   assert.ok(way.every((value, i) => i === 0 || value >= way[i - 1]!), 'never goes backwards');
   assert.ok(way.at(-1)! > 0.6 && way.at(-1)! <= 0.92);
   assert.ok(runProgress(Array.from({ length: 60 }, () => step('write')).concat(Array.from({ length: 12 }, () => step('build')))).fraction <= 0.92);
+  // What the builder says along the way is shown, and is not counted as work.
+  const say = (text: string): Part => ({ t: 'step', step: { id: `s${n++}`, kind: 'say', detail: text, status: 'done' } }) as Part;
+  assert.equal(latestSaid([]), null);
+  assert.equal(latestSaid([say('Väljer färger'), step('write'), say(' Nu gör jag listan '), step('write', 'running')]), 'Nu gör jag listan');
+  assert.equal(latestSaid([say('Väljer färger'), say('')]), 'Väljer färger');
+  assert.equal(runProgress([step('write'), step('build', 'running'), say('Provar')]).phase, 'trying');
+  assert.deepEqual(runProgress([say('Hej')]), { phase: 'thinking', pieces: 0, fraction: 0.05 });
 }
 
 // The card that asks about installing carries only the builder's first sentence

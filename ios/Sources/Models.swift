@@ -35,7 +35,8 @@ nonisolated extension LenientEnum {
 /// One visible action the agent took, shown as a small progress row.
 nonisolated struct Step: Decodable, Equatable, Identifiable {
   nonisolated enum Kind: String, LenientEnum {
-    case write, edit, delete, read, build, look, rename, icon, other
+    /// say: the builder telling the person, in a few plain words, what it is making right now.
+    case write, edit, delete, read, build, look, rename, icon, say, other
     static let fallback = Kind.other
   }
 
@@ -63,8 +64,9 @@ nonisolated struct RunProgress: Equatable {
   var fraction = 0.05
 
   init(parts: [Part]) {
-    let steps = parts.compactMap { part in
-      if case .step(let step) = part { step } else { nil }
+    // What the builder says along the way is not work of its own.
+    let steps: [Step] = parts.compactMap { part in
+      if case .step(let step) = part, step.kind != .say { step } else { nil }
     }
     pieces = steps.count { ($0.kind == .write || $0.kind == .edit) && $0.status != .running }
     let tries = steps.count { $0.kind == .build }
@@ -82,6 +84,17 @@ nonisolated struct RunProgress: Equatable {
     let written = 0.5 * min(1, Double(pieces) / 8)
     let tried = tries == 0 ? 0 : 0.25 + 0.15 * min(1, Double(tries - 1) / 3)
     fraction = min(0.92, 0.05 + written + tried)
+  }
+}
+
+nonisolated extension [Part] {
+  /// What the builder has said it is making, oldest first.
+  var said: [String] {
+    compactMap { part in
+      guard case .step(let step) = part, step.kind == .say else { return nil }
+      let text = step.detail.trimmingCharacters(in: .whitespacesAndNewlines)
+      return text.isEmpty ? nil : text
+    }
   }
 }
 

@@ -101,6 +101,16 @@
         }
       }
     },
+    "Alla knappar trycks på, en efter en": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Every button is pressed, one after another"
+          }
+        }
+      }
+    },
     "Allt är inte ifyllt än.": {
       "localizations": {
         "en": {
@@ -231,6 +241,16 @@
         }
       }
     },
+    "Appen får ett minne, så att inget försvinner": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app gets a memory, so nothing is lost"
+          }
+        }
+      }
+    },
     "Appen gick inte att bygga. Be om en rättning i chatten och försök igen.": {
       "localizations": {
         "en": {
@@ -317,6 +337,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "The app is now submitted to Apple for review, in the developer account's name."
+          }
+        }
+      }
+    },
+    "Appen startas på en provtelefon": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app is started on a test phone"
           }
         }
       }
@@ -651,6 +681,16 @@
         }
       }
     },
+    "Bestämmer vilka skärmar appen behöver": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deciding which screens the app needs"
+          }
+        }
+      }
+    },
     "Betalning är inte påslagen än. När du ber om en plan slår vi på den åt dig.": {
       "localizations": {
         "en": {
@@ -677,6 +717,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Invite me as a tester"
+          }
+        }
+      }
+    },
+    "Blev det som du bad om?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Did it turn out the way you asked?"
           }
         }
       }
@@ -807,6 +857,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pieces done: %lld"
+          }
+        }
+      }
+    },
+    "Den ritas för att synas bland dina andra appar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It is drawn to stand out among your other apps"
           }
         }
       }
@@ -1047,6 +1107,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Your app is saved. The preview starts when a build server is connected."
+          }
+        }
+      }
+    },
+    "Din app är färdig": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your app is ready"
           }
         }
       }
@@ -1531,6 +1601,16 @@
         }
       }
     },
+    "Fungerar allt får du den snart": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If it all works, it is yours soon"
+          }
+        }
+      }
+    },
     "Fyller i ett förslag i textrutan": {
       "localizations": {
         "en": {
@@ -1547,6 +1627,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Filling in the other details"
+          }
+        }
+      }
+    },
+    "Färger och former väljs så att de passar ihop": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colours and shapes are picked to go together"
           }
         }
       }
@@ -1877,6 +1967,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "The icon could not be used. Choose another picture."
+          }
+        }
+      }
+    },
+    "Ikonen är den lilla bilden på hemskärmen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The icon is the little picture on your home screen"
           }
         }
       }
@@ -2221,12 +2321,32 @@
         }
       }
     },
+    "Klart!": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done!"
+          }
+        }
+      }
+    },
     "Klart. Appen ligger på hemskärmen.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Done. The app is on the home screen."
+          }
+        }
+      }
+    },
+    "Knapparna får lära sig vad de ska göra": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The buttons are learning what to do"
           }
         }
       }
@@ -2481,6 +2601,16 @@
         }
       }
     },
+    "Läser det du skrev, ord för ord": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading what you wrote, word by word"
+          }
+        }
+      }
+    },
     "Lösenord": {
       "localizations": {
         "en": {
@@ -2701,6 +2831,16 @@
         }
       }
     },
+    "Något satt lite snett, det rättas nu": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Something was a little off, it is being put right"
+          }
+        }
+      }
+    },
     "Nöje": {
       "localizations": {
         "en": {
@@ -2891,6 +3031,16 @@
         }
       }
     },
+    "Sedan provkörs appen en gång till": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Then the app is tried once more"
+          }
+        }
+      }
+    },
     "Shopping": {
       "localizations": {
         "en": {
@@ -3071,6 +3221,16 @@
         }
       }
     },
+    "Skissar hur allt ska hänga ihop": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sketching how it all fits together"
+          }
+        }
+      }
+    },
     "Skriv en idé här ovanför, eller välj ett förslag längre ned.": {
       "localizations": {
         "en": {
@@ -3117,6 +3277,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Screenshots"
+          }
+        }
+      }
+    },
+    "Skärmen granskas, precis som du kommer att se den": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The screen is looked over, just as you will see it"
           }
         }
       }
@@ -3311,6 +3481,16 @@
         }
       }
     },
+    "Så går det till när appar byggs": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This is how apps are made"
+          }
+        }
+      }
+    },
     "Sökord": {
       "localizations": {
         "en": {
@@ -3437,6 +3617,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "The texts could not be saved. Check that no field is unreasonably long."
+          }
+        }
+      }
+    },
+    "Texterna skrivs så att de är lätta att läsa": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The words are written to be easy to read"
           }
         }
       }
@@ -3601,6 +3791,16 @@
         }
       }
     },
+    "Varje skärm ritas upp, en i taget": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Each screen is drawn, one at a time"
+          }
+        }
+      }
+    },
     "Verktyg": {
       "localizations": {
         "en": {
@@ -3691,6 +3891,16 @@
         }
       }
     },
+    "Visa chatten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show the chat"
+          }
+        }
+      }
+    },
     "Visa i simulatorn i stället": {
       "localizations": {
         "en": {
@@ -3717,6 +3927,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Show the support page"
+          }
+        }
+      }
+    },
+    "Visar bygget över hela skärmen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shows the build on the whole screen"
           }
         }
       }

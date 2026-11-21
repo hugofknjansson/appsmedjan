@@ -110,6 +110,17 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
     },
   },
   {
+    name: 'say',
+    description:
+      'Tell the person, in a few plain words, what you are making right now. It is shown large on their screen while they wait. Call it together with the tool calls it describes.',
+    eager_input_streaming: true,
+    input_schema: {
+      type: 'object',
+      properties: { text: { type: 'string', description: 'At most eight words, in the language the person writes in. Nothing technical.' } },
+      required: ['text'],
+    },
+  },
+  {
     name: 'set_app_icon',
     description:
       "Set the app's icon, the picture on the person's home screen, from an SVG you draw. One <svg viewBox=\"0 0 1024 1024\"> with a background that fills the whole square and one bold, simple motif. Plain shapes and gradients only: no text, no images, no scripts.",
@@ -131,6 +142,7 @@ const Inputs = {
   view_screen: z.object({}),
   rename_app: z.object({ name: z.string().min(1) }),
   set_app_icon: z.object({ svg: z.string().min(1) }),
+  say: z.object({ text: z.string().min(1) }),
 };
 type ToolName = keyof typeof Inputs;
 
@@ -143,6 +155,7 @@ const STEP_KIND: Record<ToolName, StepKind> = {
   view_screen: 'look',
   rename_app: 'rename',
   set_app_icon: 'icon',
+  say: 'say',
 };
 
 const isToolName = (name: string): name is ToolName => name in Inputs;
@@ -158,6 +171,11 @@ interface RunState {
 }
 
 type Outcome = { content: string | ToolResultContent; detail?: string };
+
+/** What the builder says is shown large on a phone: one line, and not a long one. */
+function said(text: string): string {
+  return text.replace(/\s+/g, ' ').trim().slice(0, 80);
+}
 
 async function executeTool(name: ToolName, rawInput: unknown, run: RunState): Promise<Outcome> {
   const { projectId } = run;
@@ -221,6 +239,11 @@ async function executeTool(name: ToolName, rawInput: unknown, run: RunState): Pr
       if (!shot) return { content: 'No screenshot is available right now.' };
       const media = shot.mime === 'image/png' ? 'image/png' : 'image/jpeg';
       return { content: [{ type: 'image', source: { type: 'base64', media_type: media, data: shot.data } }] };
+    }
+    case 'say': {
+      const text = said(Inputs.say.parse(rawInput).text);
+      if (!text) throw new ToolError('Say something.');
+      return { content: 'Shown.', detail: text };
     }
     case 'set_app_icon': {
       const { svg } = Inputs.set_app_icon.parse(rawInput);
@@ -361,10 +384,26 @@ export async function runAgent(
             const s = started.get(event.index);
             if (!s || s.step.detail) continue;
             s.json += event.delta.partial_json;
+            // What the builder says is read when the whole of it is there (below), not from a half-written string.
+            if (s.step.kind === 'say') continue;
             const m = /"(?:path|name)"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(s.json);
             if (m) {
               s.step = { ...s.step, detail: m[1]!.slice(0, 160) };
               upsertStep(projectId, s.step);
+            }
+          } else if (event.type === 'content_block_stop') {
+            // Shown the moment it has been said, not when the tool calls after it have been written too.
+            const s = started.get(event.index);
+            if (s?.step.kind === 'say' && !s.step.detail) {
+              try {
+                const text = said(String((JSON.parse(s.json) as { text?: unknown }).text ?? ''));
+                if (text) {
+                  s.step = { ...s.step, detail: text };
+                  upsertStep(projectId, s.step);
+                }
+              } catch {
+                // Not complete after all; the tool call itself fills it in.
+              }
             }
           } else if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
             // Separate this turn's text from text written before earlier tool calls.

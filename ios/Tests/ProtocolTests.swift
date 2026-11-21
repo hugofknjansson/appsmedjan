@@ -184,6 +184,21 @@ private func summary() -> ProjectSummary {
     #expect(text.firstSentence() == sentence)
   }
 
+  @Test func `what the builder says is shown and is not counted as work`() throws {
+    func said(_ text: String) -> Part {
+      .step(Step(id: UUID().uuidString, kind: .say, detail: text, status: .done))
+    }
+    let write = Part.step(Step(id: "w", kind: .write, detail: "", status: .done))
+    let trying = Part.step(Step(id: "b", kind: .build, detail: "", status: .running))
+    #expect([Part]().said.isEmpty)
+    #expect([said("Väljer färger"), write, said(" Nu gör jag listan "), said("")].said == ["Väljer färger", "Nu gör jag listan"])
+    #expect(RunProgress(parts: [write, trying, said("Provar")]).phase == .trying)
+    #expect(RunProgress(parts: [said("Hej")]) == RunProgress(parts: []))
+    // A step of the kind arrives from the server as any other step does.
+    let part = try JSONDecoder().decode(Part.self, from: Data(#"{"t":"step","step":{"id":"s","kind":"say","detail":"Ritar ikonen","status":"done"}}"#.utf8))
+    #expect([part].said == ["Ritar ikonen"])
+  }
+
   @Test func `a first sentence that runs on is cut at a word`() {
     let long = ("Appen har " + String(repeating: "många kaféer i sju stadsdelar, ", count: 8) + "och mer.").firstSentence()
     #expect(long.count <= 141)
