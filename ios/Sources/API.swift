@@ -70,10 +70,12 @@ struct API {
   }
 
   /// The request that opens a project's WebSocket.
-  func socketRequest(projectID: String) -> URLRequest {
+  /// `takesVideo`: the screen may be sent as video and not only as still pictures.
+  func socketRequest(projectID: String, takesVideo: Bool) -> URLRequest {
     var parts = URLComponents(url: baseURL.appending(path: "ws"), resolvingAgainstBaseURL: false)!
     parts.scheme = baseURL.scheme == "http" ? "ws" : "wss"
     parts.queryItems = [URLQueryItem(name: "project", value: projectID)]
+    if takesVideo { parts.queryItems?.append(URLQueryItem(name: "video", value: "h264")) }
     var request = URLRequest(url: parts.url!)
     // The login cookie is stored for the http(s) address; hand it to the socket explicitly.
     let cookies = HTTPCookieStorage.shared.cookies(for: baseURL) ?? []

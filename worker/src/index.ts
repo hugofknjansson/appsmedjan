@@ -42,10 +42,13 @@ function send(msg: WorkerToServer): void {
 
 const emit: Emit = {
   frame(projectId, image) {
-    // Skip frames while the connection is backed up; the next one replaces them anyway.
+    // Skip frames while the connection is backed up. A still picture is replaced by the next one
+    // anyway; for video the stream is told, so that it goes on from the next whole picture.
     if (socket?.readyState === WebSocket.OPEN && socket.bufferedAmount < 4_000_000) {
       socket.send(encodeFrame(projectId, image), { binary: true });
+      return true;
     }
+    return false;
   },
   streamInfo: (projectId, mime) => send({ type: 'stream.info', projectId, mime }),
   stopped: (projectId) => send({ type: 'sim.stopped', projectId }),
@@ -178,7 +181,7 @@ async function handle(msg: ServerToWorker): Promise<void> {
       driver.input(msg.projectId, msg.event);
       break;
     case 'viewers':
-      driver.setViewers(msg.projectId, msg.count);
+      driver.setViewers(msg.projectId, msg.count, msg.video === true);
       break;
     case 'release':
       await driver.release(msg.projectId);

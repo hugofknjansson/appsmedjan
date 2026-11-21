@@ -26,8 +26,14 @@ final class ProjectStore {
   }
   private(set) var preview = PreviewState.idle
   private(set) var publish = PublishState.none
-  /// The simulator's screen, when frames are arriving.
+  /// The simulator's screen as a still picture, when it arrives as those.
   private(set) var frame: UIImage?
+  /// The simulator's screen as video, when it arrives as that.
+  let video = VideoFeed()
+  /// True while the screen arrives as video and `video` is what to show.
+  private(set) var showsVideo = false
+  /// False once video has turned out not to work on this device; still pictures are asked for from then on.
+  @ObservationIgnored private var takesVideo = true
   private(set) var isConnected = false
   /// Set when the server keeps refusing the connection: the app is gone, or is someone else's.
   private(set) var isMissing = false
@@ -43,19 +49,50 @@ final class ProjectStore {
     self.api = api
   }
 
+  /// Shows a frame of the stream. False when it is video that cannot be read here.
+  private func show(_ data: Data) -> Bool {
+    let kind = StreamFrame.kind(of: data)
+    guard kind != .still else {
+      if let picture = UIImage(data: data) {
+        frame = picture
+        if showsVideo {
+          showsVideo = false
+          video.reset()
+        }
+      }
+      return true
+    }
+    do {
+      try video.show(data, kind: kind)
+    } catch {
+      log.debug("video could not be shown: \(error.localizedDescription, privacy: .public)")
+      return false
+    }
+    // Only once there is a picture to see: until the first key picture there is none.
+    if !showsVideo, video.size != nil {
+      showsVideo = true
+      frame = nil
+    }
+    return true
+  }
+
   /// Keeps the connection up until the surrounding task is cancelled (the view went away).
   func run() async {
     var delay = Duration.milliseconds(500)
     var failures = 0
     while !Task.isCancelled && !isMissing {
-      let task = URLSession.shared.webSocketTask(with: api.socketRequest(projectID: id))
+      let task = URLSession.shared.webSocketTask(with: api.socketRequest(projectID: id, takesVideo: takesVideo))
       socket = task
       task.resume()
       do {
         while true {
           switch try await task.receive() {
           case .data(let data):
-            frame = UIImage(data: data) ?? frame
+            if !show(data) {
+              // Video this device cannot read: connect again, now asking for still pictures.
+              takesVideo = false
+              task.cancel(with: .goingAway, reason: nil)
+            }
           case .string(let text):
             receive(text)
             delay = .milliseconds(500)
@@ -132,6 +169,8 @@ final class ProjectStore {
       self.publish = publish
     case .frameClear:
       frame = nil
+      showsVideo = false
+      video.reset()
     case .renamed(let name):
       self.name = name
     case .filesChanged, .unknown:

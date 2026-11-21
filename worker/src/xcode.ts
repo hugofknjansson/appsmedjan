@@ -12,6 +12,7 @@ import {
   type PublishStage,
   STORE_SHOT,
   type StoreSyncStage,
+  VIDEO_MIME,
 } from '../../shared/protocol';
 import type { BuildJob, DirectJob, DirectResult, Driver, Emit, InviteJob, InviteResult, PublishJob, PublishResult, ShareJob, ShareResult, StoreJob, StoreResult, SubmitJob } from './driver';
 import { exec, mustExec } from './exec';
@@ -27,6 +28,8 @@ interface Session {
   bundleId: string;
   booted: boolean;
   viewers: number;
+  /** True when every viewer can show video. */
+  video: boolean;
   lastUsed: number;
   streamer: Streamer | null;
   /** The open connection touches go through; null where there is none, and each touch is then a command of its own. */
@@ -58,7 +61,11 @@ export class XcodeDriver implements Driver {
   private runtimeId = '';
   private deviceTypeId = '';
   private hasIdb = false;
-  /** The Python that idb's library is installed for; null when touches can only go through the idb command. */
+  /** LIVE_VIDEO=0 keeps the screen as JPEG frames, should video ever misbehave. */
+  private readonly liveVideo = process.env.LIVE_VIDEO !== '0';
+  /** The Python that idb's library is installed for, which live touches and video go through; null when it was not found. */
+  private idbPython: string | null = null;
+  /** The same, unless live touches are switched off: null then, and each touch is an idb command of its own. */
   private touchPython: string | null = null;
   private publisher: Publisher | null = null;
   private readonly workDir: string;
@@ -80,8 +87,9 @@ export class XcodeDriver implements Driver {
     this.hasIdb = (await exec('idb', ['--help'], { timeoutMs: 20_000 })).code === 0;
     // LIVE_TOUCH=0 goes back to one idb command per touch, should the open connection ever misbehave.
     const live = process.env.LIVE_TOUCH !== '0';
-    this.touchPython = this.hasIdb && live ? await touchPython() : null;
-    if (this.hasIdb && live && !this.touchPython) console.warn('[xcode] idb\'s Python library was not found: touches are sent one command at a time, which is slower.');
+    this.idbPython = this.hasIdb ? await touchPython() : null;
+    this.touchPython = live ? this.idbPython : null;
+    if (this.hasIdb && !this.idbPython) console.warn('[xcode] idb\'s Python library was not found: the screen is sent as still pictures and touches one command at a time, which is slower.');
     if (!this.hasIdb) {
       console.warn(
         '[xcode] idb not found: the preview will be view-only and slower. To enable taps and typing run:\n' +
@@ -168,6 +176,7 @@ export class XcodeDriver implements Driver {
       bundleId: job.bundleId,
       booted: false,
       viewers: 0,
+      video: false,
       lastUsed: Date.now(),
       streamer: null,
       toucher: null,
@@ -263,8 +272,15 @@ export class XcodeDriver implements Driver {
         // Asking idb for the screen's size also starts the simulator's companion, once, before the
         // stream and the touches both come asking for it at the same moment.
         if (this.hasIdb) await this.screenSize(s);
-        s.streamer = new Streamer(s.udid, this.hasIdb, (frame) => this.emit.frame(s.projectId, frame));
+        s.streamer = new Streamer(
+          s.udid,
+          this.hasIdb,
+          (frame) => this.emit.frame(s.projectId, frame),
+          (format) => this.emit.streamInfo(s.projectId, format === 'h264' ? VIDEO_MIME : 'image/jpeg'),
+          this.liveVideo ? this.idbPython : null,
+        );
         this.emit.streamInfo(s.projectId, 'image/jpeg');
+        s.streamer.setFormat(s.video && this.liveVideo ? 'h264' : 'mjpeg');
         s.streamer.setActive(s.viewers > 0);
         if (this.touchPython) s.toucher = new Toucher(s.udid, this.touchPython);
       } else {
@@ -417,11 +433,13 @@ export class XcodeDriver implements Driver {
     }
   }
 
-  setViewers(projectId: string, count: number): void {
+  setViewers(projectId: string, count: number, video = false): void {
     const s = this.sessions.get(projectId);
     if (!s) return;
     s.viewers = count;
+    s.video = video;
     if (count > 0) s.lastUsed = Date.now();
+    s.streamer?.setFormat(video && this.liveVideo ? 'h264' : 'mjpeg');
     s.streamer?.setActive(count > 0);
     if (count > 0) s.streamer?.refresh();
   }

@@ -184,6 +184,20 @@ private func summary() -> ProjectSummary {
     #expect(text.firstSentence() == sentence)
   }
 
+  @Test func `a frame of the stream is known for what it is`() {
+    let code: [UInt8] = [0, 0, 0, 1]
+    let settings = Data(code + [0x67, 0x64, 0x00, 0x33]), more = Data(code + [0x68, 1]), whole = Data(code + [0x65, 0x88, 1, 2])
+    let change = Data(code + [0x41, 0x9a, 7])
+    #expect(StreamFrame.kind(of: settings + more + whole) == .key)
+    #expect(StreamFrame.kind(of: change) == .delta)
+    #expect(StreamFrame.kind(of: Data([0xff, 0xd8, 0xff, 0xe0, 0, 16])) == .still)
+    #expect(StreamFrame.kind(of: Data()) == .still)
+    #expect(StreamFrame.units(in: settings + more + whole).map { Array($0) } == [[0x67, 0x64, 0x00, 0x33], [0x68, 1], [0x65, 0x88, 1, 2]])
+    // A picture cut out of a longer run of bytes does not start at index zero.
+    let cut = (Data([9, 9]) + change).dropFirst(2)
+    #expect(StreamFrame.units(in: cut).map { Array($0) } == [[0x41, 0x9a, 7]])
+  }
+
   @Test func `a finger on its way is sent with where it is and what it is doing`() throws {
     struct Sent: Decodable, Equatable { let kind: String; let phase: String; let x: Double; let y: Double }
     let data = try JSONEncoder().encode(InputEvent.touch(.move, x: 0.25, y: 0.75))

@@ -285,10 +285,11 @@ export function sendInput(projectId: string, event: InputEvent): void {
   if (worker?.canInput) toWorker(worker, { type: 'input', projectId, event });
 }
 
-export function setViewers(projectId: string, count: number): void {
+export function setViewers(projectId: string, count: number, video: boolean): void {
   const worker = assignment.get(projectId);
-  if (worker) toWorker(worker, { type: 'viewers', projectId, count });
+  if (worker) toWorker(worker, { type: 'viewers', projectId, count, video });
 }
+
 
 export function release(projectId: string): void {
   const worker = assignment.get(projectId);

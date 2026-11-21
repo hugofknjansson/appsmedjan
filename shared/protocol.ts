@@ -796,7 +796,8 @@ export type ServerToWorker =
   /** `store`: a full-size picture for the App Store page instead of a small one for the agent. */
   | { type: 'screenshot'; jobId: string; projectId: string; store?: boolean }
   | { type: 'input'; projectId: string; event: InputEvent }
-  | { type: 'viewers'; projectId: string; count: number }
+  /** `video`: every viewer can show video, so the screen may be sent as that instead of as still pictures. */
+  | { type: 'viewers'; projectId: string; count: number; video?: boolean }
   | { type: 'release'; projectId: string };
 
 export type WorkerToServer =
@@ -841,6 +842,31 @@ export type WorkerToServer =
   | { type: 'screenshot.result'; jobId: string; ok: boolean; mime?: string; data?: string; error?: string }
   | { type: 'stream.info'; projectId: string; mime: string }
   | { type: 'sim.stopped'; projectId: string };
+
+/** The stream's format when the screen is sent as video. */
+export const VIDEO_MIME = 'video/h264';
+
+/**
+ * What a frame of the stream is. A still picture stands on its own. Video is one picture per frame,
+ * in H.264 with start codes: a key picture stands on its own (and brings what is needed to read
+ * the ones after it), a delta only says what changed since the picture before it, so it is
+ * useless to anyone who missed that one.
+ */
+export type FrameKind = 'still' | 'key' | 'delta';
+
+export function frameKind(frame: Uint8Array): FrameKind {
+  if (!(frame.length > 4 && frame[0] === 0 && frame[1] === 0 && frame[2] === 0 && frame[3] === 1)) return 'still';
+  // What it carries is said by the units at its start: settings (7, 8) or a whole picture (5) make it a key.
+  const end = Math.min(frame.length - 4, 512);
+  for (let at = 0; at <= end; at++) {
+    if (frame[at] === 0 && frame[at + 1] === 0 && frame[at + 2] === 0 && frame[at + 3] === 1) {
+      const type = frame[at + 4]! & 0x1f;
+      if (type === 5 || type === 7) return 'key';
+      if (type === 1) return 'delta';
+    }
+  }
+  return 'delta';
+}
 
 /** Binary frame from worker to server: [1 byte id length][project id][image bytes]. */
 export function encodeFrame(projectId: string, image: Uint8Array): Uint8Array {

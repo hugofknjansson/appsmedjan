@@ -9,7 +9,7 @@ import { hasCredentials } from './agent';
 import { config } from './config';
 import { keepAlive } from '../../shared/keepalive';
 import * as db from './db';
-import { live } from './live';
+import { addViewer, live, sendLatestPicture } from './live';
 import { buildProject, syncViewers } from './preview';
 import { publishState } from './publish';
 import { api, directPages, publicPages, userFromRequest } from './routes';
@@ -79,7 +79,9 @@ server.on('upgrade', (req, socket, head) => {
     const projectId = url.searchParams.get('project');
     const project = user && isValidProjectId(projectId) ? db.getProject(projectId) : null;
     if (!user || !project || project.userId !== user.id) return reject('401 Unauthorized');
-    clientWss.handleUpgrade(req, socket, head, (ws) => attachClient(ws, project));
+    // A client that can show video says so; the others get still pictures, as they always have.
+    const video = url.searchParams.get('video') === 'h264';
+    clientWss.handleUpgrade(req, socket, head, (ws) => attachClient(ws, project, video));
     return;
   }
 
@@ -117,10 +119,10 @@ function cleanInput(e: unknown): InputEvent | null {
   }
 }
 
-function attachClient(ws: WebSocket, project: db.Project): void {
+function attachClient(ws: WebSocket, project: db.Project, video: boolean): void {
   keepAlive(ws);
   const l = live(project.id);
-  l.clients.add(ws);
+  addViewer(project.id, ws, video);
   if (l.preview.status === 'unavailable' && workers.workerCount() > 0) l.preview = { ...l.preview, status: 'idle' };
   if (l.preview.status === 'idle' && workers.workerCount() === 0) l.preview = { ...l.preview, status: 'unavailable' };
 
@@ -134,7 +136,7 @@ function attachClient(ws: WebSocket, project: db.Project): void {
     publish: publishState(project),
   };
   ws.send(JSON.stringify(state));
-  if (l.lastFrame) ws.send(l.lastFrame, { binary: true });
+  sendLatestPicture(project.id, ws);
   syncViewers(project.id);
 
   // A simple budget so a misbehaving page can't flood the simulator with input. A finger on its

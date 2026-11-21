@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { JpegSplitter } from '../worker/src/stream';
+import { JpegSplitter, PictureGatherer, PieceReader } from '../worker/src/stream';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -35,7 +35,10 @@ import {
   PLAN_ORDER,
   planFor,
   type StoreListing,
+  frameKind,
 } from '../shared/protocol';
+import { codecOf } from '../web/src/frames';
+import { addViewer, everyoneTakesVideo, forget, sendFrame, sendLatestPicture } from '../server/src/live';
 import { keepAlive } from '../shared/keepalive';
 import { EventEmitter } from 'node:events';
 import type { WebSocket } from 'ws';
@@ -864,6 +867,93 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
   });
   assert.deepEqual(wholeGesture({ kind: 'touch', phase: 'up', x: 0.5, y: 0.3 }, null, 1400), { finger: null, event: null });
   assert.deepEqual(wholeGesture({ kind: 'text', text: 'a' }, put.finger, 1400), { finger: put.finger, event: { kind: 'text', text: 'a' } });
+}
+
+// The screen as video: cut into pictures, each known for what it is.
+{
+  const code = [0, 0, 0, 1];
+  const unit = (type: number, ...rest: number[]) => Buffer.from([...code, type, ...rest]);
+  const settings = unit(0x67, 0x64, 0x00, 0x33, 9);
+  const more = unit(0x68, 1, 2);
+  const whole = unit(0x65, 0x88, 1, 2, 3);
+  const change = (n: number) => unit(0x41, 0x9a, n);
+
+  // Pieces come with their length in front; however the bytes are cut up on their way, the pieces come out the same.
+  const lengthed = (piece: Buffer) => Buffer.concat([Buffer.from([0, 0, piece.length >> 8, piece.length & 255]), piece]);
+  const pieces = [Buffer.concat([settings, more]), whole, change(1), change(2), Buffer.concat([settings, more, whole]), change(3)];
+  const written = Buffer.concat(pieces.map(lengthed));
+  for (const size of [1, 3, 7, written.length]) {
+    const reader = new PieceReader();
+    const read: Buffer[] = [];
+    for (let at = 0; at < written.length; at += size) read.push(...reader.push(written.subarray(at, at + size)));
+    assert.deepEqual(read, pieces, `chunks of ${size}`);
+  }
+  // A picture is handed over the moment its own data has come: no waiting for the next one.
+  const gatherer = new PictureGatherer();
+  assert.deepEqual(pieces.map((piece) => gatherer.push(piece)), [
+    [],
+    [Buffer.concat([settings, more, whole])],
+    [change(1)],
+    [change(2)],
+    [Buffer.concat([settings, more, whole])],
+    [change(3)],
+  ]);
+  assert.deepEqual(new PictureGatherer().push(Buffer.from([9, 9, 9])), [], 'what has no start code is no unit');
+  assert.equal(frameKind(Buffer.concat([settings, more, whole])), 'key');
+  assert.equal(frameKind(whole), 'key');
+  assert.equal(frameKind(change(1)), 'delta');
+  assert.equal(frameKind(Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 16])), 'still');
+  assert.equal(frameKind(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>')), 'still');
+  assert.equal(frameKind(new Uint8Array(0)), 'still');
+
+  assert.equal(codecOf(Buffer.concat([settings, more, whole])), 'avc1.640033');
+
+  // The server's part: who gets what, and what a newcomer is played.
+  const watcher = () => {
+    const got: Buffer[] = [];
+    return { got, readyState: 1, OPEN: 1, bufferedAmount: 0, send: (frame: Buffer) => void got.push(frame), close: () => undefined };
+  };
+  const keyPicture = Buffer.concat([settings, more, whole]);
+  const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xd9]);
+  const first = watcher();
+  addViewer('video-test', first as unknown as WebSocket, true);
+  assert.equal(everyoneTakesVideo('video-test'), true);
+  sendFrame('video-test', change(1));
+  assert.deepEqual(first.got, [], 'a delta is no use before a whole picture');
+  sendFrame('video-test', keyPicture);
+  sendFrame('video-test', change(2));
+  assert.deepEqual(first.got, [keyPicture, change(2)]);
+  // Someone who cannot keep up misses a picture, and then gets nothing until the next whole one.
+  first.bufferedAmount = 2_000_000;
+  sendFrame('video-test', change(3));
+  first.bufferedAmount = 0;
+  sendFrame('video-test', change(4));
+  assert.deepEqual(first.got, [keyPicture, change(2)]);
+  // A newcomer is played everything since the latest whole picture, and is level with the rest at once.
+  const second = watcher();
+  addViewer('video-test', second as unknown as WebSocket, true);
+  sendLatestPicture('video-test', second as unknown as WebSocket);
+  assert.deepEqual(second.got, [keyPicture, change(2), change(3), change(4)]);
+  sendFrame('video-test', change(5));
+  assert.deepEqual(second.got.at(-1), change(5));
+  assert.deepEqual(first.got, [keyPicture, change(2)], 'still waiting for a whole picture');
+  sendFrame('video-test', keyPicture);
+  assert.deepEqual(first.got.at(-1), keyPicture);
+  // A viewer that only shows still pictures: no video for it, and with it there nobody is sent video.
+  const old = watcher();
+  addViewer('video-test', old as unknown as WebSocket, false);
+  assert.equal(everyoneTakesVideo('video-test'), false);
+  sendLatestPicture('video-test', old as unknown as WebSocket);
+  sendFrame('video-test', change(6));
+  assert.deepEqual(old.got, []);
+  sendFrame('video-test', jpeg);
+  assert.deepEqual([old.got, first.got.at(-1), second.got.at(-1)], [[jpeg], jpeg, jpeg], 'a still picture goes to everyone');
+  const late = watcher();
+  addViewer('video-test', late as unknown as WebSocket, false);
+  sendLatestPicture('video-test', late as unknown as WebSocket);
+  assert.deepEqual(late.got, [jpeg]);
+  forget('video-test');
+  assert.equal(codecOf(change(1)), null);
 }
 
 console.log('Unit checks passed.');

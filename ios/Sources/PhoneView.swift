@@ -56,38 +56,45 @@ struct PhoneView: View {
 
   @ViewBuilder
   private var screen: some View {
-    if let frame = store.frame {
-      Image(uiImage: frame)
-        .resizable()
-        .aspectRatio(contentMode: .fit)
-        .clipShape(.rect(cornerRadius: 28))
-        .overlay { RoundedRectangle(cornerRadius: 28).stroke(.quaternary) }
-        .overlay {
-          GeometryReader { proxy in
-            Color.clear
-              .contentShape(.rect)
-              .gesture(touches(in: proxy.size))
-          }
-        }
-        .overlay(alignment: .top) {
-          if store.preview.status == .building {
-            HStack(spacing: 8) {
-              MascotBadge(isDancing: true)
-                .frame(width: 26)
-              Text(Texts.buildStage(store.preview.stage))
-            }
-            .font(.footnote.weight(.semibold))
-            .padding(.leading, 6)
-            .padding(.trailing, 12)
-            .padding(.vertical, 6)
-            .background(.regularMaterial, in: .capsule)
-              .padding(.top, 12)
-          }
-        }
-        .accessibilityLabel("Appens skärm i simulatorn")
+    if store.showsVideo, let size = store.video.size {
+      framed(VideoScreen(feed: store.video).aspectRatio(size, contentMode: .fit))
+    } else if let frame = store.frame {
+      framed(Image(uiImage: frame).resizable().aspectRatio(contentMode: .fit))
     } else {
       placeholder
     }
+  }
+
+  /// The simulator's screen, as video or as a still picture, with its round corners, the touches
+  /// on it and the note about a build in progress.
+  private func framed(_ picture: some View) -> some View {
+    picture
+      .clipShape(.rect(cornerRadius: 28))
+      .overlay { RoundedRectangle(cornerRadius: 28).stroke(.quaternary) }
+      .overlay {
+        GeometryReader { proxy in
+          Color.clear
+            .contentShape(.rect)
+            .gesture(touches(in: proxy.size))
+        }
+      }
+      .overlay(alignment: .top) {
+        if store.preview.status == .building {
+          HStack(spacing: 8) {
+            MascotBadge(isDancing: true)
+              .frame(width: 26)
+            Text(Texts.buildStage(store.preview.stage))
+          }
+          .font(.footnote.weight(.semibold))
+          .padding(.leading, 6)
+          .padding(.trailing, 12)
+          .padding(.vertical, 6)
+          .background(.regularMaterial, in: .capsule)
+          .padding(.top, 12)
+        }
+      }
+      .accessibilityElement()
+      .accessibilityLabel("Appens skärm i simulatorn")
   }
 
   @ViewBuilder

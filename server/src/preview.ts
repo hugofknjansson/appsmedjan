@@ -1,7 +1,7 @@
 // Builds a project on a Mac worker and keeps the preview state in sync.
 import { config } from './config';
 import * as db from './db';
-import { live, setPreview } from './live';
+import { everyoneTakesVideo, live, setPreview } from './live';
 import * as workers from './workers';
 
 export type BuildOutcome =
@@ -54,7 +54,7 @@ async function doBuild(projectId: string): Promise<BuildOutcome> {
 /** Tells the worker how many people are watching, and shuts the simulator down a while after the last one leaves. */
 export function syncViewers(projectId: string): void {
   const l = live(projectId);
-  workers.setViewers(projectId, l.clients.size);
+  workers.setViewers(projectId, l.clients.size, everyoneTakesVideo(projectId));
   if (l.releaseTimer) {
     clearTimeout(l.releaseTimer);
     l.releaseTimer = null;

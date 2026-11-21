@@ -117,7 +117,8 @@ export interface PublishResult {
 
 /** What a driver reports back to the server while it works. */
 export interface Emit {
-  frame(projectId: string, image: Uint8Array): void;
+  /** False when the frame could not be sent on right now. */
+  frame(projectId: string, image: Uint8Array): boolean;
   streamInfo(projectId: string, mime: string): void;
   stopped(projectId: string): void;
 }
@@ -141,7 +142,8 @@ export interface Driver {
   /** `store`: a full-size picture for the App Store page instead of a small one for the agent to look at. */
   screenshot(projectId: string, opts?: { store?: boolean }): Promise<{ mime: string; data: Buffer }>;
   input(projectId: string, event: InputEvent): void;
-  setViewers(projectId: string, count: number): void;
+  /** `video`: every viewer can show video. */
+  setViewers(projectId: string, count: number, video?: boolean): void;
   release(projectId: string): Promise<void>;
   shutdown(): Promise<void>;
 }

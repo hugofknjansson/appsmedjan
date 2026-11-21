@@ -16,7 +16,8 @@ import { OnPhoneDialog } from './OnPhone';
 import { PlanDialog } from './Plan';
 import { StoreDialog } from './Store';
 import { Logo } from './Logo';
-import { FrameBus, Phone } from './Phone';
+import { FrameBus } from './frames';
+import { Phone } from './Phone';
 import { Confetti, Mascot, MascotBadge, WaitingCaption } from './Mascot';
 import { apiErrorText, t } from './i18n';
 
@@ -102,7 +103,8 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
 
     const connect = () => {
       const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
-      const ws = new WebSocket(`${scheme}://${location.host}/ws?project=${id}`);
+      // A browser that can decode video says so; the screen then comes as that and not as still pictures.
+      const ws = new WebSocket(`${scheme}://${location.host}/ws?project=${id}${bus.takesVideo ? '&video=h264' : ''}`);
       ws.binaryType = 'arraybuffer';
       socket.current = ws;
 
@@ -142,11 +144,15 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
       };
     };
     connect();
+    // Video that this browser turns out not to manage: connect again, now asking for still pictures.
+    bus.onVideoFailure = () => socket.current?.close();
 
     return () => {
       closed = true;
       clearTimeout(timer);
+      bus.onVideoFailure = null;
       socket.current?.close();
+      bus.close();
     };
   }, [id, bus]);
 

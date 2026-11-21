@@ -1,27 +1,9 @@
-// The simulator preview: shows streamed frames and forwards taps, swipes and typing.
+// The simulator preview: shows the streamed screen and forwards taps, swipes and typing.
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import type { InputEvent, PreviewState } from '../../shared/protocol';
+import type { FrameBus } from './frames';
 import { t } from './i18n';
 import { Mascot, MascotBadge, WaitingCaption } from './Mascot';
-
-/** Delivers frames straight to the <img>, so a 15 fps stream doesn't re-render the page. */
-export class FrameBus {
-  private listener: ((frame: ArrayBuffer | null) => void) | null = null;
-  private last: ArrayBuffer | null = null;
-
-  push(frame: ArrayBuffer | null): void {
-    this.last = frame;
-    this.listener?.(frame);
-  }
-
-  subscribe(listener: (frame: ArrayBuffer | null) => void): () => void {
-    this.listener = listener;
-    if (this.last) listener(this.last);
-    return () => {
-      if (this.listener === listener) this.listener = null;
-    };
-  }
-}
 
 interface Props {
   bus: FrameBus;
@@ -39,6 +21,9 @@ const clamp = (n: number) => Math.min(1, Math.max(0, n));
 export function Phone({ bus, preview, running, onInput, onStart, onCapture }: Props) {
   const [capture, setCapture] = useState<{ busy: boolean; ok: boolean; text: string }>({ busy: false, ok: true, text: '' });
   const img = useRef<HTMLImageElement>(null);
+  const canvas = useRef<HTMLCanvasElement>(null);
+  /** True while the screen arrives as video, drawn on the canvas, and not as still pictures in the <img>. */
+  const [isVideo, setIsVideo] = useState(false);
   const mime = useRef(preview.mime);
   const [hasFrame, setHasFrame] = useState(false);
   const down = useRef<{ x: number; y: number; at: number } | null>(null);
@@ -47,14 +32,31 @@ export function Phone({ bus, preview, running, onInput, onStart, onCapture }: Pr
 
   useEffect(() => {
     let url: string | null = null;
-    const unsubscribe = bus.subscribe((frame) => {
-      const el = img.current;
-      if (!el) return;
-      if (!frame) {
+    const unsubscribe = bus.subscribe((picture) => {
+      if (!picture) {
         setHasFrame(false);
         return;
       }
-      const next = URL.createObjectURL(new Blob([frame], { type: mime.current }));
+      if (picture.kind === 'video') {
+        const el = canvas.current;
+        if (!el) return;
+        const { displayWidth: width, displayHeight: height } = picture.frame;
+        if (el.width !== width || el.height !== height) {
+          el.width = width;
+          el.height = height;
+          // Match the frame to whichever iPhone model the simulator is.
+          if (el.parentElement) el.parentElement.style.aspectRatio = `${width} / ${height}`;
+        }
+        el.getContext('2d')?.drawImage(picture.frame, 0, 0);
+        setIsVideo(true);
+        setHasFrame(true);
+        return;
+      }
+      const el = img.current;
+      if (!el) return;
+      // The mock worker draws SVG; everything else that is a still picture is a JPEG.
+      const type = mime.current.startsWith('image/') ? mime.current : 'image/jpeg';
+      const next = URL.createObjectURL(new Blob([picture.data], { type }));
       const previous = url;
       url = next;
       el.onload = () => {
@@ -65,6 +67,7 @@ export function Phone({ bus, preview, running, onInput, onStart, onCapture }: Pr
         }
       };
       el.src = next;
+      setIsVideo(false);
       setHasFrame(true);
     });
     return () => {
@@ -76,7 +79,8 @@ export function Phone({ bus, preview, running, onInput, onStart, onCapture }: Pr
   const interactive = hasFrame && preview.canInput;
 
   function position(e: PointerEvent): { x: number; y: number } {
-    const r = img.current!.getBoundingClientRect();
+    // Whichever of the two is showing the screen; they lie on top of each other.
+    const r = e.currentTarget.getBoundingClientRect();
     return { x: clamp((e.clientX - r.left) / r.width), y: clamp((e.clientY - r.top) / r.height) };
   }
 
@@ -174,11 +178,22 @@ export function Phone({ bus, preview, running, onInput, onStart, onCapture }: Pr
   return (
     <div className="phone-wrap">
       <div className="phone" tabIndex={interactive ? 0 : -1} onKeyDown={onKeyDown} onBlur={flushTyped}>
+        {/* The screen as still pictures, and as video: one of the two is showing, in the same place. */}
         <img
           ref={img}
           alt={t.preview}
           draggable={false}
-          className={hasFrame ? (interactive ? 'interactive' : '') : 'hidden'}
+          className={`screen${isVideo ? ' off' : ''}${hasFrame ? (interactive ? ' interactive' : '') : ' hidden'}`}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={() => onPointerUp(null)}
+        />
+        <canvas
+          ref={canvas}
+          role="img"
+          aria-label={t.preview}
+          className={`screen${isVideo ? '' : ' off'}${hasFrame ? (interactive ? ' interactive' : '') : ' hidden'}`}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
