@@ -10,7 +10,7 @@ import { iconPng } from '../worker/src/icon';
 import { Publisher, classifyPublishFailure, publishConfigFromEnv } from '../worker/src/publish';
 import { listFolders, pruneAfterDays, staleIds, touch } from '../worker/src/prune';
 import { extractErrors, projectSpec } from '../worker/src/xcode';
-import { touchMessages, wholeGesture } from '../worker/src/touch';
+import { pythonCandidates, touchMessages, wholeGesture } from '../worker/src/touch';
 import {
   EMPTY_CONTACT,
   EMPTY_LISTING,
@@ -846,6 +846,14 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
   assert.deepEqual(touchMessages({ kind: 'swipe', x1: 0, y1: 1, x2: 0, y2: 0.5, durationMs: 250 }, screen, null).messages, [{ k: 'swipe', x1: 0, y1: 800, x2: 0, y2: 400, duration: 0.25 }]);
   assert.deepEqual(touchMessages({ kind: 'key', key: 'backspace' }, screen, null).messages, [{ k: 'key', code: 42 }]);
   assert.deepEqual(touchMessages({ kind: 'button', button: 'home' }, screen, null).messages, [{ k: 'button', name: 'HOME' }]);
+
+  // Where idb's Python is, for the ways the idb command gets installed.
+  assert.deepEqual(pythonCandidates('#!/usr/local/bin/python3\nimport sys\n', '/usr/local/bin').slice(0, 1), ['/usr/local/bin/python3']);
+  assert.deepEqual(
+    pythonCandidates(`#!/bin/sh\n'''exec' "/Users/someone/Library/Application Support/pipx/venvs/fb-idb/bin/python" "$0" "$@"\n' '''\nimport sys\n`, '/venv/bin'),
+    ['/Users/someone/Library/Application Support/pipx/venvs/fb-idb/bin/python', '/venv/bin/python', '/venv/bin/python3'],
+  );
+  assert.deepEqual(pythonCandidates('#!/usr/bin/env python3\n', '/venv/bin'), ['/venv/bin/python', '/venv/bin/python3']);
 
   const put = wholeGesture({ kind: 'touch', phase: 'down', x: 0.5, y: 0.8 }, null, 1000);
   assert.deepEqual(put, { finger: { x: 0.5, y: 0.8, at: 1000 }, event: null });

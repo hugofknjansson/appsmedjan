@@ -93,14 +93,36 @@ export async function touchPython(): Promise<string | null> {
   const where = await exec('which', ['idb']);
   if (where.code !== 0) return null;
   try {
-    const first = (await fs.readFile(where.stdout.trim(), 'utf8')).split('\n', 1)[0] ?? '';
-    const python = first.startsWith('#!') ? first.slice(2).trim().split(/\s+/)[0] : '';
-    if (!python) return null;
-    const works = await exec(python, ['-c', 'import idb.grpc.management, idb.common.hid'], { timeoutMs: 20_000 });
-    return works.code === 0 ? python : null;
+    const real = await fs.realpath(where.stdout.trim());
+    for (const python of pythonCandidates(await fs.readFile(real, 'utf8'), path.dirname(real))) {
+      const works = await exec(python, ['-c', 'import idb.grpc.management, idb.common.hid'], { timeoutMs: 20_000 });
+      if (works.code === 0) return python;
+    }
   } catch {
-    return null;
+    // Not readable, or not text: no open connection then.
   }
+  return null;
+}
+
+/**
+ * Where the Python that an `idb` command runs on may be, best guess first, read off the command's
+ * own text and the folder it really lives in.
+ */
+export function pythonCandidates(script: string, folder: string): string[] {
+  const lines = script.split('\n', 3);
+  const found: string[] = [];
+  // The usual start of a Python script: the interpreter on the first line.
+  const first = lines[0] ?? '';
+  if (first.startsWith('#!')) {
+    const named = first.slice(2).trim().split(/\s+/)[0] ?? '';
+    if (named && !/\/(sh|bash|zsh|env)$/.test(named)) found.push(named);
+  }
+  // What pip and pipx write when the path has a space in it: a shell line that starts the interpreter.
+  const wrapped = /^'''exec' "([^"]+)"/.exec(lines[1] ?? '');
+  if (wrapped) found.push(wrapped[1]!);
+  // A command installed into an environment of its own has that environment's Python beside it.
+  found.push(path.join(folder, 'python'), path.join(folder, 'python3'));
+  return [...new Set(found)];
 }
 
 export class Toucher {
