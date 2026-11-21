@@ -149,7 +149,9 @@ nonisolated struct PreviewState: Decodable, Equatable {
 }
 
 /// Something done to the app in the simulator. Positions are 0...1 of the screen.
-nonisolated enum InputEvent: Encodable {
+nonisolated enum InputEvent: Encodable, Equatable {
+  /// A finger on the screen, sent as it moves, so that what is under it can follow.
+  case touch(Phase, x: Double, y: Double)
   case tap(x: Double, y: Double)
   case swipe(x1: Double, y1: Double, x2: Double, y2: Double, durationMs: Int)
   case text(String)
@@ -157,12 +159,18 @@ nonisolated enum InputEvent: Encodable {
   case home
 
   nonisolated enum Key: String, Encodable { case backspace, enter }
+  nonisolated enum Phase: String, Encodable { case down, move, up }
 
-  nonisolated private enum CodingKeys: String, CodingKey { case kind, x, y, x1, y1, x2, y2, durationMs, text, key, button }
+  nonisolated private enum CodingKeys: String, CodingKey { case kind, phase, x, y, x1, y1, x2, y2, durationMs, text, key, button }
 
   func encode(to encoder: any Encoder) throws {
     var box = encoder.container(keyedBy: CodingKeys.self)
     switch self {
+    case .touch(let phase, let x, let y):
+      try box.encode("touch", forKey: .kind)
+      try box.encode(phase, forKey: .phase)
+      try box.encode(x, forKey: .x)
+      try box.encode(y, forKey: .y)
     case .tap(let x, let y):
       try box.encode("tap", forKey: .kind)
       try box.encode(x, forKey: .x)

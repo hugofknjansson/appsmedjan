@@ -169,6 +169,9 @@ export class MockDriver implements Driver {
   input(projectId: string, event: InputEvent): void {
     const s = this.sessions.get(projectId);
     if (!s) return;
+    // A finger is drawn where it lifts; on its way there it leaves no marks.
+    if (event.kind === 'touch' && event.phase !== 'up') return;
+    if (event.kind === 'touch') s.taps = [...s.taps.slice(-4), { x: event.x, y: event.y }];
     if (event.kind === 'tap') s.taps = [...s.taps.slice(-4), { x: event.x, y: event.y }];
     if (event.kind === 'swipe') s.taps = [...s.taps.slice(-4), { x: event.x2, y: event.y2 }];
     if (event.kind === 'text') s.typed = (s.typed + event.text).slice(-28);

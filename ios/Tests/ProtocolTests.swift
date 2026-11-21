@@ -184,6 +184,12 @@ private func summary() -> ProjectSummary {
     #expect(text.firstSentence() == sentence)
   }
 
+  @Test func `a finger on its way is sent with where it is and what it is doing`() throws {
+    struct Sent: Decodable, Equatable { let kind: String; let phase: String; let x: Double; let y: Double }
+    let data = try JSONEncoder().encode(InputEvent.touch(.move, x: 0.25, y: 0.75))
+    #expect(try JSONDecoder().decode(Sent.self, from: data) == Sent(kind: "touch", phase: "move", x: 0.25, y: 0.75))
+  }
+
   @Test func `what the builder says is shown and is not counted as work`() throws {
     func said(_ text: String) -> Part {
       .step(Step(id: UUID().uuidString, kind: .say, detail: text, status: .done))

@@ -18,6 +18,7 @@ import { exec, mustExec } from './exec';
 import { Publisher, publishConfigFromEnv } from './publish';
 import { listFolders, pruneAfterDays, staleIds, touch } from './prune';
 import { Streamer } from './stream';
+import { Toucher, touchMessages, touchPython, wholeGesture, type Finger, type Gesture, type Held } from './touch';
 
 interface Session {
   projectId: string;
@@ -28,6 +29,12 @@ interface Session {
   viewers: number;
   lastUsed: number;
   streamer: Streamer | null;
+  /** The open connection touches go through; null where there is none, and each touch is then a command of its own. */
+  toucher: Toucher | null;
+  /** Where the finger that is down through the open connection was last put. */
+  held: Held | null;
+  /** The finger that is down, while touches are gathered into whole gestures for the idb command. */
+  finger: Finger | null;
   /** Screen size in points, needed to turn normalized touch positions into coordinates. */
   screen: { width: number; height: number } | null;
   /** Input events are applied in order. */
@@ -51,6 +58,8 @@ export class XcodeDriver implements Driver {
   private runtimeId = '';
   private deviceTypeId = '';
   private hasIdb = false;
+  /** The Python that idb's library is installed for; null when touches can only go through the idb command. */
+  private touchPython: string | null = null;
   private publisher: Publisher | null = null;
   private readonly workDir: string;
   private readonly maxSimulators: number;
@@ -69,6 +78,10 @@ export class XcodeDriver implements Driver {
     const xcodegen = await exec('xcodegen', ['--version']);
     if (xcodegen.code !== 0) throw new Error('XcodeGen is not installed. Run: brew install xcodegen');
     this.hasIdb = (await exec('idb', ['--help'], { timeoutMs: 20_000 })).code === 0;
+    // LIVE_TOUCH=0 goes back to one idb command per touch, should the open connection ever misbehave.
+    const live = process.env.LIVE_TOUCH !== '0';
+    this.touchPython = this.hasIdb && live ? await touchPython() : null;
+    if (this.hasIdb && live && !this.touchPython) console.warn('[xcode] idb\'s Python library was not found: touches are sent one command at a time, which is slower.');
     if (!this.hasIdb) {
       console.warn(
         '[xcode] idb not found: the preview will be view-only and slower. To enable taps and typing run:\n' +
@@ -81,6 +94,7 @@ export class XcodeDriver implements Driver {
     for (const d of await this.listDevices()) {
       if (d.name.startsWith(DEVICE_PREFIX) && d.state !== 'Shutdown') {
         await exec('xcrun', ['simctl', 'shutdown', d.udid]);
+        await forgetCompanion(d.udid);
       }
     }
     // Uploads go to the operator's own account (key in this worker's environment), to people's own
@@ -156,6 +170,9 @@ export class XcodeDriver implements Driver {
       viewers: 0,
       lastUsed: Date.now(),
       streamer: null,
+      toucher: null,
+      held: null,
+      finger: null,
       screen: null,
       inputChain: Promise.resolve(),
       chain: Promise.resolve(),
@@ -174,6 +191,7 @@ export class XcodeDriver implements Driver {
   private async boot(s: Session): Promise<void> {
     if (s.booted) return;
     await this.makeRoom(s);
+    await forgetCompanion(s.udid);
     const res = await exec('xcrun', ['simctl', 'boot', s.udid], { timeoutMs: 180_000 });
     // Booting a device that is already booted reports an error we can ignore.
     if (res.code !== 0 && !/current state: Booted/i.test(res.stderr)) {
@@ -242,9 +260,13 @@ export class XcodeDriver implements Driver {
       await mustExec('xcrun', ['simctl', 'launch', s.udid, s.bundleId], { timeoutMs: 60_000 });
 
       if (!s.streamer) {
+        // Asking idb for the screen's size also starts the simulator's companion, once, before the
+        // stream and the touches both come asking for it at the same moment.
+        if (this.hasIdb) await this.screenSize(s);
         s.streamer = new Streamer(s.udid, this.hasIdb, (frame) => this.emit.frame(s.projectId, frame));
         this.emit.streamInfo(s.projectId, 'image/jpeg');
         s.streamer.setActive(s.viewers > 0);
+        if (this.touchPython) s.toucher = new Toucher(s.udid, this.touchPython);
       } else {
         s.streamer.refresh();
       }
@@ -408,7 +430,22 @@ export class XcodeDriver implements Driver {
     const s = this.sessions.get(projectId);
     if (!s?.booted || !this.hasIdb) return;
     s.lastUsed = Date.now();
-    s.inputChain = s.inputChain.then(() => this.applyInput(s, event)).catch((err) => {
+    // Straight through the open connection when there is one.
+    if (s.toucher && s.screen) {
+      const live = touchMessages(event, s.screen, s.held);
+      const sent = live.messages.length === 0 ? 'sent' : s.toucher.send(live.messages);
+      s.held = sent === 'sent' ? live.held : null;
+      if (sent !== 'gone') {
+        s.finger = null;
+        return;
+      }
+    }
+    // Otherwise as a command of its own, for which a finger's movements are gathered into one gesture.
+    const whole = wholeGesture(event, s.finger, Date.now());
+    s.finger = whole.finger;
+    const gesture = whole.event;
+    if (!gesture) return;
+    s.inputChain = s.inputChain.then(() => this.applyInput(s, gesture)).catch((err) => {
       console.warn(`[xcode] input failed: ${(err as Error).message}`);
     });
   }
@@ -426,7 +463,7 @@ export class XcodeDriver implements Driver {
     return s.screen;
   }
 
-  private async applyInput(s: Session, event: InputEvent): Promise<void> {
+  private async applyInput(s: Session, event: Gesture): Promise<void> {
     // "--" keeps typed text that starts with a dash from being read as an option.
     const idb = (command: string, positional: string[], options: string[] = []) =>
       exec('idb', ['ui', command, '--udid', s.udid, ...options, '--', ...positional], { timeoutMs: 15_000 });
@@ -467,7 +504,9 @@ export class XcodeDriver implements Driver {
     this.sessions.delete(projectId);
     await s.chain.catch(() => undefined);
     s.streamer?.stop();
+    s.toucher?.stop();
     await exec('xcrun', ['simctl', 'shutdown', s.udid], { timeoutMs: 60_000 });
+    await forgetCompanion(s.udid);
     if (process.env.DELETE_SIMULATORS_ON_RELEASE) await exec('xcrun', ['simctl', 'delete', s.udid]);
     this.emit.stopped(projectId);
   }
@@ -478,6 +517,18 @@ export class XcodeDriver implements Driver {
 }
 
 // --- Helpers ------------------------------------------------------------------
+
+/**
+ * idb talks to each simulator through a companion process that it leaves running. One that was
+ * started before the simulator was last shut down still shows the screen, but every touch sent
+ * through it is thrown away. So it is ended whenever its simulator stops or starts, and idb starts
+ * a fresh one the next time it is asked for something.
+ */
+async function forgetCompanion(udid: string): Promise<void> {
+  // Off idb's own list first: a companion that is listed but gone is never replaced.
+  await exec('idb', ['disconnect', udid], { timeoutMs: 20_000 });
+  await exec('pkill', ['-f', `idb_companion --udid ${udid}`]);
+}
 
 /** Makes dir/Sources match the given files exactly, and returns the paths that were kept. */
 export async function mirrorSources(dir: string, files: Record<string, string>): Promise<string[]> {

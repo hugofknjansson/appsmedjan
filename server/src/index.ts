@@ -93,6 +93,10 @@ function cleanInput(e: unknown): InputEvent | null {
   const ev = e as Record<string, unknown> | null;
   if (!ev || typeof ev !== 'object') return null;
   switch (ev.kind) {
+    case 'touch':
+      return (ev.phase === 'down' || ev.phase === 'move' || ev.phase === 'up') && unit(ev.x) && unit(ev.y)
+        ? { kind: 'touch', phase: ev.phase, x: ev.x, y: ev.y }
+        : null;
     case 'tap':
       return unit(ev.x) && unit(ev.y) ? { kind: 'tap', x: ev.x, y: ev.y } : null;
     case 'swipe': {
@@ -133,9 +137,15 @@ function attachClient(ws: WebSocket, project: db.Project): void {
   if (l.lastFrame) ws.send(l.lastFrame, { binary: true });
   syncViewers(project.id);
 
-  // A simple budget so a misbehaving page can't flood the simulator with input.
+  // A simple budget so a misbehaving page can't flood the simulator with input. A finger on its
+  // way has a budget of its own: it is sent many times a second, and must never use up what lets
+  // the finger lift again.
   let budget = 40;
-  const refill = setInterval(() => (budget = 40), 1000);
+  let moves = 120;
+  const refill = setInterval(() => {
+    budget = 40;
+    moves = 120;
+  }, 1000);
 
   ws.on('message', (data, isBinary) => {
     if (isBinary) return;
@@ -147,7 +157,9 @@ function attachClient(ws: WebSocket, project: db.Project): void {
     }
     if (msg.type === 'input') {
       const event = cleanInput(msg.event);
-      if (event && budget-- > 0) workers.sendInput(project.id, event);
+      if (!event) return;
+      const allowed = event.kind === 'touch' && event.phase === 'move' ? moves-- > 0 : budget-- > 0;
+      if (allowed) workers.sendInput(project.id, event);
     } else if (msg.type === 'preview.start') {
       // During a run the agent builds by itself.
       if (!l.running && l.preview.status !== 'building') void buildProject(project.id);

@@ -1537,6 +1537,8 @@ img.app-icon {
 
 .phone img.interactive {
   cursor: pointer;
+  /* A finger on the picture is a finger in the app, not a way to scroll the page. */
+  touch-action: none;
 }
 
 .phone img.hidden {

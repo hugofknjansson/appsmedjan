@@ -86,6 +86,8 @@ export interface PreviewState {
 
 /** Coordinates are normalized to 0..1 of the screen. */
 export type InputEvent =
+  /** A finger on the screen, sent as it moves, so that what is under it can follow. */
+  | { kind: 'touch'; phase: 'down' | 'move' | 'up'; x: number; y: number }
   | { kind: 'tap'; x: number; y: number }
   | { kind: 'swipe'; x1: number; y1: number; x2: number; y2: number; durationMs: number }
   | { kind: 'text'; text: string }

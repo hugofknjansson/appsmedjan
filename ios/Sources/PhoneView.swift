@@ -9,7 +9,8 @@ struct PhoneView: View {
   /// What saving the screen as an App Store picture led to, shown for a moment.
   @State private var captureNote: (text: String, failed: Bool)?
   @State private var isCapturing = false
-  @State private var touchStart: Date?
+  /// The finger that is down: when it was last sent to the simulator, and where it was then. Nil when none is down.
+  @State private var finger: (sentAt: Date, x: Double, y: Double)?
 
   private var canInput: Bool { store.preview.canInput && store.preview.status == .running }
 
@@ -50,6 +51,7 @@ struct PhoneView: View {
       }
     }
     .padding(.vertical, 8)
+    .onDisappear(perform: liftFinger)
   }
 
   @ViewBuilder
@@ -123,29 +125,40 @@ struct PhoneView: View {
     }
   }
 
-  /// One gesture tells taps from swipes: a short, still touch is a tap.
+  /// The finger is sent as it moves, so that what is under it in the simulator follows it.
   private func touches(in size: CGSize) -> some Gesture {
     DragGesture(minimumDistance: 0)
-      .onChanged { _ in
-        if touchStart == nil { touchStart = .now }
+      .onChanged { value in
+        guard canInput, size.width > 0, size.height > 0 else { return }
+        let now = Date.now
+        let x = unit(value.location.x, of: size.width), y = unit(value.location.y, of: size.height)
+        guard let last = finger else {
+          finger = (now, x, y)
+          store.input(.touch(.down, x: unit(value.startLocation.x, of: size.width), y: unit(value.startLocation.y, of: size.height)))
+          return
+        }
+        // No more often than the screen is drawn; where the finger lifts is always sent.
+        guard now.timeIntervalSince(last.sentAt) >= 1.0 / 60 else { return }
+        finger = (now, x, y)
+        store.input(.touch(.move, x: x, y: y))
       }
       .onEnded { value in
-        defer { touchStart = nil }
-        guard canInput, size.width > 0, size.height > 0 else { return }
-        func unit(_ point: CGPoint) -> (x: Double, y: Double) {
-          (min(max(point.x / size.width, 0), 1), min(max(point.y / size.height, 0), 1))
-        }
-        let from = unit(value.startLocation)
-        let to = unit(value.location)
-        let moved = hypot(value.translation.width, value.translation.height)
-        if moved < 10 {
-          store.input(.tap(x: from.x, y: from.y))
-        } else {
-          let elapsed = Date.now.timeIntervalSince(touchStart ?? .now)
-          let durationMs = min(max(Int(elapsed * 1000), 50), 3000)
-          store.input(.swipe(x1: from.x, y1: from.y, x2: to.x, y2: to.y, durationMs: durationMs))
-        }
+        guard finger != nil else { return }
+        finger = nil
+        store.input(.touch(.up, x: unit(value.location.x, of: size.width), y: unit(value.location.y, of: size.height)))
       }
+  }
+
+  /// A finger that never got to lift, because the screen went away under it, is lifted where it was.
+  private func liftFinger() {
+    guard let last = finger else { return }
+    finger = nil
+    store.input(.touch(.up, x: last.x, y: last.y))
+  }
+
+  /// A place on the screen as a share of its width or height, between 0 and 1.
+  private func unit(_ place: CGFloat, of length: CGFloat) -> Double {
+    min(max(place / length, 0), 1)
   }
 
   /// Saves what the simulator shows right now as a screenshot for the App Store page.

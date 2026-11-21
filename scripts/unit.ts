@@ -10,6 +10,7 @@ import { iconPng } from '../worker/src/icon';
 import { Publisher, classifyPublishFailure, publishConfigFromEnv } from '../worker/src/publish';
 import { listFolders, pruneAfterDays, staleIds, touch } from '../worker/src/prune';
 import { extractErrors, projectSpec } from '../worker/src/xcode';
+import { touchMessages, wholeGesture } from '../worker/src/touch';
 import {
   EMPTY_CONTACT,
   EMPTY_LISTING,
@@ -824,6 +825,37 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
     await worker('app1', async () => { throw new StoreError(409, 'App Store Connect answered 409', 'The app name is already being used.'); }).syncStore({ ...job, account }, () => undefined),
     { ok: false, error: 'rejected', detail: 'The app name is already being used.' },
   );
+}
+
+// A finger sent as it moves: straight through an open connection, or gathered into one gesture without one.
+{
+  const screen = { width: 400, height: 800 };
+  const down = touchMessages({ kind: 'touch', phase: 'down', x: 0.5, y: 0.25 }, screen, null);
+  assert.deepEqual(down, { messages: [{ k: 'down', x: 200, y: 200 }], held: { x: 200, y: 200 } });
+  const move = touchMessages({ kind: 'touch', phase: 'move', x: 0.5, y: 0.5 }, screen, down.held);
+  assert.deepEqual(move, { messages: [{ k: 'move', x: 200, y: 400 }], held: { x: 200, y: 400 } });
+  assert.deepEqual(touchMessages({ kind: 'touch', phase: 'up', x: 0.5, y: 0.5 }, screen, move.held), { messages: [{ k: 'up', x: 200, y: 400 }], held: null });
+  // A move with no finger down puts one down; a lift with none down is nothing.
+  assert.deepEqual(touchMessages({ kind: 'touch', phase: 'move', x: 0, y: 0 }, screen, null).messages, [{ k: 'down', x: 0, y: 0 }]);
+  assert.deepEqual(touchMessages({ kind: 'touch', phase: 'up', x: 0, y: 0 }, screen, null), { messages: [], held: null });
+  // A finger left down by someone who went away is lifted before the next thing happens.
+  assert.deepEqual(touchMessages({ kind: 'touch', phase: 'down', x: 1, y: 1 }, screen, { x: 5, y: 6 }).messages, [{ k: 'up', x: 5, y: 6 }, { k: 'down', x: 400, y: 800 }]);
+  assert.deepEqual(touchMessages({ kind: 'text', text: 'hej' }, screen, { x: 5, y: 6 }), { messages: [{ k: 'up', x: 5, y: 6 }, { k: 'text', text: 'hej' }], held: null });
+  // What clients from before live touches send still works.
+  assert.deepEqual(touchMessages({ kind: 'tap', x: 0.1, y: 0.1 }, screen, null).messages, [{ k: 'down', x: 40, y: 80 }, { k: 'up', x: 40, y: 80 }]);
+  assert.deepEqual(touchMessages({ kind: 'swipe', x1: 0, y1: 1, x2: 0, y2: 0.5, durationMs: 250 }, screen, null).messages, [{ k: 'swipe', x1: 0, y1: 800, x2: 0, y2: 400, duration: 0.25 }]);
+  assert.deepEqual(touchMessages({ kind: 'key', key: 'backspace' }, screen, null).messages, [{ k: 'key', code: 42 }]);
+  assert.deepEqual(touchMessages({ kind: 'button', button: 'home' }, screen, null).messages, [{ k: 'button', name: 'HOME' }]);
+
+  const put = wholeGesture({ kind: 'touch', phase: 'down', x: 0.5, y: 0.8 }, null, 1000);
+  assert.deepEqual(put, { finger: { x: 0.5, y: 0.8, at: 1000 }, event: null });
+  assert.deepEqual(wholeGesture({ kind: 'touch', phase: 'move', x: 0.5, y: 0.6 }, put.finger, 1100), { finger: put.finger, event: null });
+  assert.deepEqual(wholeGesture({ kind: 'touch', phase: 'up', x: 0.5, y: 0.805 }, put.finger, 1100), { finger: null, event: { kind: 'tap', x: 0.5, y: 0.8 } });
+  assert.deepEqual(wholeGesture({ kind: 'touch', phase: 'up', x: 0.5, y: 0.3 }, put.finger, 1400), {
+    finger: null, event: { kind: 'swipe', x1: 0.5, y1: 0.8, x2: 0.5, y2: 0.3, durationMs: 400 },
+  });
+  assert.deepEqual(wholeGesture({ kind: 'touch', phase: 'up', x: 0.5, y: 0.3 }, null, 1400), { finger: null, event: null });
+  assert.deepEqual(wholeGesture({ kind: 'text', text: 'a' }, put.finger, 1400), { finger: put.finger, event: { kind: 'text', text: 'a' } });
 }
 
 console.log('Unit checks passed.');

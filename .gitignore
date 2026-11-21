@@ -9,3 +9,4 @@ dist/
 ios/*.xcodeproj
 ios/Info.plist
 ios/build/
+__pycache__/

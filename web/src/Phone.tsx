@@ -80,24 +80,31 @@ export function Phone({ bus, preview, running, onInput, onStart, onCapture }: Pr
     return { x: clamp((e.clientX - r.left) / r.width), y: clamp((e.clientY - r.top) / r.height) };
   }
 
+  // The pointer is sent as it moves, so that what is under it in the simulator follows it.
   function onPointerDown(e: PointerEvent) {
     if (!interactive) return;
     e.currentTarget.setPointerCapture(e.pointerId);
-    down.current = { ...position(e), at: performance.now() };
+    const at = position(e);
+    down.current = { ...at, at: performance.now() };
+    onInput({ kind: 'touch', phase: 'down', ...at });
   }
 
-  function onPointerUp(e: PointerEvent) {
-    const start = down.current;
+  function onPointerMove(e: PointerEvent) {
+    const last = down.current;
+    // No more often than the screen is drawn; where the pointer lifts is always sent.
+    if (!last || performance.now() - last.at < 1000 / 60) return;
+    const at = position(e);
+    down.current = { ...at, at: performance.now() };
+    onInput({ kind: 'touch', phase: 'move', ...at });
+  }
+
+  /** The pointer lifts where it is, or, when the browser took it away, where it was last seen. */
+  function onPointerUp(e: PointerEvent | null) {
+    const last = down.current;
     down.current = null;
-    if (!start || !interactive) return;
-    const end = position(e);
-    const r = img.current!.getBoundingClientRect();
-    const moved = Math.hypot((end.x - start.x) * r.width, (end.y - start.y) * r.height);
-    if (moved < 8) onInput({ kind: 'tap', x: start.x, y: start.y });
-    else {
-      const durationMs = Math.round(Math.min(Math.max(performance.now() - start.at, 80), 1500));
-      onInput({ kind: 'swipe', x1: start.x, y1: start.y, x2: end.x, y2: end.y, durationMs });
-    }
+    if (!last) return;
+    const at = e ? position(e) : { x: last.x, y: last.y };
+    onInput({ kind: 'touch', phase: 'up', ...at });
   }
 
   function flushTyped() {
@@ -173,8 +180,9 @@ export function Phone({ bus, preview, running, onInput, onStart, onCapture }: Pr
           draggable={false}
           className={hasFrame ? (interactive ? 'interactive' : '') : 'hidden'}
           onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
-          onPointerCancel={() => (down.current = null)}
+          onPointerCancel={() => onPointerUp(null)}
         />
         {cover}
         {pill && (
