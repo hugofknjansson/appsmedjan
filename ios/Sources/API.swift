@@ -70,12 +70,22 @@ struct API {
   }
 
   /// The request that opens a project's WebSocket.
+  /// The phone's model as Apple names its hardware, "iPhone19,2"; in the simulator, the model it stands in for.
+  static let phoneModel: String = {
+    if let simulated = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] { return simulated }
+    var system = utsname()
+    uname(&system)
+    return withUnsafeBytes(of: &system.machine) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
+  }()
+
   /// `takesVideo`: the screen may be sent as video and not only as still pictures.
   func socketRequest(projectID: String, takesVideo: Bool) -> URLRequest {
     var parts = URLComponents(url: baseURL.appending(path: "ws"), resolvingAgainstBaseURL: false)!
     parts.scheme = baseURL.scheme == "http" ? "ws" : "wss"
     parts.queryItems = [URLQueryItem(name: "project", value: projectID)]
     if takesVideo { parts.queryItems?.append(URLQueryItem(name: "video", value: "h264")) }
+    // Which model of phone this is, so that the app can be tried in a simulator of the same one.
+    parts.queryItems?.append(URLQueryItem(name: "device", value: Self.phoneModel))
     var request = URLRequest(url: parts.url!)
     // The login cookie is stored for the http(s) address; hand it to the socket explicitly.
     let cookies = HTTPCookieStorage.shared.cookies(for: baseURL) ?? []

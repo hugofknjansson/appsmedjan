@@ -32,6 +32,8 @@ final class ProjectStore {
   let video = VideoFeed()
   /// True while the screen arrives as video and `video` is what to show.
   private(set) var showsVideo = false
+  /// True when there is a picture of the screen to show, as video or as a still.
+  var hasPicture: Bool { showsVideo ? video.size != nil : frame != nil }
   /// False once video has turned out not to work on this device; still pictures are asked for from then on.
   @ObservationIgnored private var takesVideo = true
   private(set) var isConnected = false

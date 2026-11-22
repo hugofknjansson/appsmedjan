@@ -20,6 +20,8 @@ struct ProjectView: View {
   @State private var runStartedAt: Date?
 
   private var isShowUp: Bool { show != nil && watchesShow }
+  /// True while the app is tried over the whole screen, as if it were installed.
+  @State private var isTrying = false
 
   /// The person's own phone comes first when apps can be installed straight onto it.
   private var phone: DirectInstall? {
@@ -41,10 +43,10 @@ struct ProjectView: View {
         .padding(.vertical, 8)
 
       switch pane {
-      case .chat: ChatView(store: store, api: api, runStartedAt: runStartedAt) { watchesShow = true }
+      case .chat: ChatView(store: store, api: api, runStartedAt: runStartedAt, showBuild: { watchesShow = true }, tryNow: { isTrying = true })
       case .preview:
         if let phone, !showsSimulator {
-          PhoneTestView(store: store, api: api, direct: phone) { showsSimulator = true }
+          PhoneTestView(store: store, api: api, direct: phone, showSimulator: { showsSimulator = true }, tryNow: { isTrying = true })
         } else {
           if phone != nil {
             Button("Tillbaka till min telefon", systemImage: "chevron.left") { showsSimulator = false }
@@ -52,7 +54,7 @@ struct ProjectView: View {
               .frame(maxWidth: .infinity, alignment: .leading)
               .padding(.horizontal)
           }
-          PhoneView(store: store, api: api)
+          PhoneView(store: store, api: api) { isTrying = true }
         }
       }
     }
@@ -65,7 +67,6 @@ struct ProjectView: View {
           stage: show,
           progress: RunProgress(parts: store.liveParts),
           said: store.liveParts.said,
-          phone: phone,
           startedAt: runStartedAt,
           showChat: { watchesShow = false },
           stop: { Task { await store.stop() } }
@@ -97,16 +98,21 @@ struct ProjectView: View {
         }
       }
     }
-    // The cheer lasts a moment. Then the show goes on if the app is being made ready for the phone,
-    // and otherwise gives way to the question that comes after the wait.
+    // The cheer lasts a moment. Then the app itself takes the screen, to be tried at once, for the
+    // person who watched it being built; whoever chose the chat stays there.
     .task(id: show) {
       guard show == .done else { return }
       try? await Task.sleep(for: .seconds(1.8))
       guard !Task.isCancelled, show == .done else { return }
-      show = phone?.status == .working ? .phone : nil
+      show = nil
+      if watchesShow, store.preview.status != .unavailable { isTrying = true }
     }
-    .onChange(of: phone?.status) { _, status in
-      if show == .phone, status != .working { show = nil }
+    .fullScreenCover(isPresented: $isTrying) {
+      TryView(store: store, install: phone == nil ? nil : {
+        // Where the app is put on the person's own phone.
+        showsSimulator = false
+        pane = .preview
+      })
     }
     .onChange(of: store.publish.direct) { before, now in
       // Only when it was seen arriving: not for an app that had already arrived when the screen was opened.
@@ -221,6 +227,8 @@ struct ChatView: View {
   let runStartedAt: Date?
   /// Brings back the show that fills the screen while the app is built.
   let showBuild: () -> Void
+  /// Shows the app over the whole screen, to try it as if it were installed.
+  let tryNow: () -> Void
 
   @Environment(\.openURL) private var openURL
   @State private var draft = ""
@@ -242,10 +250,11 @@ struct ChatView: View {
     return direct
   }
 
-  /// After the wait, one thing: the question whether to put the app on the phone. The builder's last
-  /// words go into that card instead of a bubble of their own.
+  /// After the wait, one card: a way to try the app at once, and the question whether to put it on
+  /// the phone where that can be done. The builder's last words go into that card instead of a
+  /// bubble of their own.
   private var asked: ChatMessage? {
-    guard phone != nil, !store.isRunning, !store.lastRunFailed, let last = store.messages.last, last.role == .assistant else { return nil }
+    guard !store.isRunning, !store.lastRunFailed, let last = store.messages.last, last.role == .assistant else { return nil }
     return last
   }
 
@@ -276,13 +285,16 @@ struct ChatView: View {
             }
             .buttonStyle(.pop)
             .accessibilityHint("Visar bygget över hela skärmen")
-          } else if let asked, let phone {
-            if phone.status == .working {
-              ProgressCard(phone: phone, startedAt: nil)
-            } else {
-              InstallAsk(words: asked.lastWords, phone: phone, isLocked: isLocked, isBusy: !isLocked && (isAsking || !phone.available && phone.status != .ready)) {
-                if isLocked { isShowingPlan = true } else { answer(phone) }
-              }
+          } else if let asked {
+            AfterBuild(
+              words: asked.lastWords,
+              canTry: store.preview.status != .unavailable,
+              tryNow: tryNow,
+              phone: phone,
+              isLocked: isLocked,
+              isBusy: !isLocked && (isAsking || phone.map { !$0.available && $0.status != .ready } ?? false)
+            ) {
+              if isLocked { isShowingPlan = true } else if let phone { answer(phone) }
             }
           }
         }
@@ -451,14 +463,6 @@ private struct ProgressCard: View {
     self.startedAt = startedAt
   }
 
-  /// While the finished app is made ready for the person's own phone.
-  init(phone: DirectInstall, startedAt: Date?) {
-    title = phone.stage == "signing" ? String(localized: "Signerar för din telefon") : String(localized: "Gör appen klar för din telefon")
-    lines = WaitingLines.phone
-    fraction = phone.progress ?? 0.05
-    self.startedAt = startedAt
-  }
-
   var body: some View {
     HStack(alignment: .top, spacing: 14) {
       MascotBadge(isDancing: true)
@@ -491,31 +495,42 @@ private struct ProgressCard: View {
   }
 }
 
-/// What comes after the wait, and the only thing that does: the builder's one sentence and the
-/// question whether to put the app on the phone.
-private struct InstallAsk: View {
+/// What comes after the wait, and the only thing that does: the builder's one sentence, a way to
+/// try the app at once, and, where the person's own phone can take it, the question whether to put
+/// it there.
+private struct AfterBuild: View {
   let words: String?
-  let phone: DirectInstall
+  /// False when there is no simulator to try the app in right now.
+  let canTry: Bool
+  let tryNow: () -> Void
+  /// The person's own phone, when apps can be installed straight onto it.
+  let phone: DirectInstall?
   /// True when the person's plan has no phone in it.
   var isLocked = false
   let isBusy: Bool
-  let yes: () -> Void
+  let install: () -> Void
 
-  private var isArriving: Bool { phone.install == "asked" || phone.install == "fetching" }
-  private var hasArrived: Bool { phone.status == .ready && phone.install == "fetched" }
+  private var isArriving: Bool { phone?.install == "asked" || phone?.install == "fetching" }
+  private var hasArrived: Bool { phone?.status == .ready && phone?.install == "fetched" }
+  private var isGettingReady: Bool { phone?.status == .working }
+
+  private var headline: String {
+    if hasArrived { return String(localized: "Klart. Appen ligger på hemskärmen.") }
+    if isArriving { return String(localized: "Hämtas till telefonen") }
+    return String(localized: "Din app är klar att prova")
+  }
 
   private var question: String {
     if isLocked { return String(localized: "Vill du ha den på din telefon? Det ingår i planen Skapa.") }
-    if hasArrived { return String(localized: "Klart. Appen ligger på hemskärmen.") }
-    if isArriving { return String(localized: "Hämtas till telefonen") }
-    if phone.phones == 0 { return String(localized: "Vill du testa den på din telefon?") }
-    return String(localized: "Vill du installera den på telefonen och testa?")
+    if isGettingReady { return phone?.stage == "signing" ? String(localized: "Signerar för din telefon") : String(localized: "Gör appen klar för din telefon") }
+    if phone?.phones == 0 { return String(localized: "Vill du ha den på din telefon också?") }
+    return String(localized: "Vill du behålla den på telefonen?")
   }
 
   private var button: String {
     if isLocked { return String(localized: "Se planer") }
-    if phone.phones == 0 { return String(localized: "Lägg till den här telefonen") }
-    if phone.status == .failed { return String(localized: "Försök igen") }
+    if phone?.phones == 0 { return String(localized: "Lägg till den här telefonen") }
+    if phone?.status == .failed { return String(localized: "Försök igen") }
     return hasArrived ? String(localized: "Installera igen") : String(localized: "Installera på telefonen")
   }
 
@@ -528,30 +543,38 @@ private struct InstallAsk: View {
           .foregroundStyle(.secondary)
           .multilineTextAlignment(.center)
       }
-      Text(question)
+      Text(headline)
         .font(.title3.weight(.bold))
         .multilineTextAlignment(.center)
-      if let progress = phone.progress, isArriving {
-        ProgressView(value: progress)
-          .tint(.brand)
-          .animation(.smooth, value: progress)
-      }
-      if phone.status == .failed {
-        Text(Texts.directError(phone.error))
-          .font(.footnote)
-          .foregroundStyle(.red)
-          .multilineTextAlignment(.center)
-      }
-      if !isArriving {
-        Button(button, action: yes)
-          .buttonStyle(.bouncy)
-          .disabled(isBusy)
-      }
-      if phone.phones == 0, !isLocked {
-        Text("Du lägger till telefonen en gång. Sedan installeras varje app med ett tryck.")
-          .font(.footnote)
-          .foregroundStyle(.secondary)
-          .multilineTextAlignment(.center)
+      Button("Prova appen", action: tryNow)
+        .buttonStyle(.bouncy)
+        .disabled(!canTry)
+      if let phone {
+        VStack(spacing: 10) {
+          if !hasArrived, !isArriving {
+            Text(question)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .multilineTextAlignment(.center)
+          }
+          if let progress = phone.progress, isArriving || isGettingReady {
+            ProgressView(value: progress)
+              .tint(.brand)
+              .animation(.smooth, value: progress)
+          }
+          if phone.status == .failed {
+            Text(Texts.directError(phone.error))
+              .font(.footnote)
+              .foregroundStyle(.red)
+              .multilineTextAlignment(.center)
+          }
+          if !isArriving, !isGettingReady {
+            Button(button, action: install)
+              .font(.subheadline.weight(.semibold))
+              .disabled(isBusy)
+          }
+        }
+        .padding(.top, 4)
       }
     }
     .frame(maxWidth: .infinity)

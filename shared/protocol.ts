@@ -729,6 +729,8 @@ export type ServerToWorker =
       appName: string;
       bundleId: string;
       files: Record<string, string>;
+      /** The model of the phone the app is watched on, as Apple names its hardware ("iPhone19,2"), for a simulator of the same model. */
+      device?: string;
     }
   | {
       type: 'publish';
@@ -842,6 +844,11 @@ export type WorkerToServer =
   | { type: 'screenshot.result'; jobId: string; ok: boolean; mime?: string; data?: string; error?: string }
   | { type: 'stream.info'; projectId: string; mime: string }
   | { type: 'sim.stopped'; projectId: string };
+
+/** A phone model as Apple names its hardware: "iPhone19,2". Anything else is not one. */
+export function isPhoneModel(model: unknown): model is string {
+  return typeof model === 'string' && /^iPhone\d{1,2},\d{1,2}$/.test(model);
+}
 
 /** The stream's format when the screen is sent as video. */
 export const VIDEO_MIME = 'video/h264';

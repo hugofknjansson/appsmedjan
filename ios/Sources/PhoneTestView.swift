@@ -8,6 +8,8 @@ struct PhoneTestView: View {
   let direct: DirectInstall
   /// Shows the streamed simulator instead, for the person who would rather look than install.
   let showSimulator: () -> Void
+  /// Shows the app over the whole screen, to try it as if it were installed.
+  let tryNow: () -> Void
 
   @Environment(\.openURL) private var openURL
   @State private var isBusy = false
@@ -33,9 +35,11 @@ struct PhoneTestView: View {
             .font(.footnote)
             .foregroundStyle(.red)
         }
+        Button("Prova appen utan att installera", action: tryNow)
+          .font(.subheadline.weight(.semibold))
+          .padding(.top, 4)
         Button("Visa i simulatorn i stället", action: showSimulator)
           .font(.footnote.weight(.semibold))
-          .padding(.top, 4)
       }
       .padding()
     }

@@ -25,6 +25,8 @@ interface Session {
   projectId: string;
   dir: string;
   udid: string;
+  /** Which model of phone the simulator is. */
+  deviceTypeId: string;
   bundleId: string;
   booted: boolean;
   viewers: number;
@@ -50,6 +52,16 @@ interface SimDevice {
   udid: string;
   name: string;
   state: string;
+  deviceTypeIdentifier?: string;
+}
+
+/**
+ * Which simulator a phone is to be tried in: the one of the same model, when the phone said which
+ * it is and this Mac can simulate it; otherwise the one there already is, or the usual one.
+ * `existing` is the type of the app's simulator, when it has one.
+ */
+export function simulatorTypeFor(model: string | undefined, byModel: ReadonlyMap<string, string>, existing: string | undefined, usual: string): string {
+  return (model && byModel.get(model)) || existing || usual;
 }
 
 const DEVICE_PREFIX = 'asm-';
@@ -60,6 +72,8 @@ export class XcodeDriver implements Driver {
   private sessions = new Map<string, Session>();
   private runtimeId = '';
   private deviceTypeId = '';
+  /** The simulators this Mac can run, by the model of phone each one is: "iPhone19,2" to its device type. */
+  private typesByModel = new Map<string, string>();
   private hasIdb = false;
   /** LIVE_VIDEO=0 keeps the screen as JPEG frames, should video ever misbehave. */
   private readonly liveVideo = process.env.LIVE_VIDEO !== '0';
@@ -149,6 +163,11 @@ export class XcodeDriver implements Driver {
       [...iphones].sort((a, b) => number(a.name) - number(b.name)).pop();
     if (!chosen) throw new Error('No iPhone simulator device type is available.');
     this.deviceTypeId = chosen.identifier;
+
+    // Which model of phone each simulator is, for the ones the runtime can run.
+    const runs = new Set(iphones.map((t) => t.identifier));
+    const all = JSON.parse(await mustExec('xcrun', ['simctl', 'list', 'devicetypes', '-j'])).devicetypes as Array<{ identifier: string; modelIdentifier?: string }>;
+    this.typesByModel = new Map(all.flatMap((t) => (t.modelIdentifier && runs.has(t.identifier) ? [[t.modelIdentifier, t.identifier] as const] : [])));
   }
 
   private async listDevices(): Promise<SimDevice[]> {
@@ -160,19 +179,32 @@ export class XcodeDriver implements Driver {
   // --- Sessions ---------------------------------------------------------------
 
   private async session(job: BuildJob): Promise<Session> {
-    const existing = this.sessions.get(job.projectId);
-    if (existing) {
-      existing.bundleId = job.bundleId;
-      return existing;
-    }
     const name = DEVICE_PREFIX + job.projectId;
-    const found = (await this.listDevices()).find((d) => d.name === name);
-    const udid =
-      found?.udid ?? (await mustExec('xcrun', ['simctl', 'create', name, this.deviceTypeId, this.runtimeId])).trim();
+    let existing = this.sessions.get(job.projectId);
+    if (existing) {
+      // Watched on another model of phone than the simulator is: a new simulator, of that model.
+      if (simulatorTypeFor(job.device, this.typesByModel, existing.deviceTypeId, this.deviceTypeId) === existing.deviceTypeId) {
+        existing.bundleId = job.bundleId;
+        return existing;
+      }
+      await this.discard(existing);
+      existing = undefined;
+    }
+    let found = (await this.listDevices()).find((d) => d.name === name);
+    const type = simulatorTypeFor(job.device, this.typesByModel, found?.deviceTypeIdentifier, this.deviceTypeId);
+    if (found && found.deviceTypeIdentifier !== type) {
+      // What the app had saved in the old simulator goes with it.
+      await exec('xcrun', ['simctl', 'shutdown', found.udid], { timeoutMs: 60_000 });
+      await forgetCompanion(found.udid);
+      await exec('xcrun', ['simctl', 'delete', found.udid], { timeoutMs: 60_000 });
+      found = undefined;
+    }
+    const udid = found?.udid ?? (await mustExec('xcrun', ['simctl', 'create', name, type, this.runtimeId])).trim();
     const s: Session = {
       projectId: job.projectId,
       dir: path.join(this.workDir, 'projects', job.projectId),
       udid,
+      deviceTypeId: type,
       bundleId: job.bundleId,
       booted: false,
       viewers: 0,
@@ -191,6 +223,18 @@ export class XcodeDriver implements Driver {
   }
 
   /** Runs tasks for one session strictly one after another. */
+  /**
+   * Ends a session without a word to the server: its simulator is about to be replaced by one of
+   * another model, in the middle of a build that goes on. The simulator itself is removed by
+   * whoever makes the new one.
+   */
+  private async discard(s: Session): Promise<void> {
+    this.sessions.delete(s.projectId);
+    await s.chain.catch(() => undefined);
+    s.streamer?.stop();
+    s.toucher?.stop();
+  }
+
   private serial<T>(s: Session, task: () => Promise<T>): Promise<T> {
     const next = s.chain.catch(() => undefined).then(task);
     s.chain = next;

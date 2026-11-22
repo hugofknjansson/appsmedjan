@@ -28,13 +28,24 @@ interface Viewer {
   video: boolean;
   /** True when the next thing it can use is a whole picture: it has just come, or it missed one. */
   needsKey: boolean;
+  /** The phone it is, when it is one and said so: "iPhone19,2". */
+  device: string | null;
 }
 
 const viewers = new WeakMap<WebSocket, Viewer>();
 
-export function addViewer(projectId: string, ws: WebSocket, video: boolean): void {
-  viewers.set(ws, { video, needsKey: true });
+export function addViewer(projectId: string, ws: WebSocket, video: boolean, device: string | null = null): void {
+  viewers.set(ws, { video, needsKey: true, device });
   live(projectId).clients.add(ws);
+}
+
+/** The phone the app is being watched on, when someone is watching on one: the simulator can then be the same model. */
+export function watchedOn(projectId: string): string | null {
+  for (const c of lives.get(projectId)?.clients ?? []) {
+    const device = viewers.get(c)?.device;
+    if (device) return device;
+  }
+  return null;
 }
 
 /** True when everyone watching can show video, so the screen may be sent as that. */

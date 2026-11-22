@@ -9,7 +9,7 @@ import { pngInfo } from '../shared/png';
 import { iconPng } from '../worker/src/icon';
 import { Publisher, classifyPublishFailure, publishConfigFromEnv } from '../worker/src/publish';
 import { listFolders, pruneAfterDays, staleIds, touch } from '../worker/src/prune';
-import { extractErrors, projectSpec } from '../worker/src/xcode';
+import { extractErrors, projectSpec, simulatorTypeFor } from '../worker/src/xcode';
 import { pythonCandidates, touchMessages, wholeGesture } from '../worker/src/touch';
 import {
   EMPTY_CONTACT,
@@ -36,6 +36,7 @@ import {
   planFor,
   type StoreListing,
   frameKind,
+  isPhoneModel,
 } from '../shared/protocol';
 import { codecOf } from '../web/src/frames';
 import { addViewer, everyoneTakesVideo, forget, sendFrame, sendLatestPicture } from '../server/src/live';
@@ -954,6 +955,19 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
   assert.deepEqual(late.got, [jpeg]);
   forget('video-test');
   assert.equal(codecOf(change(1)), null);
+}
+
+// The simulator is the same model as the phone the app is watched on, when that can be.
+{
+  const byModel = new Map([['iPhone19,2', 'type.iPhone-18-Pro'], ['iPhone18,3', 'type.iPhone-17']]);
+  assert.equal(simulatorTypeFor('iPhone19,2', byModel, undefined, 'type.iPhone-17'), 'type.iPhone-18-Pro');
+  assert.equal(simulatorTypeFor('iPhone19,2', byModel, 'type.iPhone-17', 'type.iPhone-17'), 'type.iPhone-18-Pro', 'a phone of another model gets a new simulator');
+  // A model this Mac cannot simulate, or no phone at all (the web): what there is stays.
+  assert.equal(simulatorTypeFor('iPhone99,9', byModel, 'type.iPhone-18-Pro', 'type.iPhone-17'), 'type.iPhone-18-Pro');
+  assert.equal(simulatorTypeFor(undefined, byModel, 'type.iPhone-18-Pro', 'type.iPhone-17'), 'type.iPhone-18-Pro');
+  assert.equal(simulatorTypeFor(undefined, byModel, undefined, 'type.iPhone-17'), 'type.iPhone-17');
+  assert.equal(isPhoneModel('iPhone19,2'), true);
+  for (const not of ['iPad16,6', 'iPhone19,2; rm -rf', 'iPhone', '', null, 7]) assert.equal(isPhoneModel(not), false);
 }
 
 console.log('Unit checks passed.');

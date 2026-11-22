@@ -4,7 +4,7 @@ import http from 'node:http';
 import path from 'node:path';
 import express from 'express';
 import { WebSocketServer, type WebSocket } from 'ws';
-import { isValidProjectId, type ClientToServer, type InputEvent, type ServerToClient } from '../../shared/protocol';
+import { isPhoneModel, isValidProjectId, type ClientToServer, type InputEvent, type ServerToClient } from '../../shared/protocol';
 import { hasCredentials } from './agent';
 import { config } from './config';
 import { keepAlive } from '../../shared/keepalive';
@@ -81,7 +81,9 @@ server.on('upgrade', (req, socket, head) => {
     if (!user || !project || project.userId !== user.id) return reject('401 Unauthorized');
     // A client that can show video says so; the others get still pictures, as they always have.
     const video = url.searchParams.get('video') === 'h264';
-    clientWss.handleUpgrade(req, socket, head, (ws) => attachClient(ws, project, video));
+    // A phone says which model it is, so that the simulator can be the same one.
+    const device = url.searchParams.get('device');
+    clientWss.handleUpgrade(req, socket, head, (ws) => attachClient(ws, project, video, isPhoneModel(device) ? device : null));
     return;
   }
 
@@ -119,10 +121,10 @@ function cleanInput(e: unknown): InputEvent | null {
   }
 }
 
-function attachClient(ws: WebSocket, project: db.Project, video: boolean): void {
+function attachClient(ws: WebSocket, project: db.Project, video: boolean, device: string | null): void {
   keepAlive(ws);
   const l = live(project.id);
-  addViewer(project.id, ws, video);
+  addViewer(project.id, ws, video, device);
   if (l.preview.status === 'unavailable' && workers.workerCount() > 0) l.preview = { ...l.preview, status: 'idle' };
   if (l.preview.status === 'idle' && workers.workerCount() === 0) l.preview = { ...l.preview, status: 'unavailable' };
 

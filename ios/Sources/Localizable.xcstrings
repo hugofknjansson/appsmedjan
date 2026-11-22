@@ -611,6 +611,16 @@
         }
       }
     },
+    "Avbryt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        }
+      }
+    },
     "Behöver du en idé?": {
       "localizations": {
         "en": {
@@ -1071,6 +1081,16 @@
         }
       }
     },
+    "Det här är din app. Tryck på figuren för att gå tillbaka.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This is your app. Tap the figure to go back."
+          }
+        }
+      }
+    },
     "Det låter kul. Tryck på Bygg min app!": {
       "localizations": {
         "en": {
@@ -1117,6 +1137,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Your app is ready"
+          }
+        }
+      }
+    },
+    "Din app är klar att prova": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your app is ready to try"
           }
         }
       }
@@ -1247,16 +1277,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "You can become a tester right away, without waiting for Apple's review. You are then invited to the service's developer account with Apple, with access to your app only. You accept in an email from Apple."
-          }
-        }
-      }
-    },
-    "Du lägger till telefonen en gång. Sedan installeras varje app med ett tryck.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "You add the phone once. After that every app installs with one tap."
           }
         }
       }
@@ -1801,12 +1821,32 @@
         }
       }
     },
+    "Gå till appens startskärm": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Go to the app's home screen"
+          }
+        }
+      }
+    },
     "Gå till den skärm du vill visa i förhandsvisningen och tryck på kameran där. Minst en bild behövs, högst tio.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Go to the screen you want to show in the preview and tap the camera there. At least one picture is needed, at most ten."
+          }
+        }
+      }
+    },
+    "Går tillbaka till chatten, eller till appens startskärm": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Goes back to the chat, or to the app's home screen"
           }
         }
       }
@@ -2681,6 +2721,16 @@
         }
       }
     },
+    "Meny": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menu"
+          }
+        }
+      }
+    },
     "Min plan": {
       "localizations": {
         "en": {
@@ -2887,6 +2937,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Try"
+          }
+        }
+      }
+    },
+    "Prova appen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try the app"
+          }
+        }
+      }
+    },
+    "Prova appen utan att installera": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try the app without installing it"
+          }
+        }
+      }
+    },
+    "Prova i helskärm": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try on the whole screen"
           }
         }
       }
@@ -3631,6 +3711,16 @@
         }
       }
     },
+    "Tillbaka till chatten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back to the chat"
+          }
+        }
+      }
+    },
     "Tillbaka till min telefon": {
       "localizations": {
         "en": {
@@ -3851,6 +3941,26 @@
         }
       }
     },
+    "Vill du behålla den på telefonen?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Do you want to keep it on your phone?"
+          }
+        }
+      }
+    },
+    "Vill du ha den på din telefon också?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Do you want it on your phone as well?"
+          }
+        }
+      }
+    },
     "Vill du ha den på din telefon? Det ingår i planen Skapa.": {
       "localizations": {
         "en": {
@@ -3861,32 +3971,12 @@
         }
       }
     },
-    "Vill du installera den på telefonen och testa?": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Do you want to install it on your phone and try it?"
-          }
-        }
-      }
-    },
     "Vill du inte vänta?": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Rather not wait?"
-          }
-        }
-      }
-    },
-    "Vill du testa den på din telefon?": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Do you want to try it on your phone?"
           }
         }
       }

@@ -84,8 +84,6 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
   const [tab, setTab] = useState<'chat' | 'phone' | 'preview'>(() =>
     window.matchMedia('(max-width: 820px)').matches ? 'chat' : 'preview',
   );
-  /** Whether the pane beside the chat has been chosen yet, by the person or for them. */
-  const paneChosen = useRef(false);
   const bus = useMemo(() => new FrameBus(), []);
   const socket = useRef<WebSocket | null>(null);
   const [appleOpen, setAppleOpen] = useState(false);
@@ -171,24 +169,15 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
     }
   }
 
-  // The person's own phone comes first when apps can be installed straight onto it and they have
-  // added one: that is where they try the app. The simulator stays one tab away.
+  // The app is tried in the simulator, which is what is shown beside the chat. Putting it on the
+  // person's own phone, where that can be done, is one tab away.
   const direct = state?.publish.direct;
   const phone = direct && (direct.available || direct.phones > 0 || direct.status !== 'idle') ? direct : null;
-  const phoneFirst = Boolean(phone && phone.phones > 0);
-  useEffect(() => {
-    if (!phoneFirst || paneChosen.current) return;
-    paneChosen.current = true;
-    setTab((now) => (now === 'preview' ? 'phone' : now));
-  }, [phoneFirst]);
   // A phone tab that is no longer offered falls back to the simulator.
   useEffect(() => {
     if (state && !phone) setTab((now) => (now === 'phone' ? 'preview' : now));
   }, [state, phone]);
-  const choose = (next: 'phone' | 'preview') => {
-    paneChosen.current = true;
-    setTab(next);
-  };
+  const choose = (next: 'phone' | 'preview') => setTab(next);
 
   // Something to cheer about: the builder has finished without trouble, or the app has arrived on the phone.
   const [cheers, setCheers] = useState(0);
@@ -212,6 +201,8 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
       } else {
         setCheers((n) => n + 1);
         setShow('done');
+        // What comes after the cheer is the app itself, to be tried at once.
+        setTab('preview');
       }
     }
     wasRunning.current = running;
@@ -314,7 +305,7 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
       )}
 
       <div className="workspace" data-tab={tab}>
-        <section className="chat-pane">{state && <Chat id={id} state={state} phone={phone} onPhone={() => choose('phone')} onPlans={() => setPlanOpen(true)} onShow={() => setWatching(true)} />}</section>
+        <section className="chat-pane">{state && <Chat id={id} state={state} phone={phone} onPhone={() => choose('phone')} onTry={() => choose('preview')} onPlans={() => setPlanOpen(true)} onShow={() => setWatching(true)} />}</section>
         <section className="stage-pane">
           {state && tab === 'phone' && phone && (
             <div className="phone-tab">
@@ -399,13 +390,15 @@ interface ChatProps {
   phone: DirectInstall | null;
   /** Shows the pane where the phone is added and the app installed. */
   onPhone: () => void;
+  /** Shows the simulator, where the app is tried. */
+  onTry: () => void;
   /** Shows the plans, for a person whose plan has no phone in it. */
   onPlans: () => void;
   /** Brings back the show that fills the page while the app is built. */
   onShow: () => void;
 }
 
-function Chat({ id, state, phone, onPhone, onPlans, onShow }: ChatProps) {
+function Chat({ id, state, phone, onPhone, onTry, onPlans, onShow }: ChatProps) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -496,7 +489,7 @@ function Chat({ id, state, phone, onPhone, onPlans, onShow }: ChatProps) {
           </div>
         )}
         {asked && phone && phone.status !== 'working' && (
-          <InstallAsk words={lastWords(asked)} phone={phone} locked={state.publish.plan?.install === false} busy={asking} onYes={() => void answer()} />
+          <InstallAsk words={lastWords(asked)} phone={phone} locked={state.publish.plan?.install === false} busy={asking} onTry={onTry} onYes={() => void answer()} />
         )}
       </div>
 
@@ -577,35 +570,38 @@ function ProgressCard({ title, lines, fraction, pieces = 0, timed = false }: { t
 }
 
 /**
- * What comes after the wait, and the only thing that does: the builder's one sentence and the
- * question whether to put the app on the phone.
+ * What comes after the wait, and the only thing that does: the builder's one sentence, a way to
+ * try the app at once, and the question whether to put it on the phone as well.
  */
-function InstallAsk({ words, phone, locked, busy, onYes }: { words: string; phone: DirectInstall; locked: boolean; busy: boolean; onYes: () => void }) {
+function InstallAsk({ words, phone, locked, busy, onTry, onYes }: { words: string; phone: DirectInstall; locked: boolean; busy: boolean; onTry: () => void; onYes: () => void }) {
   const arriving = phone.install === 'asked' || phone.install === 'fetching';
   const arrived = phone.status === 'ready' && phone.install === 'fetched';
   const text = t.ask;
-  const question = locked ? text.locked : arrived ? t.direct.fetched : arriving ? t.direct.steps[2]! : phone.phones === 0 ? text.noPhone : text.install;
+  const headline = arrived ? t.direct.fetched : arriving ? t.direct.steps[2]! : text.ready;
+  const question = locked ? text.locked : phone.phones === 0 ? text.noPhone : text.install;
   return (
     <div className="install-ask">
       <Mascot cheering={arriving} />
       {words && <p className="muted">{rich(words)}</p>}
-      <strong>{question}</strong>
+      <strong>{headline}</strong>
+      <button className="btn primary" onClick={onTry}>
+        {text.tryNow}
+      </button>
+      {!arriving && !arrived && <p className="muted fine">{question}</p>}
       {phone.status === 'failed' && (
         <p className="form-error" role="alert">
           {t.direct.error[phone.error ?? 'internal']}
         </p>
       )}
       {!arriving && (
-        <button className="btn primary" disabled={!locked && (busy || (!phone.available && phone.status !== 'ready'))} onClick={onYes}>
+        <button className="btn ghost" disabled={!locked && (busy || (!phone.available && phone.status !== 'ready'))} onClick={onYes}>
           {locked ? t.plan.see : phone.phones === 0 ? t.direct.addButton : phone.status === 'failed' ? t.retry : arrived ? text.again : text.yes}
         </button>
       )}
-      {phone.phones === 0 && !locked && <p className="muted fine">{text.noPhoneNote}</p>}
     </div>
   );
 }
 
-/** Bold is shown as such, should the builder use it; nothing is shown as raw marks. */
 function rich(text: string): Array<string | JSX.Element> {
   return text.split(/\*\*(.+?)\*\*/g).map((piece, i) => (i % 2 === 1 ? <strong key={i}>{piece}</strong> : piece));
 }

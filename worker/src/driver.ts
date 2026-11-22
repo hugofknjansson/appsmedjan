@@ -22,6 +22,8 @@ export interface BuildJob {
   appName: string;
   bundleId: string;
   files: Record<string, string>;
+  /** The model of the phone the app is watched on ("iPhone19,2"), for a simulator of the same model. */
+  device?: string;
 }
 
 export interface PublishJob extends BuildJob {

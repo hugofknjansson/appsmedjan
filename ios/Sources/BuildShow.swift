@@ -8,15 +8,12 @@ struct BuildShow: View {
     case building
     /// It has just finished, which is cheered for a moment.
     case done
-    /// The finished app is being made ready for the person's own phone.
-    case phone
   }
 
   let stage: Stage
   let progress: RunProgress
   /// What the builder has said it is making, oldest first.
   let said: [String]
-  let phone: DirectInstall?
   let startedAt: Date?
   let showChat: () -> Void
   let stop: () -> Void
@@ -26,7 +23,6 @@ struct BuildShow: View {
     switch stage {
     case .building: said.last ?? Texts.runPhase(progress.phase)
     case .done: String(localized: "Klart!")
-    case .phone: phone?.stage == "signing" ? String(localized: "Signerar för din telefon") : String(localized: "Gör appen klar för din telefon")
     }
   }
 
@@ -34,7 +30,6 @@ struct BuildShow: View {
     switch stage {
     case .building: WaitingLines.show(progress.phase)
     case .done: [String(localized: "Din app är färdig")]
-    case .phone: WaitingLines.phone
     }
   }
 
@@ -42,7 +37,6 @@ struct BuildShow: View {
     switch stage {
     case .building: progress.fraction
     case .done: 1
-    case .phone: phone?.progress ?? 0.05
     }
   }
 
@@ -117,8 +111,6 @@ struct BuildShow: View {
       HStack(spacing: 10) {
         if stage == .building {
           Button("Stoppa", systemImage: "stop.fill", action: stop)
-        }
-        if stage != .done {
           Button("Visa chatten", systemImage: "bubble.left.and.bubble.right.fill", action: showChat)
         }
       }
@@ -210,7 +202,6 @@ private struct FloatingTiles: View {
     stage: .building,
     progress: RunProgress(parts: []),
     said: ["Väljer färger", "Nu gör jag listan med dina växter"],
-    phone: nil,
     startedAt: .now,
     showChat: {},
     stop: {}

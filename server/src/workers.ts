@@ -24,7 +24,7 @@ import {
 } from '../../shared/protocol';
 import { randomId } from './db';
 import { keepAlive } from '../../shared/keepalive';
-import { clearFrame, live, sendFrame, setPreview, workersChanged } from './live';
+import { clearFrame, live, sendFrame, setPreview, watchedOn, workersChanged } from './live';
 
 interface Worker {
   ws: WebSocket;
@@ -140,6 +140,7 @@ export async function build(
       appName: project.name,
       bundleId: project.bundleId,
       files,
+      device: watchedOn(project.id) ?? undefined,
     },
     BUILD_TIMEOUT_MS,
     onProgress as (stage: string) => void,
