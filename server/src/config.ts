@@ -36,7 +36,10 @@ export const config = {
   trustProxy: Boolean(process.env.TRUST_PROXY),
   /** Extra origins allowed to open the browser WebSocket (comma separated), besides the server's own host. */
   allowedOrigins: (process.env.ALLOWED_ORIGINS ?? '').split(',').map((s) => s.trim()).filter(Boolean),
-  /** Emails allowed to send apps to TestFlight under the operator's developer account ("*" allows everyone). */
+  /**
+   * Emails allowed to use the operator's developer account besides the operators themselves, who
+   * always may ("*" allows everyone).
+   */
   testflightUsers: (process.env.TESTFLIGHT_USERS ?? '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
   /**
    * People who run the service (comma separated emails). They are the ones who create apps in App

@@ -3,7 +3,7 @@ import type { IncomingMessage } from 'node:http';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import express, { type NextFunction, type Request, type Response } from 'express';
-import { isPlanId, isValidProjectId, testerPersonProblem, type PlanNeed, type TesterPerson } from '../../shared/protocol';
+import { isPlanId, isValidProjectId, releaseGuide, testerPersonProblem, type PlanNeed, type TesterPerson } from '../../shared/protocol';
 import { hasCredentials } from './agent';
 import { ensureIcon, smallIcon } from './icon';
 import * as plans from './plans';
@@ -576,6 +576,15 @@ publicPages.get('/:id/:page', (req, res) => {
     'cache-control': 'public, max-age=300',
   });
   res.status(html ? 200 : 404).send(html ?? '<!doctype html><title>Not found</title><p>Not found.</p>');
+});
+
+// --- Getting the app out ------------------------------------------------------------
+
+// How far the person has come towards having the app on their phone, and in the App Store.
+api.get('/projects/:id/release', requireUser, (req, res) => {
+  const project = ownProject(req, res);
+  if (!project) return;
+  res.json(releaseGuide(publishState(project), storeState(project, (req as Authed).user)));
 });
 
 // --- The app's App Store page ---------------------------------------------------

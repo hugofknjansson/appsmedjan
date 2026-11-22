@@ -14,6 +14,7 @@ import { BuildShow, type ShowStage } from './BuildShow';
 import { DirectInstallSteps } from './Direct';
 import { OnPhoneDialog } from './OnPhone';
 import { PlanDialog } from './Plan';
+import { ReleaseDialog } from './Release';
 import { StoreDialog } from './Store';
 import { Logo } from './Logo';
 import { FrameBus } from './frames';
@@ -90,6 +91,7 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
   const [planOpen, setPlanOpen] = useState(false);
   const [storeOpen, setStoreOpen] = useState(false);
   const [phoneOpen, setPhoneOpen] = useState(false);
+  const [releaseOpen, setReleaseOpen] = useState(false);
 
   useEffect(() => {
     let closed = false;
@@ -251,14 +253,9 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
           ← <span className="hide-narrow">{t.back}</span>
         </button>
         <strong className="project-name">{state?.name ?? ''}</strong>
-        {state && (state.publish.available || (state.publish.account === 'none' && state.publish.canConnect)) && (
-          <button className="btn publish-btn" title={t.onPhoneHint} onClick={() => setPhoneOpen(true)}>
-            {state.publish.status === 'working' ? `${t.publishStage[state.publish.stage ?? 'queued']}…` : t.onPhone}
-          </button>
-        )}
-        {state && (state.publish.account !== 'none' || state.publish.canConnect) && (
-          <button className="btn publish-btn" title={t.appStoreHint} onClick={() => setStoreOpen(true)}>
-            {t.appStore}
+        {state && (
+          <button className="btn publish-btn" title={t.release.hint} onClick={() => setReleaseOpen(true)}>
+            {state.publish.status === 'working' ? `${t.publishStage[state.publish.stage ?? 'queued']}…` : t.release.title}
           </button>
         )}
         <div className="topbar-right">
@@ -281,6 +278,16 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
       {state && !phoneOpen && <PublishNote publish={state.publish} />}
       {appleOpen && <AppleAccountDialog onClose={() => setAppleOpen(false)} />}
       {planOpen && <PlanDialog onClose={() => setPlanOpen(false)} />}
+      {releaseOpen && state && (
+        <ReleaseDialog
+          id={id}
+          publish={state.publish}
+          onClose={() => setReleaseOpen(false)}
+          onAccount={() => setAppleOpen(true)}
+          onPhone={() => (phone ? choose('phone') : setPhoneOpen(true))}
+          onPage={() => setStoreOpen(true)}
+        />
+      )}
       {phoneOpen && state && (
         <OnPhoneDialog
           id={id}

@@ -37,6 +37,8 @@ import {
   type StoreListing,
   frameKind,
   isPhoneModel,
+  releaseGuide,
+  type PublishState,
 } from '../shared/protocol';
 import { codecOf } from '../web/src/frames';
 import { addViewer, everyoneTakesVideo, forget, sendFrame, sendLatestPicture } from '../server/src/live';
@@ -968,6 +970,49 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
   assert.equal(simulatorTypeFor(undefined, byModel, undefined, 'type.iPhone-17'), 'type.iPhone-17');
   assert.equal(isPhoneModel('iPhone19,2'), true);
   for (const not of ['iPad16,6', 'iPhone19,2; rm -rf', 'iPhone', '', null, 7]) assert.equal(isPhoneModel(not), false);
+}
+
+// Getting the app out: where the person stands on the way to their phone, and to the App Store.
+{
+  const idle = { status: 'idle' } as const;
+  const page = { problems: [], sync: idle, submit: idle };
+  const none: PublishState = { available: false, account: 'none', canConnect: true, status: 'idle' };
+  const states = (steps: Array<{ id: string; state: string }>) => steps.map((step) => `${step.id}:${step.state}`).join(' ');
+
+  // No account yet: joining and the key are both the person's turn, and everything else waits.
+  const start = releaseGuide(none, page);
+  assert.equal(states(start.phone), 'member:now key:now phone:later install:later');
+  assert.equal(states(start.store), 'member:now key:now app:later page:later privacy:later submit:later');
+  assert.deepEqual([start.account, start.canConnect], ['none', true]);
+
+  // The key works: the account is done with, and the next thing is the phone, or the app at Apple.
+  const own: PublishState = { ...none, available: true, account: 'own', direct: { available: true, phones: 0, maxPhones: 2, status: 'idle' } };
+  assert.equal(states(releaseGuide(own, page).phone), 'member:done key:done phone:now install:later');
+  assert.equal(states(releaseGuide(own, page).store), 'member:done key:done app:now page:later privacy:later submit:later');
+
+  const withPhone: PublishState = { ...own, direct: { ...own.direct!, phones: 1 } };
+  assert.equal(states(releaseGuide(withPhone, page).phone), 'member:done key:done phone:done install:now');
+  assert.equal(states(releaseGuide({ ...withPhone, direct: { ...withPhone.direct!, status: 'working', stage: 'signing' } }, page).phone), 'member:done key:done phone:done install:working');
+  assert.equal(states(releaseGuide({ ...withPhone, direct: { ...withPhone.direct!, status: 'ready', install: 'fetching' } }, page).phone), 'member:done key:done phone:done install:working');
+  assert.equal(states(releaseGuide({ ...withPhone, direct: { ...withPhone.direct!, status: 'ready', install: 'fetched' } }, page).phone), 'member:done key:done phone:done install:done');
+
+  // The upload waits for the app to be made at Apple: that is the person's turn, with the id to pick.
+  const waiting = releaseGuide({ ...own, status: 'working', stage: 'waiting_for_app', bundleId: 'app.example.plants' }, page).store;
+  assert.deepEqual(waiting[2], { id: 'app', state: 'now', bundleId: 'app.example.plants' });
+  assert.equal(releaseGuide({ ...own, status: 'working', stage: 'uploading' }, page).store[2]!.state, 'working');
+
+  const uploaded: PublishState = { ...own, status: 'uploaded' };
+  assert.equal(states(releaseGuide(uploaded, { ...page, problems: ['screenshots'] }).store), 'member:done key:done app:done page:now privacy:later submit:later');
+  assert.equal(states(releaseGuide(uploaded, { ...page, sync: { status: 'working' } }).store), 'member:done key:done app:done page:working privacy:later submit:later');
+  // The page is at Apple with a build: the questions and the handing in are both open.
+  const sent = { ...page, sync: { status: 'done', attached: 'attached' } as const };
+  assert.equal(states(releaseGuide(uploaded, sent).store), 'member:done key:done app:done page:done privacy:now submit:now');
+  const refused = releaseGuide(uploaded, { ...sent, submit: { status: 'failed', error: 'rejected', detail: 'App Privacy answers are missing.' } }).store;
+  assert.deepEqual(refused.at(-1), { id: 'submit', state: 'now', detail: 'App Privacy answers are missing.' });
+  assert.equal(states(releaseGuide(uploaded, { ...sent, submit: { status: 'done' } }).store), 'member:done key:done app:done page:done privacy:done submit:done');
+
+  // Someone on the operator's account has nothing to join or connect.
+  assert.equal(states(releaseGuide({ ...none, account: 'operator', available: true }, page).store).startsWith('member:done key:done app:now'), true);
 }
 
 console.log('Unit checks passed.');

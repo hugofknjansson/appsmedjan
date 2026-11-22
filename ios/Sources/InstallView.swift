@@ -31,7 +31,7 @@ struct InstallView: View {
         }
 
         Section {
-          Text("Då ligger appen på hemskärmen som en vanlig app. Det går via Apples testapp TestFlight, som är gratis. Du behöver inget utvecklarkonto.")
+          Text("Då ligger appen på hemskärmen som en vanlig app. Det går via Apples testapp TestFlight, som är gratis.")
             .foregroundStyle(.secondary)
         } header: {
           if publish.direct?.isShown == true { Text("Via TestFlight") }

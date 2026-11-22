@@ -690,6 +690,108 @@ export interface StoreState {
 }
 
 // ---------------------------------------------------------------------------
+// Getting the app out: the steps to the person's own phone, and to the App Store
+// ---------------------------------------------------------------------------
+
+/** Where the person wants the app: as an app of its own on their phone, or in the App Store for anyone. */
+export type ReleaseGoal = 'phone' | 'store';
+
+/**
+ * member: joining Apple's developer programme. key: making a key and handing it over. Both are
+ * done once, and are known to be done when the key works.
+ * phone: adding the phone. install: the app signed for it and installed.
+ * app: the app made at Apple (by hand; Apple has no other way) and uploaded there.
+ * page: the App Store page filled in and sent. privacy: Apple's questions about what the app
+ * collects, answered at Apple. submit: handed to Apple's review.
+ */
+export type ReleaseStepId = 'member' | 'key' | 'phone' | 'install' | 'app' | 'page' | 'privacy' | 'submit';
+
+/** done: nothing left to do. now: the person's turn. working: ours, or Apple's. later: something before it comes first. */
+export type ReleaseStepState = 'done' | 'now' | 'working' | 'later';
+
+export interface ReleaseStep {
+  id: ReleaseStepId;
+  state: ReleaseStepState;
+  /** For "app" while it is waited for: the id to pick when making the app at Apple. */
+  bundleId?: string;
+  /** Apple's own words, when it said no to something. */
+  detail?: string;
+}
+
+export interface ReleaseGuide {
+  phone: ReleaseStep[];
+  store: ReleaseStep[];
+  /** Whose developer account the app goes out through. */
+  account: PublishState['account'];
+  /** False where people cannot connect an account of their own, and "none" is the end of the road. */
+  canConnect: boolean;
+}
+
+interface Stage {
+  id: ReleaseStepId;
+  done: boolean;
+  working?: boolean;
+  /** Can be done at the same time as the step before it, which cannot be seen to be done on its own. */
+  withPrevious?: boolean;
+  bundleId?: string;
+  detail?: string;
+}
+
+function inOrder(stages: Stage[]): ReleaseStep[] {
+  const steps: ReleaseStep[] = [];
+  let reached = true;
+  for (const stage of stages) {
+    const before = steps.at(-1);
+    const open = reached || (stage.withPrevious === true && before?.state === 'now');
+    const state: ReleaseStepState = stage.done ? 'done' : stage.working ? 'working' : open ? 'now' : 'later';
+    steps.push({ id: stage.id, state, ...(stage.bundleId ? { bundleId: stage.bundleId } : {}), ...(stage.detail ? { detail: stage.detail } : {}) });
+    reached = reached && stage.done;
+  }
+  return steps;
+}
+
+/** How far the person has come towards each goal, read off what is known about their account, phone and App Store page. */
+export function releaseGuide(publish: PublishState, store: Pick<StoreState, 'problems' | 'sync' | 'submit'>): ReleaseGuide {
+  const hasAccount = publish.account !== 'none';
+  const account: Stage[] = [
+    { id: 'member', done: hasAccount },
+    { id: 'key', done: hasAccount, withPrevious: true },
+  ];
+  const direct = publish.direct;
+  const arriving = direct?.install === 'asked' || direct?.install === 'fetching';
+  const waitingForApp = publish.status === 'working' && publish.stage === 'waiting_for_app';
+  const submitted = store.submit.status === 'done';
+  return {
+    account: publish.account,
+    canConnect: publish.canConnect,
+    phone: inOrder([
+      ...account,
+      { id: 'phone', done: (direct?.phones ?? 0) > 0 },
+      { id: 'install', done: direct?.status === 'ready' && direct.install === 'fetched', working: direct?.status === 'working' || (direct?.status === 'ready' && arriving) },
+    ]),
+    store: inOrder([
+      ...account,
+      {
+        id: 'app',
+        done: publish.status === 'uploaded',
+        // Waiting for the app to be made at Apple is the person's turn, not ours.
+        working: publish.status === 'working' && !waitingForApp,
+        bundleId: waitingForApp || publish.error === 'no_app_record' ? publish.bundleId : undefined,
+      },
+      {
+        id: 'page',
+        done: store.sync.status === 'done' && store.sync.attached === 'attached' && store.problems.length === 0,
+        working: store.sync.status === 'working',
+        detail: store.sync.status === 'failed' ? store.sync.detail : undefined,
+      },
+      // Whether the questions are answered cannot be asked of Apple; it shows when the app is handed in.
+      { id: 'privacy', done: submitted },
+      { id: 'submit', done: submitted, working: store.submit.status === 'working', withPrevious: true, detail: store.submit.status === 'failed' ? store.submit.detail : undefined },
+    ]),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Browser <-> server (JSON text frames; simulator frames arrive as binary)
 // ---------------------------------------------------------------------------
 

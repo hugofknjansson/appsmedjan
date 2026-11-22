@@ -1902,3 +1902,156 @@ img.app-icon {
 .progress-open:active {
   transform: scale(0.98);
 }
+
+/* Read out, not shown. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Getting the app out: where the person wants it, and the steps to there. */
+.release-goals {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.release-goals button {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px;
+  border: 0;
+  border-radius: 22px;
+  background: var(--sunken);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.3s var(--bounce);
+}
+
+.release-goals button:active {
+  transform: scale(0.97);
+}
+
+.release-goals button[aria-checked='true'] {
+  background: var(--grad);
+  color: #fff;
+}
+
+.release-goals span {
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+.release-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 0;
+  padding: 18px;
+  border-radius: 22px;
+  background: var(--sunken);
+  list-style: none;
+}
+
+.release-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.release-steps li > div {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.release-steps p {
+  margin: 0;
+}
+
+.release-steps a.btn,
+.release-done a.btn {
+  text-decoration: none;
+}
+
+.release-steps li[data-state='later'] strong {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.release-steps li[data-state='done'] strong {
+  font-weight: 500;
+}
+
+.release-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.release-steps li[data-state='now'] .release-mark {
+  background: var(--grad);
+  color: #fff;
+}
+
+.release-steps li[data-state='done'] .release-mark {
+  background: var(--ok);
+  color: #fff;
+}
+
+.release-steps li[data-state='working'] .release-mark {
+  border: 3px solid var(--line);
+  border-top-color: var(--accent);
+  background: none;
+  color: transparent;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .release-steps li[data-state='working'] .release-mark {
+    animation: release-turn 0.9s linear infinite;
+  }
+}
+
+@keyframes release-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.release-id {
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+
+.release-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.release-done .mascot {
+  width: 80px;
+}

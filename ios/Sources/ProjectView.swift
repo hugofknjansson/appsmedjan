@@ -1,14 +1,10 @@
 import SwiftUI
 
 struct ProjectView: View {
-  private enum Sheet: String, Identifiable {
-    case install, store
-    var id: String { rawValue }
-  }
-
   @State private var store: ProjectStore
   @State private var pane = Pane.chat
-  @State private var sheet: Sheet?
+  /// The map of how the app gets out, opened at the goal it was asked about; nil while it is closed.
+  @State private var guide: ReleaseGoal?
   /// The person has asked to see the streamed simulator, although their own phone is where apps are tried.
   @State private var showsSimulator = false
   @State private var cheers = 0
@@ -43,7 +39,7 @@ struct ProjectView: View {
         .padding(.vertical, 8)
 
       switch pane {
-      case .chat: ChatView(store: store, api: api, runStartedAt: runStartedAt, showBuild: { watchesShow = true }, tryNow: { isTrying = true })
+      case .chat: ChatView(store: store, api: api, runStartedAt: runStartedAt, showBuild: { watchesShow = true }, tryNow: { isTrying = true }, getOut: { guide = .phone })
       case .preview:
         if let phone, !showsSimulator {
           PhoneTestView(store: store, api: api, direct: phone, showSimulator: { showsSimulator = true }, tryNow: { isTrying = true })
@@ -108,11 +104,15 @@ struct ProjectView: View {
       if watchesShow, store.preview.status != .unavailable { isTrying = true }
     }
     .fullScreenCover(isPresented: $isTrying) {
-      TryView(store: store, install: phone == nil ? nil : {
-        // Where the app is put on the person's own phone.
-        showsSimulator = false
-        pane = .preview
-      })
+      TryView(store: store) {
+        // Where the app is put on the person's own phone, when it can be at once; otherwise the way there.
+        if phone != nil {
+          showsSimulator = false
+          pane = .preview
+        } else {
+          guide = .phone
+        }
+      }
     }
     .onChange(of: store.publish.direct) { before, now in
       // Only when it was seen arriving: not for an app that had already arrived when the screen was opened.
@@ -122,22 +122,21 @@ struct ProjectView: View {
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
       ToolbarItem(placement: .topBarTrailing) {
-        Menu {
-          Button("Installera på telefonen", systemImage: "arrow.down.app") { sheet = .install }
-          Button("App Store", systemImage: "bag") { sheet = .store }
+        Button {
+          guide = .phone
         } label: {
           if store.publish.status == .working {
             Label(Texts.publishStage(store.publish.stage), systemImage: "arrow.up.circle")
           } else {
-            Label("Publicera", systemImage: "square.and.arrow.up")
+            Label("Få ut din app", systemImage: "square.and.arrow.up")
           }
         }
       }
     }
-    .sheet(item: $sheet) { sheet in
-      switch sheet {
-      case .install: InstallView(store: store, api: api)
-      case .store: StoreView(projectID: store.id, api: api)
+    .sheet(item: $guide) { goal in
+      ReleaseGuideView(store: store, api: api, goal: goal) {
+        showsSimulator = false
+        pane = .preview
       }
     }
     .alert("Appen hittades inte.", isPresented: .constant(store.isMissing)) {
@@ -229,6 +228,8 @@ struct ChatView: View {
   let showBuild: () -> Void
   /// Shows the app over the whole screen, to try it as if it were installed.
   let tryNow: () -> Void
+  /// Shows the way to having the app on the phone or in the App Store.
+  let getOut: () -> Void
 
   @Environment(\.openURL) private var openURL
   @State private var draft = ""
@@ -292,7 +293,8 @@ struct ChatView: View {
               tryNow: tryNow,
               phone: phone,
               isLocked: isLocked,
-              isBusy: !isLocked && (isAsking || phone.map { !$0.available && $0.status != .ready } ?? false)
+              isBusy: !isLocked && (isAsking || phone.map { !$0.available && $0.status != .ready } ?? false),
+              getOut: getOut
             ) {
               if isLocked { isShowingPlan = true } else if let phone { answer(phone) }
             }
@@ -508,6 +510,8 @@ private struct AfterBuild: View {
   /// True when the person's plan has no phone in it.
   var isLocked = false
   let isBusy: Bool
+  /// Shows the way to having the app on the phone or in the App Store, for the person who is not there yet.
+  let getOut: () -> Void
   let install: () -> Void
 
   private var isArriving: Bool { phone?.install == "asked" || phone?.install == "fetching" }
@@ -575,6 +579,10 @@ private struct AfterBuild: View {
           }
         }
         .padding(.top, 4)
+      } else {
+        Button("Få den på din telefon eller i App Store", action: getOut)
+          .font(.subheadline.weight(.semibold))
+          .padding(.top, 4)
       }
     }
     .frame(maxWidth: .infinity)

@@ -59,7 +59,9 @@ export function state(project: db.Project): DirectInstall {
   const routing = route(owner);
   // In the operator's account every phone takes a place for a year, so the operator decides.
   const offered = routing.account === 'own' || (routing.account === 'operator' && config.directInstall);
-  const base = { available: offered && routing.available, phones: owner ? db.listPhones(owner.id).length : 0, maxPhones: config.maxPhones };
+  // Not offered to this person: nothing to show, whatever they had before it was taken away.
+  if (!offered) return { available: false, phones: 0, maxPhones: config.maxPhones, status: 'idle' };
+  const base = { available: routing.available, phones: owner ? db.listPhones(owner.id).length : 0, maxPhones: config.maxPhones };
   const current = working.get(project.id);
   if (current) return { ...base, status: 'working', ...current };
   const saved = db.getDirectBuild(project.id);

@@ -5,8 +5,8 @@ import SwiftUI
 
 struct TryView: View {
   let store: ProjectStore
-  /// Goes to where the app is put on the person's own phone; nil where that cannot be done.
-  var install: (() -> Void)?
+  /// Goes to where the app is put on the person's own phone, or to the way there.
+  let install: () -> Void
 
   @Environment(\.dismiss) private var dismiss
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -53,11 +53,9 @@ struct TryView: View {
     .confirmationDialog("", isPresented: $isShowingMenu) {
       Button("Tillbaka till chatten") { dismiss() }
       Button("Gå till appens startskärm") { store.input(.home) }
-      if let install {
-        Button("Installera på telefonen") {
-          dismiss()
-          install()
-        }
+      Button("Få appen till din telefon") {
+        dismiss()
+        install()
       }
       Button("Avbryt", role: .cancel) {}
     }

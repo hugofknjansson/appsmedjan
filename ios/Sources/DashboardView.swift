@@ -210,7 +210,7 @@ struct DashboardView: View {
   private static let stepTitles = [
     String(localized: "Beskriv din idé"),
     String(localized: "Vi bygger den"),
-    String(localized: "Du får den på telefonen"),
+    String(localized: "Du provar den direkt"),
   ]
 
   /// Ideas to start from, as cards to press: each one writes itself into the box above.

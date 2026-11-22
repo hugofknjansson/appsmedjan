@@ -1,4 +1,4 @@
-import type { PlanId, PlanState, PublishState, ReviewContact, StoreChoices, StoreListing, StorePages, StoreState, TesterPerson } from '../../shared/protocol';
+import type { PlanId, PlanState, PublishState, ReleaseGuide, ReviewContact, StoreChoices, StoreListing, StorePages, StoreState, TesterPerson } from '../../shared/protocol';
 
 /** An app someone is waiting for the operator to create in App Store Connect. */
 export interface AppRequest {
@@ -106,6 +106,7 @@ export const api = {
   direct: (id: string) => call<{ publish: PublishState }>('POST', `/api/projects/${id}/direct`, {}),
   operatorRequests: () => call<{ requests: AppRequest[] }>('GET', '/api/operator/requests'),
   store: (id: string) => call<StoreState>('GET', `/api/projects/${id}/store`),
+  release: (id: string) => call<ReleaseGuide>('GET', `/api/projects/${id}/release`),
   saveListing: (id: string, page: { listing: StoreListing; choices: StoreChoices; contact: ReviewContact; pages: StorePages }) =>
     call<StoreState>('PUT', `/api/projects/${id}/store/listing`, page),
   draftListing: (id: string) =>

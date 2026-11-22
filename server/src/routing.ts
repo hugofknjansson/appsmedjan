@@ -5,18 +5,20 @@ import { config } from './config';
 import * as db from './db';
 import * as workers from './workers';
 
-/**
- * Uploads to the operator's own Apple developer account are opt-in per person:
- * TESTFLIGHT_USERS lists the emails that may use it ("*" for everyone).
- */
-export function userMayPublish(email: string): boolean {
-  const allowed = config.testflightUsers;
-  return allowed.includes('*') || allowed.includes(email.toLowerCase());
-}
-
 /** True for the people who run the service. */
 export function isOperator(email: string): boolean {
   return config.operatorEmails.includes(email.toLowerCase());
+}
+
+/**
+ * Who may use the operator's own Apple developer account, for TestFlight, the App Store and apps
+ * signed for their own phone: the people who run the service, whose account it is, and whoever
+ * TESTFLIGHT_USERS lists besides ("*" for everyone). Everyone else connects an account of their
+ * own for those things, and can build apps and try them in the simulator without one.
+ */
+export function userMayPublish(email: string): boolean {
+  const allowed = config.testflightUsers;
+  return isOperator(email) || allowed.includes('*') || allowed.includes(email.toLowerCase());
 }
 
 /**

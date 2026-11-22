@@ -271,6 +271,16 @@
         }
       }
     },
+    "Appen görs klar för din telefon.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app is being made ready for your phone."
+          }
+        }
+      }
+    },
     "Appen har ingen version som väntar på att skickas in. Den kan redan vara inskickad.": {
       "localizations": {
         "en": {
@@ -297,6 +307,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "The app has none of the content Apple asks about for the age rating"
+          }
+        }
+      }
+    },
+    "Appen laddas upp till ditt konto.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app is being uploaded to your account."
+          }
+        }
+      }
+    },
+    "Appen ligger på din hemskärm.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app is on your home screen."
+          }
+        }
+      }
+    },
+    "Appen lämnas till Apples granskning.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app is being handed to Apple's review."
           }
         }
       }
@@ -377,6 +417,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "The app has been submitted for review. Apple gets in touch with the contact person, usually within a couple of days."
+          }
+        }
+      }
+    },
+    "Appen är inskickad till Apple.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app has been handed in to Apple."
           }
         }
       }
@@ -501,6 +551,16 @@
         }
       }
     },
+    "Apple granskar appen, oftast inom ett par dagar, och säger till när den är godkänd.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple reviews the app, usually within a couple of days, and tells you when it is approved."
+          }
+        }
+      }
+    },
     "Apple går igenom appen innan länken får användas. Första gången kan det ta upp till ett par dagar; nya versioner går fortare.": {
       "localizations": {
         "en": {
@@ -587,6 +647,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Apple wants to know who to contact about the app. Fill this in once, and it is used for all your apps."
+          }
+        }
+      }
+    },
+    "Apple vill veta vilka uppgifter appen samlar in. Det går bara att svara på hos Apple, under App Privacy på appens sida där.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apple wants to know what the app collects. That can only be answered at Apple, under App Privacy on the app's page there."
           }
         }
       }
@@ -741,6 +811,16 @@
         }
       }
     },
+    "Bli medlem hos Apple": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Join Apple's developer programme"
+          }
+        }
+      }
+    },
     "Bygg en ny version": {
       "localizations": {
         "en": {
@@ -851,12 +931,42 @@
         }
       }
     },
+    "De två första stegen gör du en gång. Resten gör du för varje app du vill ge ut.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The first two steps you do once. The rest you do for each app you want to bring out."
+          }
+        }
+      }
+    },
+    "De två första stegen gör du en gång. Sedan gäller de alla dina appar.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The first two steps you do once. After that they hold for all your apps."
+          }
+        }
+      }
+    },
     "Dela länken med andra": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Share the link with others"
+          }
+        }
+      }
+    },
+    "Dela med testare genom TestFlight först": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share with testers through TestFlight first"
           }
         }
       }
@@ -1031,6 +1141,16 @@
         }
       }
     },
+    "Det görs i Apples app Apple Developer och kostar 99 USD per år. Apple kan behöva ett par dagar på sig att godkänna.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It is done in Apple's app Apple Developer and costs 99 USD a year. Apple may need a couple of days to approve it."
+          }
+        }
+      }
+    },
     "Det här behöver rättas först:": {
       "localizations": {
         "en": {
@@ -1087,6 +1207,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "This is your app. Tap the figure to go back."
+          }
+        }
+      }
+    },
+    "Det här är inte påslaget för ditt konto. Hör av dig till den som driver tjänsten.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This is not turned on for your account. Get in touch with whoever runs the service."
           }
         }
       }
@@ -1171,6 +1301,16 @@
         }
       }
     },
+    "Din tur": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your turn"
+          }
+        }
+      }
+    },
     "Dina appar": {
       "localizations": {
         "en": {
@@ -1207,16 +1347,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Your account is not allowed to send apps to TestFlight."
-          }
-        }
-      }
-    },
-    "Du får den på telefonen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "You get it on your phone"
           }
         }
       }
@@ -1281,6 +1411,36 @@
         }
       }
     },
+    "Du kan följa granskningen i Apples app App Store Connect, som säger till när appen är godkänd.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You can follow the review in Apple's app App Store Connect, which tells you when the app is approved."
+          }
+        }
+      }
+    },
+    "Du provar den direkt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You try it right away"
+          }
+        }
+      }
+    },
+    "Du skapar en nyckel hos Apple och lämnar den här, så att vi kan sköta resten åt dig. Vi visar hur.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You make a key at Apple and hand it over here, so that we can do the rest for you. We show you how."
+          }
+        }
+      }
+    },
     "Du är testare": {
       "localizations": {
         "en": {
@@ -1301,12 +1461,12 @@
         }
       }
     },
-    "Då ligger appen på hemskärmen som en vanlig app. Det går via Apples testapp TestFlight, som är gratis. Du behöver inget utvecklarkonto.": {
+    "Då ligger appen på hemskärmen som en vanlig app. Det går via Apples testapp TestFlight, som är gratis.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Then the app sits on the home screen like any other app. It goes through Apple's testing app TestFlight, which is free. You need no developer account."
+            "value": "Then the app sits on the home screen like any other app. It goes through Apple's testing app TestFlight, which is free."
           }
         }
       }
@@ -1437,6 +1597,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "An email address for support"
+          }
+        }
+      }
+    },
+    "En egen ikon på din hemskärm": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "An icon of its own on your home screen"
           }
         }
       }
@@ -1631,6 +1801,16 @@
         }
       }
     },
+    "Fyll i appens sida": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fill in the app's page"
+          }
+        }
+      }
+    },
     "Fyller i ett förslag i textrutan": {
       "localizations": {
         "en": {
@@ -1657,6 +1837,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Colours and shapes are picked to go together"
+          }
+        }
+      }
+    },
+    "Få appen till din telefon": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get the app onto your phone"
+          }
+        }
+      }
+    },
+    "Få den på din telefon eller i App Store": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get it onto your phone or into the App Store"
+          }
+        }
+      }
+    },
+    "Få ut din app": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get your app out"
           }
         }
       }
@@ -1971,6 +2181,16 @@
         }
       }
     },
+    "Hämta App Store Connect": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get App Store Connect"
+          }
+        }
+      }
+    },
     "Hämta TestFlight": {
       "localizations": {
         "en": {
@@ -1997,6 +2217,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Here you prepare what people see in the App Store. When everything is filled in it is sent to App Store Connect, where you read it through and then submit the app for review."
+          }
+        }
+      }
+    },
+    "I App Store": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In the App Store"
           }
         }
       }
@@ -2461,6 +2691,16 @@
         }
       }
     },
+    "Koppla ditt Apple-konto hit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect your Apple account here"
+          }
+        }
+      }
+    },
     "Koppla ditt Apple-utvecklarkonto": {
       "localizations": {
         "en": {
@@ -2541,6 +2781,16 @@
         }
       }
     },
+    "Ladda upp appen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Upload the app"
+          }
+        }
+      }
+    },
     "Laddar upp skärmbilder": {
       "localizations": {
         "en": {
@@ -2597,6 +2847,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Add this phone"
+          }
+        }
+      }
+    },
+    "Lägg till din telefon": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add your phone"
           }
         }
       }
@@ -2787,6 +3047,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Name"
+          }
+        }
+      }
+    },
+    "Namn, beskrivning, bilder och ikon. Det mesta är förberett; du ser över det och skickar sidan till Apple.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name, description, pictures and icon. Most of it is prepared; you look it over and send the page to Apple."
           }
         }
       }
@@ -3001,6 +3271,16 @@
         }
       }
     },
+    "På min telefon": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On my phone"
+          }
+        }
+      }
+    },
     "Pågår": {
       "localizations": {
         "en": {
@@ -3131,6 +3411,16 @@
         }
       }
     },
+    "Sidan skickas till Apple.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The page is being sent to Apple."
+          }
+        }
+      }
+    },
     "Sidor": {
       "localizations": {
         "en": {
@@ -3187,6 +3477,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Create"
+          }
+        }
+      }
+    },
+    "Skapa appen hos Apple": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Make the app at Apple"
+          }
+        }
+      }
+    },
+    "Skapa en ny app i App Store Connect och välj det här id:t i listan. Det kan bara du göra. Uppladdningen fortsätter av sig själv när appen finns.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Make a new app in App Store Connect and pick this id from the list. Only you can do that. The upload goes on by itself once the app is there."
           }
         }
       }
@@ -3561,6 +3871,26 @@
         }
       }
     },
+    "Svara på Apples frågor om integritet": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Answer Apple's questions about privacy"
+          }
+        }
+      }
+    },
+    "Så att vem som helst kan hämta den": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "So that anyone can get it"
+          }
+        }
+      }
+    },
     "Så går det till när appar byggs": {
       "localizations": {
         "en": {
@@ -3647,6 +3977,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Phone, for example +46 70 123 45 67"
+          }
+        }
+      }
+    },
+    "Telefonen lämnar sitt id en gång, i Safari. Sedan kan dina appar signeras för just den.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The phone hands over its id once, in Safari. After that your apps can be signed for it."
           }
         }
       }
@@ -3927,6 +4267,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "We build it"
+          }
+        }
+      }
+    },
+    "Vi laddar upp appen till ditt konto. Första gången ber vi dig skapa den hos Apple, och säger då exakt vad du ska välja.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "We upload the app to your account. The first time we ask you to make it at Apple, and tell you exactly what to pick."
+          }
+        }
+      }
+    },
+    "Vi signerar appen för din telefon. Första gången ber telefonen dig slå på Utvecklarläge under Inställningar.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "We sign the app for your phone. The first time, the phone asks you to turn on Developer Mode in Settings."
           }
         }
       }
@@ -4221,12 +4581,42 @@
         }
       }
     },
+    "Öppna Apple Developer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Apple Developer"
+          }
+        }
+      }
+    },
+    "Öppna Min telefon": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open My phone"
+          }
+        }
+      }
+    },
     "Öppna TestFlight-appen på telefonen. Nya versioner kommer dit på några minuter.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Open the TestFlight app on the phone. New versions get there in a few minutes."
+          }
+        }
+      }
+    },
+    "Öppna appens sida": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open the app's page"
           }
         }
       }
