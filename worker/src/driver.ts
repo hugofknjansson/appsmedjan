@@ -145,7 +145,7 @@ export interface Driver {
   screenshot(projectId: string, opts?: { store?: boolean }): Promise<{ mime: string; data: Buffer }>;
   input(projectId: string, event: InputEvent): void;
   /** `video`: every viewer can show video. */
-  setViewers(projectId: string, count: number, video?: boolean): void;
+  setViewers(projectId: string, count: number, video?: boolean, light?: boolean): void;
   release(projectId: string): Promise<void>;
   shutdown(): Promise<void>;
 }

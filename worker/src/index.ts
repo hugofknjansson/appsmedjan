@@ -181,7 +181,7 @@ async function handle(msg: ServerToWorker): Promise<void> {
       driver.input(msg.projectId, msg.event);
       break;
     case 'viewers':
-      driver.setViewers(msg.projectId, msg.count, msg.video === true);
+      driver.setViewers(msg.projectId, msg.count, msg.video === true, msg.light === true);
       break;
     case 'release':
       await driver.release(msg.projectId);

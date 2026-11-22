@@ -32,6 +32,8 @@ interface Session {
   viewers: number;
   /** True when every viewer can show video. */
   video: boolean;
+  /** True when a viewer's connection keeps falling behind, and the video is therefore a lighter one. */
+  light: boolean;
   lastUsed: number;
   streamer: Streamer | null;
   /** The open connection touches go through; null where there is none, and each touch is then a command of its own. */
@@ -77,6 +79,8 @@ export class XcodeDriver implements Driver {
   private hasIdb = false;
   /** LIVE_VIDEO=0 keeps the screen as JPEG frames, should video ever misbehave. */
   private readonly liveVideo = process.env.LIVE_VIDEO !== '0';
+  /** LIVE_LIGHT=0 keeps the video at full size also for viewers whose connection keeps falling behind. */
+  private readonly lightVideo = process.env.LIVE_LIGHT !== '0';
   /** The Python that idb's library is installed for, which live touches and video go through; null when it was not found. */
   private idbPython: string | null = null;
   /** The same, unless live touches are switched off: null then, and each touch is an idb command of its own. */
@@ -209,6 +213,7 @@ export class XcodeDriver implements Driver {
       booted: false,
       viewers: 0,
       video: false,
+      light: false,
       lastUsed: Date.now(),
       streamer: null,
       toucher: null,
@@ -324,6 +329,7 @@ export class XcodeDriver implements Driver {
           this.liveVideo ? this.idbPython : null,
         );
         this.emit.streamInfo(s.projectId, 'image/jpeg');
+        s.streamer.setLight(s.light);
         s.streamer.setFormat(s.video && this.liveVideo ? 'h264' : 'mjpeg');
         s.streamer.setActive(s.viewers > 0);
         if (this.touchPython) s.toucher = new Toucher(s.udid, this.touchPython);
@@ -477,12 +483,14 @@ export class XcodeDriver implements Driver {
     }
   }
 
-  setViewers(projectId: string, count: number, video = false): void {
+  setViewers(projectId: string, count: number, video = false, light = false): void {
     const s = this.sessions.get(projectId);
     if (!s) return;
     s.viewers = count;
     s.video = video;
+    s.light = light && this.lightVideo;
     if (count > 0) s.lastUsed = Date.now();
+    s.streamer?.setLight(s.light);
     s.streamer?.setFormat(video && this.liveVideo ? 'h264' : 'mjpeg');
     s.streamer?.setActive(count > 0);
     if (count > 0) s.streamer?.refresh();

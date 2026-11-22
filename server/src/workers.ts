@@ -286,9 +286,9 @@ export function sendInput(projectId: string, event: InputEvent): void {
   if (worker?.canInput) toWorker(worker, { type: 'input', projectId, event });
 }
 
-export function setViewers(projectId: string, count: number, video: boolean): void {
+export function setViewers(projectId: string, count: number, video: boolean, light = false): void {
   const worker = assignment.get(projectId);
-  if (worker) toWorker(worker, { type: 'viewers', projectId, count, video });
+  if (worker) toWorker(worker, { type: 'viewers', projectId, count, video, light });
 }
 
 

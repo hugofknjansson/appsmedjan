@@ -933,8 +933,11 @@ export type ServerToWorker =
   /** `store`: a full-size picture for the App Store page instead of a small one for the agent. */
   | { type: 'screenshot'; jobId: string; projectId: string; store?: boolean }
   | { type: 'input'; projectId: string; event: InputEvent }
-  /** `video`: every viewer can show video, so the screen may be sent as that instead of as still pictures. */
-  | { type: 'viewers'; projectId: string; count: number; video?: boolean }
+  /**
+   * `video`: every viewer can show video, so the screen may be sent as that instead of as still pictures.
+   * `light`: someone watching is on a connection that keeps falling behind, so the video should be a lighter one.
+   */
+  | { type: 'viewers'; projectId: string; count: number; video?: boolean; light?: boolean }
   | { type: 'release'; projectId: string };
 
 export type WorkerToServer =

@@ -16,6 +16,8 @@ export interface Live {
    */
   recent: Buffer[];
   recentBytes: number;
+  /** True when the worker was last told that someone watching needs a lighter picture. */
+  light: boolean;
   abort: AbortController | null;
   releaseTimer: NodeJS.Timeout | null;
 }
@@ -30,13 +32,107 @@ interface Viewer {
   needsKey: boolean;
   /** The phone it is, when it is one and said so: "iPhone19,2". */
   device: string | null;
+  /** When it was asked for the sign of life it has not given yet; null when it has given them all. */
+  askedAt: number | null;
+  /** True while its answer is so late that pictures sent now would be old before they were shown. */
+  behind: boolean;
+  /** How many times it has fallen behind, and when it last did. */
+  fellBehind: number;
+  fellBehindAt: number;
+  /** Until when it is to be sent a lighter picture; 0 when it never needed one. */
+  lightUntil: number;
+  /** How long its answers took, in milliseconds: the way there and back, and any wait in between. */
+  delays: number[];
 }
 
 const viewers = new WeakMap<WebSocket, Viewer>();
 
+/** What a viewer is asked with; its connection answers with the same, by itself. */
+const SIGN = Buffer.from('delay');
+/** How often each viewer is asked for a sign of life. How long the answer takes is how far behind it is. */
+export const ASK_EVERY_MS = 1000;
+/** An answer slower than this means the viewer is behind, and video is held back until it is level again. */
+const BEHIND_MS = 1000;
+/**
+ * Falling behind twice within this time is not a hiccup: the connection needs a lighter picture.
+ * (Once is what a phone does when its owner looks at something else for a moment.)
+ */
+const TWICE_WITHIN_MS = 90_000;
+/** How long the lighter picture is kept before the full one is tried again. */
+const LIGHT_FOR_MS = 5 * 60_000;
+/** No more delays than this are remembered for one viewer: the latest ten minutes. */
+const MAX_DELAYS = 600;
+
 export function addViewer(projectId: string, ws: WebSocket, video: boolean, device: string | null = null): void {
-  viewers.set(ws, { video, needsKey: true, device });
+  viewers.set(ws, { video, needsKey: true, device, askedAt: null, behind: false, fellBehind: 0, fellBehindAt: 0, lightUntil: 0, delays: [] });
   live(projectId).clients.add(ws);
+  // Not there on what stands in for a connection in the tests.
+  ws.on?.('pong', (data: Buffer) => {
+    if (SIGN.equals(data)) viewerAnswered(projectId, ws, performance.now());
+  });
+}
+
+/**
+ * Asks everyone watching for a sign of life, and notes who has not given the last one in time.
+ * The question travels behind the pictures already sent, so the answer is late by exactly as much
+ * as the pictures are. Returns the projects where the need for a lighter picture has changed, for
+ * the worker to be told.
+ */
+export function askViewers(now: number): string[] {
+  const changed: string[] = [];
+  for (const [projectId, l] of lives) {
+    // Only while there is a screen to be behind on.
+    if (l.recent.length === 0 && !l.lastFrame) continue;
+    for (const c of l.clients) {
+      const viewer = viewers.get(c);
+      if (!viewer || c.readyState !== c.OPEN) continue;
+      if (viewer.askedAt === null) {
+        viewer.askedAt = now;
+        c.ping(SIGN);
+      } else if (!viewer.behind && now - viewer.askedAt > BEHIND_MS) {
+        viewer.behind = true;
+        if (viewer.fellBehind > 0 && now - viewer.fellBehindAt <= TWICE_WITHIN_MS) viewer.lightUntil = now + LIGHT_FOR_MS;
+        viewer.fellBehind++;
+        viewer.fellBehindAt = now;
+      }
+    }
+    if (someoneNeedsLight(projectId, now) !== l.light) changed.push(projectId);
+  }
+  return changed;
+}
+
+/** A viewer's sign of life has come: everything sent before the question has reached it too. */
+export function viewerAnswered(projectId: string, ws: WebSocket, now: number): void {
+  const viewer = viewers.get(ws);
+  if (!viewer || viewer.askedAt === null) return;
+  viewer.delays.push(Math.round(now - viewer.askedAt));
+  if (viewer.delays.length > MAX_DELAYS) viewer.delays.shift();
+  viewer.askedAt = null;
+  viewer.behind = false;
+  // Level again. If it missed pictures on the way, they are played to it at once when they are
+  // few; otherwise it waits for the next whole picture, like anyone who missed one.
+  const l = lives.get(projectId);
+  if (!l || !viewer.video || !viewer.needsKey || l.recent.length === 0 || ws.readyState !== ws.OPEN) return;
+  if (l.recentBytes + ws.bufferedAmount > CATCH_UP_BYTES) return;
+  for (const frame of l.recent) ws.send(frame, { binary: true });
+  viewer.needsKey = false;
+}
+
+/** True when someone watching is on a connection that keeps falling behind, so the picture should be a lighter one. */
+export function someoneNeedsLight(projectId: string, now: number): boolean {
+  for (const c of lives.get(projectId)?.clients ?? []) {
+    if ((viewers.get(c)?.lightUntil ?? 0) > now) return true;
+  }
+  return false;
+}
+
+/** What a viewer's delay was like while it watched, for the log; null when it was asked too few times to say. */
+export function delaySummary(ws: WebSocket): string | null {
+  const viewer = viewers.get(ws);
+  if (!viewer || viewer.delays.length < 5) return null;
+  const sorted = [...viewer.delays].sort((a, b) => a - b);
+  const at = (share: number) => sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * share))]!;
+  return `delay there and back ${at(0.5)} ms in the middle, ${at(0.9)} ms for nine in ten, ${sorted.at(-1)} ms at worst, over ${sorted.length} s; fell behind ${viewer.fellBehind} times`;
 }
 
 /** The phone the app is being watched on, when someone is watching on one: the simulator can then be the same model. */
@@ -67,6 +163,7 @@ export function live(projectId: string): Live {
       lastFrame: null,
       recent: [],
       recentBytes: 0,
+      light: false,
       abort: null,
       releaseTimer: null,
     };
@@ -112,6 +209,13 @@ export function sendLatestPicture(projectId: string, ws: WebSocket): void {
 
 /** Frames are dropped for clients that can't keep up, so a slow connection never builds a backlog. */
 const MAX_BUFFERED = 1_500_000;
+/**
+ * The same for video, where a backlog is not one late picture but all of them late from then on.
+ * This is a second or so of a screen that is being scrolled.
+ */
+const MAX_BUFFERED_VIDEO = 500_000;
+/** A viewer that is level again is played what it missed when that is no more than this; more would put it behind again. */
+const CATCH_UP_BYTES = 300_000;
 /** More video than this since the last whole picture is not kept for newcomers; they wait for the next one. */
 const MAX_RECENT = 8_000_000;
 
@@ -144,9 +248,10 @@ export function sendFrame(projectId: string, frame: Buffer): void {
   for (const c of l.clients) {
     const viewer = viewers.get(c);
     if (c.readyState !== c.OPEN || !viewer?.video) continue;
-    if (c.bufferedAmount >= MAX_BUFFERED) {
+    if (viewer.behind || c.bufferedAmount >= MAX_BUFFERED_VIDEO) {
       // A picture of the video that is not sent makes the ones after it useless: nothing more
-      // goes to this viewer until the next whole picture, which comes every few seconds.
+      // goes to this viewer until it is level again, or until the next whole picture, which comes
+      // every few seconds.
       viewer.needsKey = true;
       continue;
     }

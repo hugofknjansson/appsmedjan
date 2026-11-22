@@ -43,7 +43,7 @@ import {
   type PublishState,
 } from '../shared/protocol';
 import { codecOf } from '../web/src/frames';
-import { addViewer, everyoneTakesVideo, forget, sendFrame, sendLatestPicture } from '../server/src/live';
+import { addViewer, askViewers, delaySummary, everyoneTakesVideo, forget, live, sendFrame, sendLatestPicture, someoneNeedsLight, viewerAnswered } from '../server/src/live';
 import { keepAlive } from '../shared/keepalive';
 import { EventEmitter } from 'node:events';
 import type { WebSocket } from 'ws';
@@ -967,6 +967,65 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
   assert.deepEqual(late.got, [jpeg]);
   forget('video-test');
   assert.equal(codecOf(change(1)), null);
+
+  // How far behind a viewer is: asked once a second, and what happens to one who does not answer in time.
+  const asked = (ws: { pings: number }) => ws.pings;
+  const phone = { ...watcher(), pings: 0, ping() { this.pings++; } };
+  const socket = phone as unknown as WebSocket;
+  addViewer('delay-test', socket, true);
+  assert.deepEqual(askViewers(0), []);
+  assert.equal(asked(phone), 0, 'nobody is asked while there is no screen to be behind on');
+  sendFrame('delay-test', keyPicture);
+  sendFrame('delay-test', change(1));
+  for (let second = 0; second < 6; second++) {
+    askViewers(second * 1000);
+    viewerAnswered('delay-test', socket, second * 1000 + 40 + second);
+  }
+  assert.equal(asked(phone), 6);
+  assert.match(delaySummary(socket)!, /^delay there and back 43 ms in the middle, 45 ms for nine in ten, 45 ms at worst, over 6 s; fell behind 0 times$/);
+  // No answer within a second: it is behind, nothing more is asked of it, and video is held back.
+  askViewers(10_000);
+  askViewers(10_900);
+  sendFrame('delay-test', change(2));
+  assert.deepEqual(phone.got.at(-1), change(2), 'not behind yet');
+  askViewers(11_100);
+  assert.equal(asked(phone), 7, 'one question at a time');
+  sendFrame('delay-test', change(3));
+  sendFrame('delay-test', change(4));
+  assert.deepEqual(phone.got.at(-1), change(2), 'held back while it is behind');
+  // Its answer comes: it is level, and is played what it missed at once, since that is little.
+  viewerAnswered('delay-test', socket, 11_600);
+  assert.deepEqual(phone.got.slice(-5), [keyPicture, change(1), change(2), change(3), change(4)]);
+  sendFrame('delay-test', change(5));
+  assert.deepEqual(phone.got.at(-1), change(5));
+  assert.equal(someoneNeedsLight('delay-test', 12_000), false, 'once is a hiccup');
+  // Too much missed to be played at once: it waits for the next whole picture.
+  askViewers(20_000);
+  assert.deepEqual(askViewers(21_100), ['delay-test'], 'behind twice within a minute and a half: a lighter picture is asked for');
+  live('delay-test').light = true; // What telling the worker leaves behind.
+  assert.deepEqual(askViewers(22_100), [], 'asked for once');
+  const heavy = Buffer.concat([change(6), Buffer.alloc(400_000)]);
+  sendFrame('delay-test', heavy);
+  viewerAnswered('delay-test', socket, 23_000);
+  assert.deepEqual(phone.got.at(-1), change(5));
+  sendFrame('delay-test', change(7));
+  assert.deepEqual(phone.got.at(-1), change(5), 'still waiting for a whole picture');
+  sendFrame('delay-test', keyPicture);
+  assert.deepEqual(phone.got.at(-1), keyPicture);
+  assert.equal(someoneNeedsLight('delay-test', 23_000), true);
+  assert.match(delaySummary(socket)!, /3000 ms at worst, over 8 s; fell behind 2 times$/);
+  // After five minutes the full picture is tried again.
+  viewerAnswered('delay-test', socket, 24_000);
+  assert.deepEqual(askViewers(21_100 + 5 * 60_000 - 1), []);
+  viewerAnswered('delay-test', socket, 21_100 + 5 * 60_000);
+  assert.deepEqual(askViewers(21_100 + 5 * 60_000 + 1000), ['delay-test']);
+  assert.equal(someoneNeedsLight('delay-test', 21_100 + 5 * 60_000 + 1000), false);
+  // Falling behind again long after the last time is a hiccup again.
+  viewerAnswered('delay-test', socket, 400_000);
+  askViewers(500_000);
+  askViewers(501_100);
+  assert.equal(someoneNeedsLight('delay-test', 501_100), false);
+  forget('delay-test');
 }
 
 // The simulator is the same model as the phone the app is watched on, when that can be.

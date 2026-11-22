@@ -9,7 +9,7 @@ import { hasCredentials } from './agent';
 import { config } from './config';
 import { keepAlive } from '../../shared/keepalive';
 import * as db from './db';
-import { addViewer, live, sendLatestPicture } from './live';
+import { addViewer, askViewers, ASK_EVERY_MS, delaySummary, live, sendLatestPicture } from './live';
 import { buildProject, syncViewers } from './preview';
 import { publishState } from './publish';
 import { api, directPages, publicPages, userFromRequest } from './routes';
@@ -172,11 +172,18 @@ function attachClient(ws: WebSocket, project: db.Project, video: boolean, device
 
   ws.on('close', () => {
     clearInterval(refill);
+    const delay = delaySummary(ws);
+    if (delay) console.log(`[live] a viewer of ${project.id} left: ${delay}`);
     l.clients.delete(ws);
     syncViewers(project.id);
   });
   ws.on('error', () => ws.close());
 }
+
+// How far behind each viewer of a simulator is; someone who keeps falling behind is given a lighter picture.
+setInterval(() => {
+  for (const projectId of askViewers(performance.now())) syncViewers(projectId);
+}, ASK_EVERY_MS);
 
 server.listen(config.port, () => {
   console.log(`[server] listening on http://localhost:${config.port}`);

@@ -12,6 +12,9 @@ struct LiveScreen: View {
 
   private var canInput: Bool { store.preview.canInput && store.preview.status == .running }
 
+  /// The shortest time between two reports of where the finger is.
+  private static let moveGap: TimeInterval = 0.012
+
   var body: some View {
     picture
       .overlay {
@@ -46,8 +49,11 @@ struct LiveScreen: View {
           store.input(.touch(.down, x: unit(value.startLocation.x, of: size.width), y: unit(value.startLocation.y, of: size.height)))
           return
         }
-        // No more often than the screen is drawn; where the finger lifts is always sent.
-        guard now.timeIntervalSince(last.sentAt) >= 1.0 / 60 else { return }
+        // No more often than the simulator draws, which is sixty times a second; where the finger
+        // lifts is always sent. A phone reports its finger twice as often as that, and a gap of
+        // exactly a sixtieth would let through only every third report: the second one comes a
+        // hair too early.
+        guard now.timeIntervalSince(last.sentAt) >= Self.moveGap else { return }
         finger = (now, x, y)
         store.input(.touch(.move, x: x, y: y))
       }

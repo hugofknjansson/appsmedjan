@@ -50,6 +50,8 @@ export class JpegSplitter {
 }
 
 const START = Buffer.from([0, 0, 0, 1]);
+/** How much smaller each way the lighter video is. */
+const LIGHT_SCALE = 0.5;
 const VIDEO_HELPER = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'video.py');
 
 /** Reads pieces written with their length in front of them (four bytes, big-endian), as worker/video.py writes them. */
@@ -120,6 +122,8 @@ export class Streamer {
   private videoWorks: boolean;
   /** True after a picture of the video could not be sent on: what follows is useless until a whole one comes. */
   private waitingForKey = false;
+  /** True while the video is a lighter one, for a viewer whose connection keeps falling behind. */
+  private light = false;
 
   /**
    * `onFrame` says whether the frame could be sent on. `onFormat` is told what the frames are
@@ -158,6 +162,17 @@ export class Streamer {
     if (this.format === before) return;
     this.onFormat(this.format);
     if (this.active && this.mode === 'idb') this.restartIdb();
+  }
+
+  /**
+   * A lighter video or the full one. The lighter one is half the size each way, which is a quarter
+   * of the picture to send: softer to look at, and level with the finger on a connection that
+   * the full one is too much for.
+   */
+  setLight(light: boolean): void {
+    if (light === this.light) return;
+    this.light = light;
+    if (this.active && this.mode === 'idb' && this.format === 'h264') this.restartIdb();
   }
 
   /** Forces the next polled frame to be sent even if the screen has not changed. */
@@ -199,7 +214,7 @@ export class Streamer {
   private startIdb(): void {
     const video = this.format === 'h264';
     const proc = video
-      ? spawn(this.python!, [VIDEO_HELPER, this.udid, '60'], { stdio: ['ignore', 'pipe', 'pipe'] })
+      ? spawn(this.python!, [VIDEO_HELPER, this.udid, '60', this.light ? String(LIGHT_SCALE) : '1'], { stdio: ['ignore', 'pipe', 'pipe'] })
       : spawn('idb', ['video-stream', '--udid', this.udid, '--fps', '15', '--format', 'mjpeg', '--compression-quality', '0.6'], {
           stdio: ['ignore', 'pipe', 'ignore'],
         });

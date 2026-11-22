@@ -2,7 +2,7 @@
 
 Started by the worker with the Python that `idb` itself runs on, so the idb library is at hand:
 
-  video.py <udid> <pictures a second at most>
+  video.py <udid> <pictures a second at most> [<size, where 1 is the screen's own and 0.5 half of it each way>]
 
 The `idb video-stream` command would do, were it not that it gathers its output up before writing
 it: small pictures, as of a screen where little moves, then arrive seconds late and in clumps.
@@ -27,13 +27,13 @@ from idb.common.types import VideoFormat
 from idb.grpc.management import ClientManager
 
 
-async def stream(udid, fps):
+async def stream(udid, fps, scale):
     logger = logging.getLogger("video")
     manager = ClientManager(companion_path=shutil.which("idb_companion"), logger=logger)
     out = sys.stdout.buffer
     async with manager.from_udid(udid=udid) as client:
         # 0.2 is what the idb command itself asks for.
-        video = client.stream_video(output_file=None, fps=fps, format=VideoFormat.H264, compression_quality=0.2)
+        video = client.stream_video(output_file=None, fps=fps, format=VideoFormat.H264, compression_quality=0.2, scale_factor=scale)
         try:
             async for piece in video:
                 out.write(struct.pack(">I", len(piece)))
@@ -47,8 +47,8 @@ async def stream(udid, fps):
                 pass
 
 
-async def main(udid, fps):
-    work = asyncio.ensure_future(stream(udid, fps))
+async def main(udid, fps, scale):
+    work = asyncio.ensure_future(stream(udid, fps, scale))
     loop = asyncio.get_running_loop()
     for sign in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sign, work.cancel)
@@ -62,7 +62,7 @@ async def main(udid, fps):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.WARNING, stream=sys.stderr)
     try:
-        code = asyncio.run(main(sys.argv[1], int(sys.argv[2])))
+        code = asyncio.run(main(sys.argv[1], int(sys.argv[2]), float(sys.argv[3]) if len(sys.argv) > 3 else 1.0))
     except BrokenPipeError:
         code = 0
     except Exception as error:

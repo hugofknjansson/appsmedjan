@@ -17,6 +17,8 @@ interface Props {
 }
 
 const clamp = (n: number) => Math.min(1, Math.max(0, n));
+/** The shortest time between two reports of where the pointer is. */
+const MOVE_GAP_MS = 12;
 
 export function Phone({ bus, preview, running, onInput, onStart, onCapture }: Props) {
   const [capture, setCapture] = useState<{ busy: boolean; ok: boolean; text: string }>({ busy: false, ok: true, text: '' });
@@ -95,8 +97,10 @@ export function Phone({ bus, preview, running, onInput, onStart, onCapture }: Pr
 
   function onPointerMove(e: PointerEvent) {
     const last = down.current;
-    // No more often than the screen is drawn; where the pointer lifts is always sent.
-    if (!last || performance.now() - last.at < 1000 / 60) return;
+    // No more often than the simulator draws, which is sixty times a second; where the pointer
+    // lifts is always sent. The gap asked for is a little shorter than a sixtieth, or every move
+    // that came a hair early would be skipped, and the pointer be sent half as often as it moved.
+    if (!last || performance.now() - last.at < MOVE_GAP_MS) return;
     const at = position(e);
     down.current = { ...at, at: performance.now() };
     onInput({ kind: 'touch', phase: 'move', ...at });
