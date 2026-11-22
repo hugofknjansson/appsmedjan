@@ -101,7 +101,11 @@ struct API {
 extension API {
   private struct Me: Decodable { let user: User? }
   private struct Signed: Decodable { let user: User }
-  private struct Config: Decodable { let inviteRequired: Bool }
+  private struct Config: Decodable {
+    let inviteRequired: Bool
+    /// Missing from servers before the paywall.
+    var paywall: Bool?
+  }
   private struct Projects: Decodable { let projects: [ProjectSummary] }
   private struct Created: Decodable { let project: ProjectSummary }
   private struct Credentials: Encodable {
@@ -124,9 +128,11 @@ extension API {
     return me.user
   }
 
-  func inviteRequired() async throws(APIError) -> Bool {
+  /// What a visitor needs to know before signing in: whether an invite is asked for, and whether
+  /// building costs something.
+  func welcome() async throws(APIError) -> (inviteRequired: Bool, paywall: Bool) {
     let config: Config = try await get("api/config")
-    return config.inviteRequired
+    return (config.inviteRequired, config.paywall ?? false)
   }
 
   func logIn(email: String, password: String) async throws(APIError) -> User {
@@ -177,6 +183,12 @@ extension API {
 
   func plan() async throws(APIError) -> PlanState {
     try await get("api/plan")
+  }
+
+  /// A code in place of paying: lets the person past the paywall, with the plan the code gives.
+  func unlockPlan(code: String) async throws(APIError) -> PlanState {
+    struct Body: Encodable { let code: String }
+    return try await send("POST", "api/plan/unlock", body: Body(code: code))
   }
 
   /// Asks for a larger plan. There is no payment yet: the people who run the service answer.

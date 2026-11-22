@@ -20,6 +20,7 @@ enum Texts {
     case "plan_install": String(localized: "Appen på telefonen ingår i planen Skapa. Du ber om den under Min plan.")
     case "plan_store": String(localized: "App Store-guiden ingår i planen Publicera. Du ber om den under Min plan.")
     case "bad_plan": String(localized: "Det gick inte att be om den planen.")
+    case "bad_code": String(localized: "Koden stämmer inte.")
     case "bad_prompt": String(localized: "Skriv vad du vill bygga (högst 8000 tecken).")
     case "busy": String(localized: "Vänta tills det pågående arbetet är klart.")
     case "publish_forbidden": String(localized: "Ditt konto får inte skicka appar till TestFlight.")

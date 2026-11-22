@@ -270,6 +270,14 @@ nonisolated struct PlanState: Decodable, Equatable {
   var resetsAt: Double
   /// Every plan by its id, for showing what a larger one would give.
   var plans: [String: PlanLimits]
+  /// True when the person stands in front of the paywall: their plan lets them build nothing.
+  var locked: Bool?
+  /// Whether a code can be given in place of paying.
+  var takesCode: Bool?
+  /// What each plan costs, in the operator's own words, for the plans that have a price.
+  var prices: [String: String]?
+
+  var isLocked: Bool { locked == true }
 
   var resets: Date { Date(timeIntervalSince1970: resetsAt / 1000) }
 

@@ -46,8 +46,7 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
       .catch(() => undefined);
   }, []);
 
-  async function create(e: FormEvent) {
-    e.preventDefault();
+  async function build() {
     if (!prompt.trim() || busy) return;
     setBusy(true);
     setError('');
@@ -55,9 +54,17 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
       const { project } = await api.createProject(prompt, lang === 'sv' ? 'Ny app' : 'New app');
       navigate(`/p/${project.id}`);
     } catch (err) {
-      setError(apiErrorText(err instanceof ApiError ? err.code : 'internal'));
+      const code = err instanceof ApiError ? err.code : 'internal';
+      // The plan does not hold this: the answer is the plans, or the paywall, and not a line of red.
+      if (code.startsWith('plan_')) setPlanOpen(true);
+      else setError(apiErrorText(code));
       setBusy(false);
     }
+  }
+
+  function create(e: FormEvent) {
+    e.preventDefault();
+    void build();
   }
 
   async function remove(p: ProjectSummary) {
@@ -91,7 +98,8 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
       </header>
 
       {appleOpen && <AppleAccountDialog onClose={() => setAppleOpen(false)} />}
-      {planOpen && <PlanDialog onClose={() => setPlanOpen(false)} />}
+      {/* Let past the paywall with a code: on with the app the person was about to build. */}
+      {planOpen && <PlanDialog onClose={() => setPlanOpen(false)} onUnlock={() => void build()} />}
 
       <main className="dash">
         <section className="hero">

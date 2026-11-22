@@ -1,6 +1,8 @@
 // The person's plan: what it holds, how much of it is used, and a way to ask for a larger one.
+// For someone whose plan lets them build nothing this is the paywall: what they get, what it
+// costs, and a field for a code that lets them past it.
 // There is no payment yet: asking sends a request, and the people who run the service answer it.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { PLAN_ORDER, type PlanId, type PlanLimits, type PlanState } from '../../shared/protocol';
 import { ApiError, api, type PlanPerson } from './api';
 import { apiErrorText, lang, t } from './i18n';
@@ -17,11 +19,13 @@ function lines(limits: PlanLimits): string[] {
   ];
 }
 
-export function PlanDialog({ onClose }: { onClose: () => void }) {
+/** `onUnlock` is called when a code has let the person past the paywall, after the dialog has closed. */
+export function PlanDialog({ onClose, onUnlock }: { onClose: () => void; onUnlock?: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [plan, setPlan] = useState<PlanState | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [code, setCode] = useState('');
   const text = t.plan;
 
   useEffect(() => {
@@ -41,12 +45,35 @@ export function PlanDialog({ onClose }: { onClose: () => void }) {
     }
   }
 
+  async function unlock(e: FormEvent) {
+    e.preventDefault();
+    if (!code.trim() || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const wasLocked = plan?.locked === true;
+      const now = await api.unlockPlan(code.trim());
+      setPlan(now);
+      setCode('');
+      // Past the paywall: back to what the person was about to do.
+      if (wasLocked && !now.locked) {
+        dialog.current?.close();
+        onUnlock?.();
+      }
+    } catch (err) {
+      setError(apiErrorText(err instanceof ApiError ? err.code : 'internal'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const date = new Intl.DateTimeFormat(lang, { day: 'numeric', month: 'long' });
+  const locked = plan?.locked === true;
 
   return (
     <dialog ref={dialog} className="sheet wide" aria-labelledby="plan-title" onClose={onClose}>
       <header className="sheet-head">
-        <h2 id="plan-title">{text.title}</h2>
+        <h2 id="plan-title">{locked ? text.lockedTitle : text.title}</h2>
         <button className="btn ghost" onClick={() => dialog.current?.close()}>
           {t.dismiss}
         </button>
@@ -56,19 +83,29 @@ export function PlanDialog({ onClose }: { onClose: () => void }) {
         {plan && (
           <>
             {!plan.enforced && <p className="notice">{text.open}</p>}
-            <div className="plan-used">
-              <Used label={text.usedMessages} used={plan.used.messages} of={plan.limits.messages} />
-              <Used label={text.usedApps} used={plan.used.apps} of={plan.limits.apps} />
-              <p className="muted fine">{text.resets.replace('{date}', date.format(plan.resetsAt))}</p>
-            </div>
+            {locked ? (
+              <div className="plan-pitch">
+                <Mascot dancing tile="#fff" eyes="#c74005" />
+                <strong>{text.pitch}</strong>
+                <p>{text.pitchText}</p>
+              </div>
+            ) : (
+              <div className="plan-used">
+                <Used label={text.usedMessages} used={plan.used.messages} of={plan.limits.messages} />
+                <Used label={text.usedApps} used={plan.used.apps} of={plan.limits.apps} />
+                <p className="muted fine">{text.resets.replace('{date}', date.format(plan.resetsAt))}</p>
+              </div>
+            )}
             <ul className="plans">
-              {PLAN_ORDER.map((id) => {
+              {/* A plan that holds nothing is the paywall itself, not something to choose. */}
+              {PLAN_ORDER.filter((id) => plan.plans[id].apps > 0).map((id) => {
                 const mine = id === plan.plan;
                 const larger = PLAN_ORDER.indexOf(id) > PLAN_ORDER.indexOf(plan.plan);
                 return (
                   <li key={id} data-mine={mine}>
                     <h3>
                       {text.name[id]} {mine && <span className="plan-mine">{text.mine}</span>}
+                      {plan.prices?.[id] && <span className="plan-price">{plan.prices[id]}</span>}
                     </h3>
                     <ul>
                       {lines(plan.plans[id]).map((line) => (
@@ -87,6 +124,17 @@ export function PlanDialog({ onClose }: { onClose: () => void }) {
                 );
               })}
             </ul>
+            {plan.takesCode && plan.plan !== PLAN_ORDER.at(-1) && (
+              <form className="plan-code" onSubmit={unlock}>
+                <label htmlFor="plan-code">{text.code}</label>
+                <div>
+                  <input id="plan-code" type="text" autoComplete="off" autoCapitalize="none" spellCheck={false} placeholder={text.codeHint} value={code} onChange={(e) => setCode(e.target.value)} />
+                  <button className="btn primary" disabled={busy || !code.trim()}>
+                    {text.unlock}
+                  </button>
+                </div>
+              </form>
+            )}
             <p className="muted fine">{text.noPayment}</p>
           </>
         )}

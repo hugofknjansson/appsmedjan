@@ -34,6 +34,8 @@ import {
   PLANS,
   PLAN_ORDER,
   planFor,
+  planPrices,
+  unlockCodes,
   type StoreListing,
   frameKind,
   isPhoneModel,
@@ -157,6 +159,14 @@ for (let i = 1; i < PLAN_ORDER.length; i++) {
 }
 assert.equal(planFor('install', { apps: 0, messages: 0 }), 'create');
 assert.equal(planFor('store', { apps: 0, messages: 0 }), 'publish');
+// Behind a paywall the smallest plan holds nothing, and the first app already needs the next one.
+assert.equal(planFor('apps', { apps: 0, messages: 0 }, { ...PLANS, free: { ...PLANS.free, apps: 0, messages: 0 } }), 'create');
+assert.equal(planFor('apps', { apps: 0, messages: 0 }), 'free');
+assert.deepEqual(unlockCodes(' sommar2026 , vip=create, x, bad=nope ,'), [{ code: 'sommar2026', plan: 'publish' }, { code: 'vip', plan: 'create' }].filter((entry) => entry.code.length >= 4));
+assert.deepEqual(unlockCodes('vipp=create,sommar2026'), [{ code: 'vipp', plan: 'create' }, { code: 'sommar2026', plan: 'publish' }]);
+assert.deepEqual(unlockCodes(''), []);
+assert.deepEqual(planPrices('create=99 kr i månaden; publish = 249 kr i månaden; nope=1; free='), { create: '99 kr i månaden', publish: '249 kr i månaden' });
+assert.deepEqual(planPrices(''), {});
 assert.equal(planFor('apps', { apps: PLANS.free.apps, messages: 0 }), 'create');
 assert.equal(planFor('apps', { apps: PLANS.create.apps, messages: 0 }), 'publish');
 assert.equal(planFor('messages', { apps: 0, messages: PLANS.free.messages }), 'create');

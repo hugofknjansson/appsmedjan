@@ -117,7 +117,9 @@ function sameSecret(a: string, b: string): boolean {
 export const api = express.Router();
 
 api.get('/config', (_req, res) => {
-  res.json({ inviteRequired: Boolean(config.inviteCode) });
+  // What a visitor needs to know before signing in: whether an invite is asked for, and whether
+  // building costs something, so that the welcome can say so.
+  res.json({ inviteRequired: Boolean(config.inviteCode), paywall: config.paywall });
 });
 
 api.get('/me', (req, res) => {
@@ -416,6 +418,17 @@ api.post('/plan/request', requireUser, authLimiter, (req, res) => {
   const plan = (req.body as { plan?: unknown } | undefined)?.plan;
   if (!isPlanId(plan) || plans.ask(user, plan) !== 'asked') {
     res.status(400).json({ error: 'bad_plan' });
+    return;
+  }
+  res.json(plans.state(user));
+});
+
+/** A code in place of paying: the person is let past the paywall, with the plan the code gives. */
+api.post('/plan/unlock', requireUser, authLimiter, (req, res) => {
+  const user = (req as Authed).user;
+  const code = (req.body as { code?: unknown } | undefined)?.code;
+  if (typeof code !== 'string' || code.length > 100 || !plans.unlock(user, code)) {
+    res.status(400).json({ error: 'bad_code' });
     return;
   }
   res.json(plans.state(user));

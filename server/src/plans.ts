@@ -1,10 +1,23 @@
 // Plans: what a person may do, counted against what they have used. There is no payment here yet. A
 // person asks for a plan, and the people who run the service give it to them; a payment provider
 // can later call `give` in their place.
-import { PLANS, isPlanId, planFor, type PlanAccess, type PlanId, type PlanNeed, type PlanState } from '../../shared/protocol';
+import crypto from 'node:crypto';
+import { PLANS, PLAN_ORDER, isPlanId, planFor, planPrices, unlockCodes, type PlanAccess, type PlanId, type PlanLimits, type PlanNeed, type PlanState } from '../../shared/protocol';
 import { config } from './config';
 import * as db from './db';
 import { isOperator } from './routing';
+
+/**
+ * The plans as they are on this server: the smallest one holds what the operator has said it is to
+ * hold, which may be nothing. Then it is a paywall: nothing is built before the person has a
+ * larger plan, by paying or by giving a code.
+ */
+const plansHere: Record<PlanId, PlanLimits> = {
+  ...PLANS,
+  free: { ...PLANS.free, apps: config.freeApps ?? PLANS.free.apps, messages: config.freeMessages ?? PLANS.free.messages },
+};
+const codes = unlockCodes(config.unlockCodes);
+const prices = planPrices(config.planPrices);
 
 /** The plan of a person who has not been given one. */
 export const defaultPlan: PlanId = isPlanId(config.defaultPlan) ? config.defaultPlan : 'free';
@@ -32,11 +45,14 @@ export function state(user: db.User): PlanState {
   return {
     enforced: config.paywall,
     plan,
-    limits: PLANS[plan],
+    limits: plansHere[plan],
     used: used(user),
     requested: isPlanId(requested) ? requested : undefined,
     resetsAt: nextMonth(),
-    plans: PLANS,
+    plans: plansHere,
+    locked: config.paywall && !isOperator(user.email) && plansHere[plan].apps === 0,
+    takesCode: codes.length > 0,
+    prices,
   };
 }
 
@@ -46,7 +62,7 @@ export function state(user: db.User): PlanState {
  */
 export function allows(user: db.User, need: PlanNeed): boolean {
   if (!config.paywall || isOperator(user.email)) return true;
-  const limits = PLANS[planOf(user)];
+  const limits = plansHere[planOf(user)];
   if (need === 'install') return limits.install;
   if (need === 'store') return limits.store;
   const now = used(user);
@@ -57,7 +73,7 @@ export function allows(user: db.User, need: PlanNeed): boolean {
 export function access(user: db.User | null): PlanAccess {
   const plan = user ? planOf(user) : fallback;
   const open = !config.paywall || (user !== null && isOperator(user.email));
-  return { id: plan, install: open || PLANS[plan].install, store: open || PLANS[plan].store };
+  return { id: plan, install: open || plansHere[plan].install, store: open || plansHere[plan].store };
 }
 
 export type AskResult = 'asked' | 'not_larger';
@@ -82,5 +98,26 @@ export function give(email: string, plan: PlanId, by: string): db.User | null {
 
 /** The plan that would let the person past the limit they ran into, for saying which one to ask for. */
 export function needed(user: db.User, need: PlanNeed): PlanId | null {
-  return planFor(need, used(user));
+  return planFor(need, used(user), plansHere);
+}
+
+const sameCode = (a: string, b: string) => {
+  const one = crypto.createHash('sha256').update(a).digest();
+  const other = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(one, other);
+};
+
+/**
+ * A code in place of paying: gives the person the plan the code stands for, unless theirs is as
+ * large already. False when it is not one of the operator's codes.
+ */
+export function unlock(user: db.User, given: string): boolean {
+  const code = given.trim();
+  const match = codes.find((entry) => sameCode(entry.code, code));
+  if (!match) return false;
+  if (PLAN_ORDER.indexOf(match.plan) > PLAN_ORDER.indexOf(planOf(user))) {
+    db.setPlan(user.id, match.plan);
+    console.log(`[plans] user ${user.id} was given the plan "${match.plan}" by a code`);
+  }
+  return true;
 }

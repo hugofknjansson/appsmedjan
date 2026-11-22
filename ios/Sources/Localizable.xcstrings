@@ -451,6 +451,16 @@
         }
       }
     },
+    "Appen öppnas hos dig så fort den är klar.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app opens for you the moment it is done."
+          }
+        }
+      }
+    },
     "Appens skärm i simulatorn": {
       "localizations": {
         "en": {
@@ -707,6 +717,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Describe your app in your own words"
+          }
+        }
+      }
+    },
+    "Beskriv din app.\nSe den bli till.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Describe your app.\nWatch it come to life."
           }
         }
       }
@@ -1221,6 +1241,26 @@
         }
       }
     },
+    "Det kostar inget att skapa konto.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Making an account costs nothing."
+          }
+        }
+      }
+    },
+    "Det kostar inget att skapa konto. Du väljer plan först när du vill bygga din första app.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Making an account costs nothing. You pick a plan when you want to build your first app."
+          }
+        }
+      }
+    },
     "Det låter kul. Tryck på Bygg min app!": {
       "localizations": {
         "en": {
@@ -1237,6 +1277,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "It takes a couple of minutes to build the app for the phone."
+          }
+        }
+      }
+    },
+    "Det tar några minuter, och du ser vad som händer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It takes a few minutes, and you see what is going on."
           }
         }
       }
@@ -1277,6 +1327,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Your app is ready to try"
+          }
+        }
+      }
+    },
+    "Din idé är ett steg från att bli en app": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your idea is one step from being an app"
           }
         }
       }
@@ -1437,6 +1497,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "You make a key at Apple and hand it over here, so that we can do the rest for you. We show you how."
+          }
+        }
+      }
+    },
+    "Du skriver vad du vill ha. Vi bygger en riktig iPhone-app av det, medan du tittar på.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "You write what you want. We build a real iPhone app from it, while you watch."
           }
         }
       }
@@ -1687,6 +1757,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "A recipe book where I save my favourites and get a shopping list"
+          }
+        }
+      }
+    },
+    "En riktig iPhone-app, inte en webbsida": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A real iPhone app, not a web page"
           }
         }
       }
@@ -2091,6 +2171,16 @@
         }
       }
     },
+    "Har du en kod?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Do you have a code?"
+          }
+        }
+      }
+    },
     "Har du inte TestFlight installerat hämtar du den gratis i App Store först. Tryck sedan på Godkänn och Installera.": {
       "localizations": {
         "en": {
@@ -2317,6 +2407,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "No build server is connected, so the preview is off right now."
+          }
+        }
+      }
+    },
+    "Ingen kod, inga förkunskaper": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No code, nothing to know beforehand"
           }
         }
       }
@@ -2641,6 +2741,26 @@
         }
       }
     },
+    "Koden stämmer inte.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The code is not correct."
+          }
+        }
+      }
+    },
+    "Kom igång": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get started"
+          }
+        }
+      }
+    },
     "Kontakt för granskningen": {
       "localizations": {
         "en": {
@@ -2911,6 +3031,26 @@
         }
       }
     },
+    "Lås upp": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlock"
+          }
+        }
+      }
+    },
+    "Lås upp App Dance": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlock App Dance"
+          }
+        }
+      }
+    },
     "Lösenord": {
       "localizations": {
         "en": {
@@ -2937,6 +3077,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Food & Drink"
+          }
+        }
+      }
+    },
+    "Med egna ord, som i ett sms.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In your own words, like a text message."
           }
         }
       }
@@ -3231,6 +3381,16 @@
         }
       }
     },
+    "Prova den direkt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Try it right away"
+          }
+        }
+      }
+    },
     "Prova i helskärm": {
       "localizations": {
         "en": {
@@ -3377,6 +3537,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Safari opens with the steps. The phone only hands over its identifier, and nothing stays on it."
+          }
+        }
+      }
+    },
+    "Se den byggas": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Watch it being built"
           }
         }
       }
@@ -3641,6 +3811,16 @@
         }
       }
     },
+    "Skriv koden här": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type the code here"
+          }
+        }
+      }
+    },
     "Skriv vad du vill bygga (högst 8000 tecken).": {
       "localizations": {
         "en": {
@@ -3891,6 +4071,16 @@
         }
       }
     },
+    "Så går det till": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How it works"
+          }
+        }
+      }
+    },
     "Så går det till när appar byggs": {
       "localizations": {
         "en": {
@@ -4047,6 +4237,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "The words are written to be easy to read"
+          }
+        }
+      }
+    },
+    "Till exempel": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For example"
           }
         }
       }
@@ -4311,6 +4511,16 @@
         }
       }
     },
+    "Vill du ha den i App Store? Vi visar vägen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Want it in the App Store? We show you the way."
+          }
+        }
+      }
+    },
     "Vill du ha den på din telefon också?": {
       "localizations": {
         "en": {
@@ -4401,6 +4611,16 @@
         }
       }
     },
+    "Välj en plan, så bygger vi den åt dig medan du tittar på. Du provar den direkt i telefonen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pick a plan, and we build it for you while you watch. You try it on your phone right away."
+          }
+        }
+      }
+    },
     "Välj ikon": {
       "localizations": {
         "en": {
@@ -4447,6 +4667,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Picking colours that fit"
+          }
+        }
+      }
+    },
+    "Välkommen tillbaka": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Welcome back"
           }
         }
       }
@@ -4657,6 +4887,56 @@
           "stringUnit": {
             "state": "translated",
             "value": "Surprise me"
+          }
+        }
+      }
+    },
+    "”En app som håller koll på mina löprundor”": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“An app that keeps track of my runs”"
+          }
+        }
+      }
+    },
+    "”En app som påminner mig att vattna blommorna”": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“An app that reminds me to water the plants”"
+          }
+        }
+      }
+    },
+    "”En packlista som minns vad jag glömde sist”": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“A packing list that remembers what I forgot last time”"
+          }
+        }
+      }
+    },
+    "”En poängräknare till spelkvällen”": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“A scorekeeper for game night”"
+          }
+        }
+      }
+    },
+    "”Ett recepthäfte för mormors kakor”": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“A recipe book for grandma's cookies”"
           }
         }
       }

@@ -256,6 +256,15 @@ export interface PlanState {
   resetsAt: number;
   /** Every plan, for showing what a larger one would give. */
   plans: Record<PlanId, PlanLimits>;
+  /**
+   * True when the person stands in front of the paywall: plans are on, and theirs lets them build
+   * nothing. Missing from servers before the paywall, where the smallest plan always held something.
+   */
+  locked?: boolean;
+  /** Whether a code can be given in place of paying. */
+  takesCode?: boolean;
+  /** What each plan costs, in the operator's own words ("99 kr i månaden"), for the plans that have a price. */
+  prices?: Partial<Record<PlanId, string>>;
 }
 
 /** What the open project needs to know about the plan, to ask for the right thing at the right moment. */
@@ -270,15 +279,39 @@ export function isPlanId(value: unknown): value is PlanId {
 }
 
 /** The smallest plan that has what is needed, or null when no plan does. */
-export function planFor(need: PlanNeed, used: { apps: number; messages: number }): PlanId | null {
+export function planFor(need: PlanNeed, used: { apps: number; messages: number }, plans: Record<PlanId, PlanLimits> = PLANS): PlanId | null {
   return (
     PLAN_ORDER.find((id) => {
-      const plan = PLANS[id];
+      const plan = plans[id];
       if (need === 'install') return plan.install;
       if (need === 'store') return plan.store;
       return need === 'apps' ? plan.apps > used.apps : plan.messages > used.messages;
     }) ?? null
   );
+}
+
+/**
+ * The codes that let a person past the paywall, as the operator writes them: separated by commas,
+ * each one a code, or a code and the plan it gives ("sommar=create"). A code on its own gives the
+ * largest plan. Codes shorter than four characters are not codes.
+ */
+export function unlockCodes(written: string): Array<{ code: string; plan: PlanId }> {
+  return written.split(',').flatMap((entry) => {
+    const [code = '', plan = 'publish'] = entry.split('=').map((part) => part.trim());
+    return code.length >= 4 && isPlanId(plan) ? [{ code, plan }] : [];
+  });
+}
+
+/** What each plan costs, as the operator writes it: "create=99 kr i månaden; publish=249 kr i månaden". */
+export function planPrices(written: string): Partial<Record<PlanId, string>> {
+  const prices: Partial<Record<PlanId, string>> = {};
+  for (const entry of written.split(';')) {
+    const at = entry.indexOf('=');
+    const plan = entry.slice(0, at).trim();
+    const price = entry.slice(at + 1).trim();
+    if (at > 0 && isPlanId(plan) && price) prices[plan] = price.slice(0, 60);
+  }
+  return prices;
 }
 
 // ---------------------------------------------------------------------------

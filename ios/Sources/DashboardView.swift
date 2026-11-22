@@ -125,7 +125,10 @@ struct DashboardView: View {
         AppleAccountView(api: model.api)
       }
       .sheet(isPresented: $isShowingPlan) {
-        PlanView(api: model.api)
+        // Let past the paywall with a code: on with the app the person was about to build.
+        PlanView(api: model.api) {
+          if !trimmedPrompt.isEmpty { create() }
+        }
       }
       .refreshable { await load() }
       .task { await load() }
@@ -261,7 +264,12 @@ struct DashboardView: View {
         projects.insert(project, at: 0)
         path = [project]
       } catch {
-        errorText = Texts.apiError(error.code)
+        // The plan does not hold this: the answer is the plans, or the paywall, and not a line of red.
+        if error.code.hasPrefix("plan_") {
+          isShowingPlan = true
+        } else {
+          errorText = Texts.apiError(error.code)
+        }
       }
     }
   }

@@ -67,6 +67,16 @@ export const config = {
   paywall: process.env.PAYWALL === '1',
   /** The plan of a person who has not been given one: free, create or publish. */
   defaultPlan: process.env.DEFAULT_PLAN ?? 'free',
+  /**
+   * What the smallest plan holds, when it is to hold something else than usual: FREE_APPS=0 makes
+   * it a paywall, where nothing is built before the person has paid or given a code.
+   */
+  freeApps: process.env.FREE_APPS === undefined || process.env.FREE_APPS === '' ? null : Math.max(0, Number(process.env.FREE_APPS) || 0),
+  freeMessages: process.env.FREE_MESSAGES === undefined || process.env.FREE_MESSAGES === '' ? null : Math.max(0, Number(process.env.FREE_MESSAGES) || 0),
+  /** Codes that let a person past the paywall, and the plan each gives: "kod1, kod2=create". */
+  unlockCodes: process.env.UNLOCK_CODES ?? '',
+  /** What the plans cost, to show beside them: "create=99 kr i månaden; publish=249 kr i månaden". */
+  planPrices: process.env.PLAN_PRICES ?? '',
   /** How many phones one person may add. */
   maxPhones: Math.max(1, Number(process.env.MAX_PHONES_PER_USER ?? 2) || 2),
   /** The address people reach the service at, for links that phones open. Worked out from the request when empty. */

@@ -74,7 +74,7 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
 }
 
 export const api = {
-  config: () => call<{ inviteRequired: boolean }>('GET', '/api/config'),
+  config: () => call<{ inviteRequired: boolean; paywall?: boolean }>('GET', '/api/config'),
   me: () => call<{ user: User | null }>('GET', '/api/me'),
   signup: (email: string, password: string, inviteCode: string) =>
     call<{ user: User }>('POST', '/api/auth/signup', { email, password, inviteCode }),
@@ -98,6 +98,7 @@ export const api = {
   plan: () => call<PlanState>('GET', '/api/plan'),
   /** Asks for a larger plan. There is no payment yet: the people who run the service answer. */
   requestPlan: (plan: PlanId) => call<PlanState>('POST', '/api/plan/request', { plan }),
+  unlockPlan: (code: string) => call<PlanState>('POST', '/api/plan/unlock', { code }),
   operatorPlans: () => call<OperatorPlans>('GET', '/api/operator/plans'),
   givePlan: (email: string, plan: PlanId) => call<OperatorPlans>('POST', '/api/operator/plans', { email, plan }),
   /** A link for adding a phone, to open (or scan) on that phone. */

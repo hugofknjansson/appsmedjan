@@ -1,14 +1,19 @@
 // The person's plan: what it holds, how much of it is used, and a way to ask for a larger one.
+// For someone whose plan lets them build nothing this is the paywall: what they get, what it
+// costs, and a field for a code that lets them past it.
 // There is no payment yet: asking sends a request, and the people who run the service answer it.
 import SwiftUI
 
 struct PlanView: View {
   let api: API
+  /// Called when a code has let the person past the paywall, after the view has closed.
+  var onUnlock: (() -> Void)?
 
   @Environment(\.dismiss) private var dismiss
   @State private var plan: PlanState?
   @State private var isBusy = false
   @State private var errorText: String?
+  @State private var code = ""
 
   var body: some View {
     NavigationStack {
@@ -22,10 +27,16 @@ struct PlanView: View {
                 .padding(14)
                 .background(Color.brand.opacity(0.14), in: .rect(cornerRadius: 16, style: .continuous))
             }
-            used(plan)
-            ForEach(PlanState.order, id: \.self) { id in
-              if let limits = plan.plans[id] { card(id, limits, in: plan) }
+            if plan.isLocked {
+              pitch
+            } else {
+              used(plan)
             }
+            ForEach(PlanState.order, id: \.self) { id in
+              // A plan that holds nothing is the paywall itself, not something to choose.
+              if let limits = plan.plans[id], limits.apps > 0 { card(id, limits, in: plan) }
+            }
+            if plan.takesCode == true, plan.plan != PlanState.order.last { codeCard }
             Text("Betalning är inte påslagen än. När du ber om en plan slår vi på den åt dig.")
               .font(.footnote)
               .foregroundStyle(.secondary)
@@ -44,7 +55,7 @@ struct PlanView: View {
         .padding()
       }
       .background(Color(.paper))
-      .navigationTitle("Min plan")
+      .navigationTitle(plan?.isLocked == true ? "Lås upp App Dance" : "Min plan")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
@@ -53,6 +64,53 @@ struct PlanView: View {
       }
       .task { await load() }
     }
+  }
+
+  /// What stands in front of the paywall: what the person gets on the other side of it.
+  private var pitch: some View {
+    VStack(spacing: 12) {
+      Mascot(tile: .white, eyes: .brandDeep, isWaving: true)
+        .frame(width: 96)
+      Text("Din idé är ett steg från att bli en app")
+        .font(.title2.weight(.heavy))
+        .multilineTextAlignment(.center)
+      Text("Välj en plan, så bygger vi den åt dig medan du tittar på. Du provar den direkt i telefonen.")
+        .font(.subheadline)
+        .multilineTextAlignment(.center)
+        .opacity(0.9)
+    }
+    .foregroundStyle(.white)
+    .frame(maxWidth: .infinity)
+    .padding(22)
+    .background(.brandGradient, in: .rect(cornerRadius: 26, style: .continuous))
+  }
+
+  /// A code in place of paying.
+  private var codeCard: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      Text("Har du en kod?")
+        .font(.headline)
+      HStack(spacing: 10) {
+        TextField("Skriv koden här", text: $code)
+          .textInputAutocapitalization(.never)
+          .autocorrectionDisabled()
+          .submitLabel(.go)
+          .onSubmit(unlock)
+          .padding(.horizontal, 14)
+          .padding(.vertical, 11)
+          .background(Color(.paper), in: .rect(cornerRadius: 14, style: .continuous))
+        Button("Lås upp", action: unlock)
+          .font(.subheadline.weight(.semibold))
+          .padding(.horizontal, 16)
+          .frame(minHeight: 44)
+          .foregroundStyle(.white)
+          .background(.brandGradient, in: .capsule)
+          .buttonStyle(.pop)
+          .disabled(isBusy || code.trimmingCharacters(in: .whitespaces).isEmpty)
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .card()
   }
 
   private func used(_ plan: PlanState) -> some View {
@@ -87,6 +145,12 @@ struct PlanView: View {
       HStack {
         Text(Texts.planName(id))
           .font(.title3.weight(.heavy))
+        if let price = plan.prices?[id] {
+          Spacer()
+          Text(price)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(Color.brand)
+        }
         if isMine {
           Text("Din plan")
             .font(.caption.weight(.bold))
@@ -130,6 +194,28 @@ struct PlanView: View {
       plan = try await api.plan()
     } catch {
       errorText = Texts.apiError(error.code)
+    }
+  }
+
+  private func unlock() {
+    let given = code.trimmingCharacters(in: .whitespaces)
+    guard !given.isEmpty, !isBusy else { return }
+    isBusy = true
+    errorText = nil
+    Task {
+      defer { isBusy = false }
+      do throws(APIError) {
+        let wasLocked = plan?.isLocked == true
+        plan = try await api.unlockPlan(code: given)
+        code = ""
+        // Past the paywall: back to what the person was about to do.
+        if wasLocked, plan?.isLocked != true {
+          dismiss()
+          onUnlock?()
+        }
+      } catch {
+        errorText = Texts.apiError(error.code)
+      }
     }
   }
 
