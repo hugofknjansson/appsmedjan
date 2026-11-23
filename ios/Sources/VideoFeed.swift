@@ -103,6 +103,13 @@ final class VideoFeed {
     renderer.enqueue(sample)
   }
 
+  /// Starts again from the next whole picture, for a new connection. The last picture stays on
+  /// screen until then.
+  func restart() {
+    layer.sampleBufferRenderer.flush()
+    waitsForKey = true
+  }
+
   /// Forgets the video, for when the screen goes away or comes as still pictures again.
   func reset() {
     layer.sampleBufferRenderer.flush(removingDisplayedImage: true, completionHandler: nil)

@@ -25,6 +25,7 @@ struct ProjectView: View {
     return direct
   }
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.scenePhase) private var scenePhase
   private let api: API
 
   /// `isNew`: the app has just been asked for, and is being built. The show is then up from the very
@@ -167,8 +168,15 @@ struct ProjectView: View {
     .alert("Appen hittades inte.", isPresented: .constant(store.isMissing)) {
       Button("Alla appar") { dismiss() }
     }
-    // The connection lives exactly as long as this screen is open.
+    // The connection lives exactly as long as this screen is open, and not while the app is in the background.
     .task { await store.run() }
+    .onChange(of: scenePhase) { _, phase in
+      switch phase {
+      case .background: store.pause()
+      case .active: store.resume()
+      default: break
+      }
+    }
   }
 }
 

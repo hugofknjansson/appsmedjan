@@ -43,7 +43,12 @@ final class ProjectStore {
   private(set) var isLoaded = false
 
   private var socket: URLSessionWebSocketTask?
+  /// True once the simulator has been woken on this connection; each new connection wakes it again.
   private var askedForPreview = false
+  /// True while the app is in the background. There is then no connection: nothing is streamed for
+  /// nobody to see, and the simulator is let go of after a while like for anyone who has left. A
+  /// connection kept through the background is the one that looks open on the way back and is not.
+  private var isPaused = false
 
   init(project: ProjectSummary, api: API) {
     id = project.id
@@ -83,8 +88,16 @@ final class ProjectStore {
     var delay = Duration.milliseconds(500)
     var failures = 0
     while !Task.isCancelled && !isMissing {
+      while isPaused && !Task.isCancelled {
+        try? await Task.sleep(for: .milliseconds(200))
+      }
+      if Task.isCancelled { break }
       let task = URLSession.shared.webSocketTask(with: api.socketRequest(projectID: id, takesVideo: takesVideo))
       socket = task
+      askedForPreview = false
+      // What is on screen stays until the new connection brings something newer, but the video
+      // starts again from a whole picture, which is the first thing a new connection is sent.
+      video.restart()
       task.resume()
       do {
         while true {
@@ -109,6 +122,11 @@ final class ProjectStore {
       task.cancel(with: .goingAway, reason: nil)
       socket = nil
       isConnected = false
+      // Closed for the background, not refused: straight back when the app is.
+      if isPaused {
+        delay = .milliseconds(500)
+        continue
+      }
       // A project that never lets us in does not exist, or is not ours.
       failures += 1
       if !isLoaded && failures >= 3 { isMissing = true }
@@ -126,7 +144,14 @@ final class ProjectStore {
     if case .state = event {
       isConnected = true
       isLoaded = true
-      // Wake the simulator once when the app is opened; after that the person decides.
+      // No simulator is running for the app any more (it was let go of while nobody watched): the
+      // picture still on screen is an old one, and is not left standing as if it were the app.
+      if preview.status == .idle || preview.status == .unavailable {
+        frame = nil
+        showsVideo = false
+        video.reset()
+      }
+      // Wake the simulator when the app is opened or come back to; after that the person decides.
       if !askedForPreview && !isRunning && preview.status == .idle { startPreview() }
       askedForPreview = true
     }
@@ -178,6 +203,20 @@ final class ProjectStore {
     case .filesChanged, .unknown:
       break
     }
+  }
+
+  // MARK: - The app in the background
+
+  /// The app went to the background: the connection is closed until it comes back.
+  func pause() {
+    guard !isPaused else { return }
+    isPaused = true
+    socket?.cancel(with: .goingAway, reason: nil)
+  }
+
+  /// The app is in front again: a fresh connection, which brings the screen as it is now.
+  func resume() {
+    isPaused = false
   }
 
   // MARK: - Things the person does
