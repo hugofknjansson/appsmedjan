@@ -1,5 +1,5 @@
-// The wait as a show: while the app is built, the whole screen is the mascot dancing and, in large
-// words, what is being made right now.
+// The wait as a show: while the app is built, the whole screen is the mascot dancing, in large words
+// what is being made right now, and the machines that make it, several of them at work at once.
 import SwiftUI
 
 struct BuildShow: View {
@@ -49,17 +49,11 @@ struct BuildShow: View {
     }
   }
 
-  /// What was made before this, the latest first.
-  private var earlier: [String] {
-    guard stage == .building else { return [] }
-    return Array(said.dropLast().suffix(3).reversed())
-  }
-
   var body: some View {
     VStack(spacing: 0) {
       Spacer(minLength: 8)
       Mascot(tile: .white, eyes: .brandDeep, isDancing: stage != .done, isCheering: stage == .done)
-        .frame(maxWidth: 230)
+        .frame(maxWidth: 150, maxHeight: 150)
         // The floor it dances on: a shadow under its feet.
         .background {
           GeometryReader { box in
@@ -72,7 +66,7 @@ struct BuildShow: View {
         .modifier(arriving(0))
       VStack(spacing: 12) {
         Text(headline)
-          .font(.largeTitle.weight(.heavy))
+          .font(.title.weight(.heavy))
           .multilineTextAlignment(.center)
           .lineLimit(3)
           .minimumScaleFactor(0.6)
@@ -86,7 +80,7 @@ struct BuildShow: View {
           .font(.title3)
           .multilineTextAlignment(.center)
           .opacity(0.9)
-          .frame(minHeight: 56, alignment: .top)
+          .frame(minHeight: 50, alignment: .top)
       }
       .animation(.spring(duration: 0.5, bounce: 0.15), value: headline)
       .padding(.top, 14)
@@ -112,19 +106,10 @@ struct BuildShow: View {
       .padding(.top, 14)
       .modifier(arriving(2))
 
-      VStack(alignment: .leading, spacing: 8) {
-        ForEach(earlier, id: \.self) { line in
-          Label(line, systemImage: "checkmark.circle.fill")
-            .lineLimit(1)
-            .transition(.asymmetric(insertion: .push(from: .top).combined(with: .opacity), removal: .opacity))
-        }
-      }
-      .font(.subheadline)
-      .opacity(0.8)
-      .frame(maxWidth: .infinity, minHeight: 78, alignment: .top)
-      .padding(.top, 18)
-      .animation(.smooth(duration: 0.4), value: earlier)
-      .modifier(arriving(3))
+      // The machines at work on it, several at once.
+      CrewBoard(progress: progress, isDone: stage == .done)
+        .padding(.top, 18)
+        .modifier(arriving(3))
 
       Spacer(minLength: 8)
       HStack(spacing: 10) {

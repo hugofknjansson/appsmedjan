@@ -182,27 +182,45 @@ struct DashboardView: View {
       }
       .animation(Motion.arrive(reduced: reduceMotion), value: speech)
 
-      TextField("Beskriv din app med egna ord", text: $prompt, axis: .vertical)
-        .lineLimit(3...8)
-        .focused($isWriting)
-        .fieldBox()
-
-      Button {
-        isWriting = false
-        builds += 1
-        create()
-      } label: {
-        ZStack {
-          Text("Bygg min app").opacity(isCreating ? 0 : 1)
-          if isCreating { ProgressView().tint(.brandDeep).transition(.scale(scale: 0.6).combined(with: .opacity)) }
-        }
-        .animation(Motion.swap, value: isCreating)
+      VStack(alignment: .leading, spacing: 8) {
+        StepLabel(number: 1, text: String(localized: "Beskriv din app"), isNow: trimmedPrompt.isEmpty)
+        TextField("Beskriv din app med egna ord", text: $prompt, prompt: Text(isWriting ? "Beskriv din app med egna ord" : ""), axis: .vertical)
+          .lineLimit(3...8)
+          .focused($isWriting)
+          // Until something is written, ideas take turns where the words go, so the box says what it is for.
+          .overlay(alignment: .topLeading) {
+            if prompt.isEmpty && !isWriting {
+              WaitingCaption(lines: Self.examples, every: 2.8)
+                .foregroundStyle(.tertiary)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+                .transition(.opacity)
+            }
+          }
+          .fieldBox()
       }
-      .buttonStyle(.bouncyInverted)
-      .disabled(isCreating || trimmedPrompt.isEmpty)
+
+      VStack(alignment: .leading, spacing: 8) {
+        StepLabel(number: 2, text: String(localized: "Tryck här, så sätter maskinerna igång"), isNow: !trimmedPrompt.isEmpty)
+        Button {
+          isWriting = false
+          builds += 1
+          create()
+        } label: {
+          ZStack {
+            Label("Bygg min app", systemImage: "sparkles").opacity(isCreating ? 0 : 1)
+            if isCreating { ProgressView().tint(.brandDeep).transition(.scale(scale: 0.6).combined(with: .opacity)) }
+          }
+          .animation(Motion.swap, value: isCreating)
+        }
+        .buttonStyle(.bouncyInverted)
+        // Once there is an idea, a light goes over the button now and then: this is the next thing to press.
+        .overlay { Gleam(isOn: !trimmedPrompt.isEmpty && !isCreating) }
+        .disabled(isCreating || trimmedPrompt.isEmpty)
+      }
 
       if trimmedPrompt.isEmpty {
-        Text("Skriv en idé här ovanför, eller välj ett förslag längre ned.")
+        Text("Inga idéer? Välj ett förslag längre ned.")
           .font(.footnote.weight(.medium))
           .foregroundStyle(.white.opacity(0.92))
           .multilineTextAlignment(.center)
@@ -220,18 +238,22 @@ struct DashboardView: View {
   private var steps: some View {
     HStack(alignment: .top, spacing: 6) {
       ForEach(Array(Self.stepTitles.enumerated()), id: \.offset) { index, title in
+        let isNow = index == (trimmedPrompt.isEmpty ? 0 : 1)
         VStack(spacing: 6) {
           Text(verbatim: "\(index + 1)")
             .font(.subheadline.weight(.heavy))
             .foregroundStyle(.white)
             .frame(width: 30, height: 30)
             .background(.brandGradient, in: .circle)
+            .background { Beacon(isOn: isNow, color: .brand) }
           Text(title)
-            .font(.caption.weight(.semibold))
+            .font(.caption.weight(isNow ? .heavy : .semibold))
             .multilineTextAlignment(.center)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(isNow ? .primary : .secondary)
         }
         .frame(maxWidth: .infinity)
+        .opacity(isNow ? 1 : 0.55)
+        .animation(Motion.arrive(reduced: reduceMotion), value: isNow)
         if index < Self.stepTitles.count - 1 {
           Image(systemName: "chevron.right")
             .font(.caption.weight(.bold))
@@ -245,8 +267,16 @@ struct DashboardView: View {
 
   private static let stepTitles = [
     String(localized: "Beskriv din idé"),
-    String(localized: "Vi bygger den"),
+    String(localized: "Maskinerna bygger den"),
     String(localized: "Du provar den direkt"),
+  ]
+
+  /// What takes turns in the empty box, to show what kind of thing to write there.
+  private static let examples = [
+    String(localized: "T.ex. en app för mina växter"),
+    String(localized: "T.ex. en poängräknare till spelkvällen"),
+    String(localized: "T.ex. en packlista för resan"),
+    String(localized: "T.ex. en receptbok för mormors kakor"),
   ]
 
   /// Ideas to start from, as cards to press: each one writes itself into the box above.
@@ -346,6 +376,75 @@ struct DashboardView: View {
       for project in doomed {
         try? await model.api.deleteProject(project.id)
       }
+    }
+  }
+}
+
+/// Which step of the start card this is, and whether it is the one to do now.
+private struct StepLabel: View {
+  let number: Int
+  let text: String
+  let isNow: Bool
+
+  var body: some View {
+    HStack(spacing: 8) {
+      Text(verbatim: "\(number)")
+        .font(.caption.weight(.heavy))
+        .foregroundStyle(Color.brandDeep)
+        .frame(width: 22, height: 22)
+        .background(.white, in: .circle)
+        .background { Beacon(isOn: isNow, color: .white) }
+      Text(text)
+        .font(.subheadline.weight(.bold))
+        .foregroundStyle(.white)
+    }
+    .opacity(isNow ? 1 : 0.7)
+    .animation(Motion.swap, value: isNow)
+    .accessibilityElement(children: .combine)
+  }
+}
+
+/// A ring that keeps spreading out from behind a step, like a beacon: here is where to go on.
+private struct Beacon: View {
+  let isOn: Bool
+  let color: Color
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  var body: some View {
+    if isOn && !reduceMotion {
+      Circle()
+        .stroke(color, lineWidth: 2)
+        .phaseAnimator([false, true]) { ring, spread in
+          ring.scaleEffect(spread ? 1.7 : 1).opacity(spread ? 0 : 0.8)
+        } animation: { spread in
+          spread ? .easeOut(duration: 1.4) : nil
+        }
+        .allowsHitTesting(false)
+        .transition(.opacity)
+    }
+  }
+}
+
+/// A light that goes over a button every few seconds, to show it is the thing to press next.
+private struct Gleam: View {
+  let isOn: Bool
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  var body: some View {
+    if isOn && !reduceMotion {
+      GeometryReader { box in
+        LinearGradient(colors: [.clear, Color.brandLight.opacity(0.35), .clear], startPoint: .leading, endPoint: .trailing)
+          .frame(width: box.size.width * 0.4)
+          .rotationEffect(.degrees(18))
+          .phaseAnimator([false, true]) { band, across in
+            band.offset(x: across ? box.size.width * 1.1 : -box.size.width * 0.5)
+          } animation: { across in
+            across ? .easeInOut(duration: 1).delay(1.6) : nil
+          }
+      }
+      .clipShape(.capsule)
+      .allowsHitTesting(false)
+      .transition(.opacity)
     }
   }
 }

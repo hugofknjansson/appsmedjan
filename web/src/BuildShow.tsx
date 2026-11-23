@@ -1,7 +1,8 @@
-// The wait as a show: while the app is built, the whole page is the mascot dancing and, in large
-// words, what is being made right now. The same show as ios/Sources/BuildShow.swift.
+// The wait as a show: while the app is built, the whole page is the mascot dancing, in large words
+// what is being made right now, and the machines that make it, several of them at work at once. The same show as ios/Sources/BuildShow.swift.
 import { useEffect, useState, type CSSProperties } from 'react';
 import { directProgress, runProgress, type DirectInstall, type Part } from '../../shared/protocol';
+import { CrewBoard } from './Crew';
 import { Mascot, WaitingCaption } from './Mascot';
 import { t } from './i18n';
 
@@ -66,8 +67,6 @@ export function BuildShow({ stage, parts, phone, startedAt, onChat, onStop, grow
   const headline = building ? (said.at(-1) ?? t.phase[progress.phase]) : stage === 'done' ? t.show.done : phone?.stage === 'signing' ? t.direct.steps[1]! : t.direct.gettingReady;
   const lines = building ? t.show.lines[progress.phase] : stage === 'done' ? [t.show.doneSub] : t.wait.phone;
   const fraction = building ? progress.fraction : stage === 'done' ? 1 : ((phone && directProgress(phone)) ?? 0.05);
-  // What was made before this, the latest first.
-  const earlier = building ? said.slice(0, -1).slice(-3).reverse() : [];
 
   // Escape leaves the show for the chat, as it would close a dialog.
   useEffect(() => {
@@ -99,11 +98,8 @@ export function BuildShow({ stage, parts, phone, startedAt, onChat, onStop, grow
           {progress.pieces > 0 && building && startedAt !== null && ' · '}
           {startedAt !== null && building && <Clock startedAt={startedAt} />}
         </small>
-        <ul className="show-earlier">
-          {earlier.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
+        {/* The machines at work on it, several at once. Not while the finished app is made ready for the phone. */}
+        {stage !== 'phone' && <CrewBoard progress={progress} done={stage === 'done'} />}
         <div className="show-actions">
           {building && (
             <button type="button" onClick={onStop}>

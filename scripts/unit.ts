@@ -29,6 +29,7 @@ import {
   listingProblems,
   readPhoneAnswer,
   runProgress,
+  machineStates,
   type Part,
   parseContact,
   PLANS,
@@ -116,7 +117,23 @@ assert.ok(!isUdid('00008110-000A1B2C3D4E5F6') && !isUdid('g'.repeat(40)) && !isU
 {
   let n = 0;
   const step = (kind: string, status = 'done'): Part => ({ t: 'step', step: { id: `s${n++}`, kind, detail: '', status } }) as Part;
-  assert.deepEqual(runProgress([]), { phase: 'thinking', pieces: 0, fraction: 0.05 });
+  assert.deepEqual(runProgress([]), { phase: 'thinking', pieces: 0, fraction: 0.05, tries: 0, hasIcon: false });
+  {
+    // Several machines work at once, in step with the builder; all are done when the app is.
+    const working = (parts: Part[]) =>
+      Object.entries(machineStates(runProgress(parts), false))
+        .filter(([, state]) => state === 'working')
+        .map(([machine]) => machine)
+        .sort();
+    assert.deepEqual(working([]), ['designer', 'planner']);
+    assert.deepEqual(working([step('write', 'running')]), ['coder', 'designer']);
+    assert.deepEqual(working([step('write'), step('icon', 'running')]), ['coder', 'designer', 'painter']);
+    assert.deepEqual(working([step('write'), step('icon'), step('build', 'running')]), ['builder', 'tester']);
+    assert.deepEqual(working([step('write'), step('build', 'error'), step('edit', 'running')]), ['coder']);
+    assert.deepEqual(working([step('write'), step('build'), step('look', 'running')]), ['tester']);
+    assert.equal(machineStates(runProgress([step('write'), step('icon')]), false).painter, 'done');
+    assert.ok(Object.values(machineStates(runProgress([]), true)).every((state) => state === 'done'));
+  }
   assert.equal(runProgress([step('rename'), step('icon', 'running')]).phase, 'drawing');
   assert.deepEqual(runProgress([step('write'), step('write'), step('write', 'running')]).phase, 'making');
   assert.equal(runProgress([step('write'), step('write'), step('write', 'running')]).pieces, 2);
@@ -137,7 +154,7 @@ assert.ok(!isUdid('00008110-000A1B2C3D4E5F6') && !isUdid('g'.repeat(40)) && !isU
   assert.equal(latestSaid([say('Väljer färger'), step('write'), say(' Nu gör jag listan '), step('write', 'running')]), 'Nu gör jag listan');
   assert.equal(latestSaid([say('Väljer färger'), say('')]), 'Väljer färger');
   assert.equal(runProgress([step('write'), step('build', 'running'), say('Provar')]).phase, 'trying');
-  assert.deepEqual(runProgress([say('Hej')]), { phase: 'thinking', pieces: 0, fraction: 0.05 });
+  assert.deepEqual(runProgress([say('Hej')]), { phase: 'thinking', pieces: 0, fraction: 0.05, tries: 0, hasIcon: false });
 }
 
 // The card that asks about installing carries only the builder's first sentence

@@ -62,6 +62,10 @@ nonisolated struct RunProgress: Equatable {
   var pieces = 0
   /// How far along the whole run is, between 0 and 1: a guess that only ever grows within a run.
   var fraction = 0.05
+  /// How many times the app has been built and started so far.
+  var tries = 0
+  /// True once the icon has been drawn.
+  var hasIcon = false
 
   init(parts: [Part]) {
     // What the builder says along the way is not work of its own.
@@ -69,7 +73,8 @@ nonisolated struct RunProgress: Equatable {
       if case .step(let step) = part, step.kind != .say { step } else { nil }
     }
     pieces = steps.count { ($0.kind == .write || $0.kind == .edit) && $0.status != .running }
-    let tries = steps.count { $0.kind == .build }
+    tries = steps.count { $0.kind == .build }
+    hasIcon = steps.contains { $0.kind == .icon && $0.status == .done }
     if let latest = steps.last {
       switch latest.kind {
       case .build: phase = latest.status == .error ? .fixing : .trying

@@ -173,6 +173,28 @@ private func summary() -> ProjectSummary {
     #expect(way.last! <= 0.92)
   }
 
+  @Test func `several machines work at once, in step with the builder`() {
+    var number = 0
+    func step(_ kind: Step.Kind, _ status: Step.Status = .done) -> Part {
+      number += 1
+      return .step(Step(id: "s\(number)", kind: kind, detail: "", status: status))
+    }
+    func working(_ parts: [Part], isDone: Bool = false) -> Set<Machine> {
+      Set(Machine.states(RunProgress(parts: parts), isDone: isDone).filter { $0.value == .working }.keys)
+    }
+    #expect(working([]) == [.planner, .designer])
+    #expect(working([step(.write, .running)]) == [.designer, .coder])
+    #expect(working([step(.write), step(.icon, .running)]) == [.designer, .coder, .painter])
+    #expect(working([step(.write), step(.icon), step(.build, .running)]) == [.builder, .tester])
+    #expect(working([step(.write), step(.build, .error), step(.edit, .running)]) == [.coder])
+    #expect(working([step(.write), step(.build), step(.look, .running)]) == [.tester])
+    // Every machine says what it is doing, and every one is done when the app is.
+    let states = Machine.states(RunProgress(parts: [step(.write), step(.icon)]), isDone: false)
+    #expect(states.count == Machine.allCases.count)
+    #expect(states[.painter] == .done)
+    #expect(Machine.states(RunProgress(parts: []), isDone: true).values.allSatisfy { $0 == .done })
+  }
+
   @Test(arguments: [
     ("Nu är din växtapp grön. Tryck på plus för att lägga till en växt.", "Nu är din växtapp grön."),
     ("  Klart!\n\nTesta så här:\n- Tryck på ringen", "Klart!"),

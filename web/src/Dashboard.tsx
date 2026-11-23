@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError, api, type AppRequest, type ProjectSummary, type User } from './api';
 import { AppleAccountDialog } from './AppleAccount';
 import { Logo } from './Logo';
-import { Mascot } from './Mascot';
+import { Mascot, WaitingCaption } from './Mascot';
 import { OperatorPlans, PlanDialog } from './Plan';
 import { apiErrorText, lang, t } from './i18n';
 
@@ -30,6 +30,7 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
   const [appleOpen, setAppleOpen] = useState(false);
   const [plansOn, setPlansOn] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
+  const [writing, setWriting] = useState(false);
   // An idea writing itself into the box, letter by letter: the timer, and the whole of the idea.
   const typing = useRef<number | null>(null);
   const typingIdea = useRef<string | null>(null);
@@ -152,24 +153,37 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
             <Mascot dancing={busy || prompt.trim() !== ''} tile="#fff" eyes="#c74005" />
           </div>
           {notice && <p className="notice">{notice}</p>}
-          <form className="composer big" onSubmit={create}>
-            <textarea
-              value={prompt}
-              rows={3}
-              maxLength={8000}
-              placeholder={t.promptPlaceholder}
-              aria-label={t.heroTitle}
-              onFocus={() => void finishTyping()}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void create(e);
-              }}
-            />
-            <div className="composer-row">
-              <button className="btn primary" disabled={busy || !prompt.trim()}>
-                {t.build}
-              </button>
+          <form className="start-steps" onSubmit={create}>
+            <StepLabel number={1} text={t.startSteps.describe} now={!prompt.trim()} />
+            <div className="composer big start-field">
+              <textarea
+                value={prompt}
+                rows={3}
+                maxLength={8000}
+                placeholder={writing ? t.promptPlaceholder : ''}
+                aria-label={t.heroTitle}
+                onFocus={() => {
+                  setWriting(true);
+                  void finishTyping();
+                }}
+                onBlur={() => setWriting(false)}
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void create(e);
+                }}
+              />
+              {/* Until something is written, ideas take turns where the words go, so the box says what it is for. */}
+              {!prompt && !writing && (
+                <div className="start-examples" aria-hidden="true">
+                  <WaitingCaption lines={t.startSteps.examples} every={2800} />
+                </div>
+              )}
             </div>
+            <StepLabel number={2} text={t.startSteps.press} now={prompt.trim() !== ''} />
+            {/* Once there is an idea, a light goes over the button now and then: this is the next thing to press. */}
+            <button className="btn primary start-build" data-gleam={(prompt.trim() !== '' && !busy) || undefined} disabled={busy || !prompt.trim()}>
+              <span aria-hidden="true">✦</span> {t.build}
+            </button>
           </form>
           {error && (
             <p className="form-error" role="alert">
@@ -242,5 +256,15 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
         <OperatorPlans />
       </main>
     </div>
+  );
+}
+
+/** Which step of the start card this is, and whether it is the one to do now. */
+function StepLabel({ number, text, now }: { number: number; text: string; now: boolean }) {
+  return (
+    <p className="start-step" data-now={now || undefined}>
+      <span aria-hidden="true">{number}</span>
+      {text}
+    </p>
   );
 }

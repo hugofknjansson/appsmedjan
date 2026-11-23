@@ -1,8 +1,9 @@
-// The way in, and the first thing a visitor sees: what the service does, in a few lines and a
-// dancing mascot, beside the form to make an account or sign in.
+// The way in, and the first thing a visitor sees: a short film of what the service does, and after
+// it the form to make an account or sign in, beside a few lines and a dancing mascot.
 import { useEffect, useState, type FormEvent } from 'react';
 import { ApiError, api, type User } from './api';
 import { NAME } from './Logo';
+import { Intro } from './Intro';
 import { Mascot, WaitingCaption } from './Mascot';
 import { apiErrorText, t } from './i18n';
 
@@ -15,6 +16,8 @@ export function Auth({ onDone }: { onDone: (user: User) => void }) {
   const [paywall, setPaywall] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // The short film of what the service does comes first; the form after it.
+  const [pastIntro, setPastIntro] = useState(false);
   const text = t.welcome;
 
   useEffect(() => {
@@ -41,6 +44,17 @@ export function Auth({ onDone }: { onDone: (user: User) => void }) {
     }
   }
 
+  if (!pastIntro) {
+    return (
+      <Intro
+        onStart={(isNew) => {
+          setMode(isNew ? 'signup' : 'login');
+          setPastIntro(true);
+        }}
+      />
+    );
+  }
+
   return (
     <main className="auth">
       <section className="auth-pitch">
@@ -49,6 +63,9 @@ export function Auth({ onDone }: { onDone: (user: User) => void }) {
           <span>{NAME}</span>
         </div>
         <h1>{text.headline}</h1>
+        <button type="button" className="auth-again" onClick={() => setPastIntro(false)}>
+          {t.intro.again}
+        </button>
         <p className="auth-sub">{text.sub}</p>
         {/* What people ask for, one idea at a time, as the words of someone describing their app. */}
         <div className="auth-idea">
@@ -78,7 +95,7 @@ export function Auth({ onDone }: { onDone: (user: User) => void }) {
         {mode === 'signup' && <p className="muted">{paywall ? text.freeThenPlan : text.free}</p>}
         <label>
           <span>{t.email}</span>
-          <input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+          <input type="email" autoComplete="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
         <label>
           <span>{t.password}</span>

@@ -391,6 +391,10 @@ export interface RunProgress {
   pieces: number;
   /** How far along the whole run is, between 0 and 1: a guess that only ever grows within a run. */
   fraction: number;
+  /** How many times the app has been built and started so far. */
+  tries: number;
+  /** True once the icon has been drawn. */
+  hasIcon: boolean;
 }
 
 /** What the builder last said it is making, or null when it has said nothing yet. */
@@ -423,7 +427,32 @@ export function runProgress(parts: Part[]): RunProgress {
   // the run is over when the server says so.
   const written = 0.5 * Math.min(1, pieces / 8);
   const tried = tries === 0 ? 0 : 0.25 + 0.15 * Math.min(1, (tries - 1) / 3);
-  return { phase, pieces, fraction: Math.min(0.92, 0.05 + written + tried) };
+  const hasIcon = steps.some((step) => step.kind === 'icon' && step.status === 'done');
+  return { phase, pieces, fraction: Math.min(0.92, 0.05 + written + tried), tries, hasIcon };
+}
+
+/** The machines that make an app, each with a job of its own, in the order they are shown. */
+export const MACHINES = ['planner', 'designer', 'coder', 'painter', 'builder', 'tester'] as const;
+export type Machine = (typeof MACHINES)[number];
+export type MachineState = 'waiting' | 'working' | 'done';
+
+/**
+ * Where each machine is, read off how far the builder has come. More than one works at a time: the
+ * look is chosen while the code is written, and the app is tried while it is built. The same
+ * reckoning as `Machine.states` in the iPhone app.
+ */
+export function machineStates(progress: RunProgress, done: boolean): Record<Machine, MachineState> {
+  if (done) return { planner: 'done', designer: 'done', coder: 'done', painter: 'done', builder: 'done', tester: 'done' };
+  const { phase } = progress;
+  const tried = progress.tries > 0;
+  return {
+    planner: phase === 'thinking' ? 'working' : 'done',
+    designer: phase === 'thinking' || phase === 'making' || phase === 'drawing' ? 'working' : 'done',
+    coder: phase === 'thinking' ? 'waiting' : phase === 'trying' || phase === 'looking' ? 'done' : 'working',
+    painter: progress.hasIcon ? 'done' : phase === 'drawing' ? 'working' : 'waiting',
+    builder: phase === 'trying' ? 'working' : tried ? 'done' : 'waiting',
+    tester: phase === 'trying' || phase === 'looking' ? 'working' : tried ? 'done' : 'waiting',
+  };
 }
 
 /**
