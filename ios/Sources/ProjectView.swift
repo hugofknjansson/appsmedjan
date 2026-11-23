@@ -27,9 +27,21 @@ struct ProjectView: View {
   @Environment(\.dismiss) private var dismiss
   private let api: API
 
-  init(project: ProjectSummary, api: API) {
+  /// `isNew`: the app has just been asked for, and is being built. The show is then up from the very
+  /// first frame, so that the card it was asked for in turns straight into it.
+  init(project: ProjectSummary, api: API, isNew: Bool = false) {
     _store = State(initialValue: ProjectStore(project: project, api: api))
+    _show = State(initialValue: isNew ? .building : nil)
+    _runStartedAt = State(initialValue: isNew ? .now : nil)
     self.api = api
+  }
+
+  /// The app over the whole screen. Not slid up from below like a sheet: it opens out of what was
+  /// there, the way an app on the phone opens (see TryView).
+  private func startTrying() {
+    var instant = Transaction()
+    instant.disablesAnimations = true
+    withTransaction(instant) { isTrying = true }
   }
 
   var body: some View {
@@ -39,10 +51,10 @@ struct ProjectView: View {
         .padding(.vertical, 8)
 
       switch pane {
-      case .chat: ChatView(store: store, api: api, runStartedAt: runStartedAt, showBuild: { watchesShow = true }, tryNow: { isTrying = true }, getOut: { guide = .phone })
+      case .chat: ChatView(store: store, api: api, runStartedAt: runStartedAt, showBuild: { watchesShow = true }, tryNow: startTrying, getOut: { guide = .phone })
       case .preview:
         if let phone, !showsSimulator {
-          PhoneTestView(store: store, api: api, direct: phone, showSimulator: { showsSimulator = true }, tryNow: { isTrying = true })
+          PhoneTestView(store: store, api: api, direct: phone, showSimulator: { showsSimulator = true }, tryNow: startTrying)
         } else {
           if phone != nil {
             Button("Tillbaka till min telefon", systemImage: "chevron.left") { showsSimulator = false }
@@ -50,7 +62,7 @@ struct ProjectView: View {
               .frame(maxWidth: .infinity, alignment: .leading)
               .padding(.horizontal)
           }
-          PhoneView(store: store, api: api) { isTrying = true }
+          PhoneView(store: store, api: api, tryNow: startTrying)
         }
       }
     }
@@ -67,10 +79,10 @@ struct ProjectView: View {
           showChat: { watchesShow = false },
           stop: { Task { await store.stop() } }
         )
-        .transition(.opacity.combined(with: .scale(scale: 1.04)))
+        .transition(.opacity.combined(with: .scale(scale: 1.03)))
       }
     }
-    .animation(.smooth(duration: 0.4), value: isShowUp)
+    .animation(.smooth(duration: 0.35), value: isShowUp)
     .toolbar(isShowUp ? .hidden : .visible, for: .navigationBar)
     // Something to cheer about: the builder has finished, or the app has arrived on the phone.
     .overlay { Confetti(trigger: cheers) }
@@ -85,6 +97,8 @@ struct ProjectView: View {
           UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         }
       } else {
+        // Before the first word from the server, not running says nothing: a new app's show stays up.
+        guard store.isLoaded else { return }
         runStartedAt = nil
         if store.lastRunFailed || !was {
           show = nil
@@ -94,14 +108,25 @@ struct ProjectView: View {
         }
       }
     }
+    // A new app whose build turned out not to be running after all: no show for nothing.
+    .onChange(of: store.isLoaded) { _, loaded in
+      if loaded, !store.isRunning, show == .building {
+        show = nil
+        runStartedAt = nil
+      }
+    }
     // The cheer lasts a moment. Then the app itself takes the screen, to be tried at once, for the
     // person who watched it being built; whoever chose the chat stays there.
     .task(id: show) {
       guard show == .done else { return }
       try? await Task.sleep(for: .seconds(1.8))
       guard !Task.isCancelled, show == .done else { return }
+      // In the same moment: the app opens over the show at once, so what is seen goes from orange
+      // straight to the app. (The show must not go later: the bar coming back under a screen that is
+      // up keeps that screen from showing its menu.)
+      let opensApp = watchesShow && store.preview.status != .unavailable
       show = nil
-      if watchesShow, store.preview.status != .unavailable { isTrying = true }
+      if opensApp { startTrying() }
     }
     .fullScreenCover(isPresented: $isTrying) {
       TryView(store: store) {
@@ -190,7 +215,7 @@ private struct PaneSwitcher: View {
     HStack(spacing: 4) {
       ForEach(Pane.allCases) { choice in
         Button {
-          withAnimation(.bouncy(duration: 0.35)) { pane = choice }
+          withAnimation(Motion.arrive) { pane = choice }
         } label: {
           HStack(spacing: 6) {
             if withSymbols { Image(systemName: choice.symbol) }
@@ -275,8 +300,10 @@ struct ChatView: View {
                 .background(.brandGradient, in: .rect(topLeadingRadius: 20, bottomLeadingRadius: 20, bottomTrailingRadius: 6, topTrailingRadius: 20, style: .continuous))
                 .padding(.leading, 44)
                 .frame(maxWidth: .infinity, alignment: .trailing)
+                .transition(.rise)
             case .assistant:
               PartsView(parts: message.parts)
+                .transition(.rise)
             }
           }
           if store.isRunning {
@@ -285,6 +312,7 @@ struct ChatView: View {
               ProgressCard(progress: RunProgress(parts: store.liveParts), said: store.liveParts.said.last, startedAt: runStartedAt)
             }
             .buttonStyle(.pop)
+            .transition(.rise)
             .accessibilityHint("Visar bygget över hela skärmen")
           } else if let asked {
             AfterBuild(
@@ -298,11 +326,13 @@ struct ChatView: View {
             ) {
               if isLocked { isShowingPlan = true } else if let phone { answer(phone) }
             }
+            .transition(.rise)
           }
         }
         .padding()
-        .animation(.bouncy(duration: 0.4), value: store.isRunning)
-        .animation(.bouncy(duration: 0.4), value: phone?.status)
+        .animation(Motion.arrive, value: store.isRunning)
+        .animation(Motion.arrive, value: phone?.status)
+        .animation(Motion.arrive, value: store.messages.count)
       }
       // Follows new content, like a chat should.
       .defaultScrollAnchor(.bottom)

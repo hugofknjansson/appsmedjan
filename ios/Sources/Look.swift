@@ -16,6 +16,64 @@ extension ShapeStyle where Self == LinearGradient {
   }
 }
 
+// MARK: - Motion
+
+/// How things move, the same everywhere: quick where the person acts, a little softer where the app answers.
+enum Motion {
+  /// A press: answers at once and gives only a little, so that it feels heard without feeling slow.
+  static let press = Animation.spring(duration: 0.2, bounce: 0.25)
+  /// Something that arrives or leaves: lands without overshooting more than a hair.
+  static let arrive = Animation.spring(duration: 0.45, bounce: 0.12)
+  /// One thing turning into another in place.
+  static let swap = Animation.smooth(duration: 0.35)
+
+  /// What arrives with the person's choice of less motion: the same, without the movement.
+  static func arrive(reduced: Bool) -> Animation { reduced ? .easeOut(duration: 0.2) : arrive }
+}
+
+extension AnyTransition {
+  /// Comes up from a little below and out of a blur; leaves by fading, quicker than it came.
+  static var rise: AnyTransition {
+    .asymmetric(
+      insertion: .modifier(active: Rising(isAway: true), identity: Rising(isAway: false)),
+      removal: .opacity.animation(.easeOut(duration: 0.15))
+    )
+  }
+}
+
+private struct Rising: ViewModifier {
+  let isAway: Bool
+  func body(content: Content) -> some View {
+    content
+      .opacity(isAway ? 0 : 1)
+      .offset(y: isAway ? 12 : 0)
+      .scaleEffect(isAway ? 0.97 : 1, anchor: .bottom)
+      .blur(radius: isAway ? 4 : 0)
+  }
+}
+
+// MARK: - Zoom
+
+extension View {
+  /// Where a screen that opens from here grows out of, on iOS versions that can do it.
+  @ViewBuilder func zoomSource(_ id: some Hashable, in namespace: Namespace.ID, cornerRadius: CGFloat = 0) -> some View {
+    if #available(iOS 18, *) {
+      matchedTransitionSource(id: id, in: namespace) { $0.clipShape(.rect(cornerRadius: cornerRadius, style: .continuous)) }
+    } else {
+      self
+    }
+  }
+
+  /// Opens this screen out of the place marked with the same id, and closes it back into it.
+  @ViewBuilder func zoomDestination(_ id: some Hashable, in namespace: Namespace.ID) -> some View {
+    if #available(iOS 18, *) {
+      navigationTransition(.zoom(sourceID: id, in: namespace))
+    } else {
+      self
+    }
+  }
+}
+
 // MARK: - Buttons
 
 /// The main action of a screen: a wide orange pill that squeezes when pressed.
@@ -40,8 +98,9 @@ struct BouncyButtonStyle: ButtonStyle {
         .frame(maxWidth: .infinity, minHeight: 50)
         .background(isInverted ? AnyShapeStyle(.white) : AnyShapeStyle(.brandGradient), in: .capsule)
         .opacity(isEnabled ? 1 : 0.55)
-        .scaleEffect(configuration.isPressed ? 0.95 : 1)
-        .animation(.bouncy(duration: 0.3), value: configuration.isPressed)
+        .scaleEffect(configuration.isPressed ? 0.97 : 1)
+        .animation(Motion.press, value: configuration.isPressed)
+        .animation(Motion.swap, value: isEnabled)
     }
   }
 }
@@ -64,8 +123,9 @@ struct RoundButtonStyle: ButtonStyle {
         .frame(width: 44, height: 44)
         .background(.brandGradient, in: .circle)
         .opacity(isEnabled ? 1 : 0.4)
-        .scaleEffect(configuration.isPressed ? 0.88 : 1)
-        .animation(.bouncy(duration: 0.3), value: configuration.isPressed)
+        .scaleEffect(configuration.isPressed ? 0.92 : 1)
+        .animation(Motion.press, value: configuration.isPressed)
+        .animation(Motion.swap, value: isEnabled)
     }
   }
 }
@@ -74,8 +134,8 @@ struct RoundButtonStyle: ButtonStyle {
 struct PopButtonStyle: ButtonStyle {
   func makeBody(configuration: Configuration) -> some View {
     configuration.label
-      .scaleEffect(configuration.isPressed ? 0.94 : 1)
-      .animation(.bouncy(duration: 0.3), value: configuration.isPressed)
+      .scaleEffect(configuration.isPressed ? 0.97 : 1)
+      .animation(Motion.press, value: configuration.isPressed)
   }
 }
 

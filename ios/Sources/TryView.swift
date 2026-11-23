@@ -15,26 +15,26 @@ struct TryView: View {
   @State private var knob = UnitPoint(x: 1, y: 0.62)
   @State private var knobStart: UnitPoint?
   @State private var showsHint = true
+  /// False for the first moment: the app then opens out of the orange, the way an app on the phone
+  /// grows out of its icon.
+  @State private var hasOpened = false
 
   var body: some View {
     ZStack {
-      if store.hasPicture {
-        // The whole of the phone's screen, edge to edge; the picture is fitted in the middle of it,
-        // and fills it when the simulator is the same model as the phone.
-        GeometryReader { proxy in
-          LiveScreen(store: store)
-            .frame(width: proxy.size.width, height: proxy.size.height)
-        }
-        .background(.black)
-        .ignoresSafeArea()
-      } else {
-        Color(.paper).ignoresSafeArea()
-        PreviewPlaceholder(store: store)
-      }
+      Rectangle().fill(.brandGradient).ignoresSafeArea()
+      opened
+        .opacity(hasOpened ? 1 : 0)
+        .scaleEffect(hasOpened ? 1 : 0.92)
+        .blur(radius: hasOpened ? 0 : 10)
+        // The app's own picture takes over from the wait in place, without a jump.
+        .animation(.smooth(duration: 0.3), value: store.hasPicture)
     }
-    .overlay { GeometryReader { proxy in knobView(in: proxy.size) } }
+    .overlay {
+      GeometryReader { proxy in knobView(in: proxy.size) }
+        .opacity(hasOpened ? 1 : 0)
+    }
     .overlay(alignment: .bottom) {
-      if showsHint, store.hasPicture {
+      if showsHint, hasOpened, store.hasPicture {
         Text("Det här är din app. Tryck på figuren för att gå tillbaka.")
           .font(.footnote.weight(.semibold))
           .multilineTextAlignment(.center)
@@ -43,9 +43,13 @@ struct TryView: View {
           .background(.regularMaterial, in: .capsule)
           .padding(.bottom, 28)
           .padding(.horizontal, 24)
-          .transition(.opacity)
+          .transition(.rise)
           .allowsHitTesting(false)
       }
+    }
+    .animation(Motion.arrive(reduced: reduceMotion), value: hasOpened)
+    .onAppear {
+      withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .spring(duration: 0.55, bounce: 0.1)) { hasOpened = true }
     }
     // Nothing of the phone's own on top of the app: it has a status bar and a home indicator of its own.
     .statusBarHidden()
@@ -63,6 +67,24 @@ struct TryView: View {
       // The hint is for the first few seconds; after that the app has the screen to itself.
       try? await Task.sleep(for: .seconds(5))
       withAnimation(reduceMotion ? nil : .smooth) { showsHint = false }
+    }
+  }
+
+  /// The app: the whole of the phone's screen, edge to edge; the picture is fitted in the middle of
+  /// it, and fills it when the simulator is the same model as the phone.
+  @ViewBuilder private var opened: some View {
+    if store.hasPicture {
+      GeometryReader { proxy in
+        LiveScreen(store: store)
+          .frame(width: proxy.size.width, height: proxy.size.height)
+      }
+      .background(.black)
+      .ignoresSafeArea()
+    } else {
+      ZStack {
+        Color(.paper).ignoresSafeArea()
+        PreviewPlaceholder(store: store)
+      }
     }
   }
 

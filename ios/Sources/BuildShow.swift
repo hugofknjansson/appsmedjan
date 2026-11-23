@@ -18,6 +18,15 @@ struct BuildShow: View {
   let showChat: () -> Void
   let stop: () -> Void
 
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  /// False for the first moment: what is on the orange then comes up into place, one part after the other.
+  @State private var hasArrived = false
+
+  /// One part of the show coming up into place, a little after the one above it.
+  private func arriving(_ order: Int) -> some ViewModifier {
+    Arriving(isHere: hasArrived, delay: Double(order) * 0.06, reduceMotion: reduceMotion)
+  }
+
   /// The large words: what is being made right now, in the builder's own words once it has said something.
   private var headline: String {
     switch stage {
@@ -60,6 +69,7 @@ struct BuildShow: View {
               .position(x: box.size.width / 2, y: box.size.height * 0.875)
           }
         }
+        .modifier(arriving(0))
       VStack(spacing: 12) {
         Text(headline)
           .font(.largeTitle.weight(.heavy))
@@ -68,7 +78,9 @@ struct BuildShow: View {
           .minimumScaleFactor(0.6)
           .frame(maxWidth: .infinity)
           .id(headline)
-          .transition(.push(from: .bottom).combined(with: .opacity))
+          // The old words go up and blur away as the new ones come up out of a blur: one line turning
+          // into the next, not two lines crossing.
+          .transition(reduceMotion ? AnyTransition.opacity : AnyTransition(.blurReplace(.upUp)))
           .accessibilityAddTraits(.isHeader)
         WaitingCaption(lines: lines, every: 3.6)
           .font(.title3)
@@ -76,15 +88,20 @@ struct BuildShow: View {
           .opacity(0.9)
           .frame(minHeight: 56, alignment: .top)
       }
-      .animation(.bouncy(duration: 0.5), value: headline)
+      .animation(.spring(duration: 0.5, bounce: 0.15), value: headline)
       .padding(.top, 14)
+      .modifier(arriving(1))
 
       VStack(spacing: 8) {
         Bar(fraction: fraction)
           .accessibilityLabel("Hur långt det har kommit")
           .accessibilityValue(Text(fraction, format: .percent.precision(.fractionLength(0))))
         HStack(spacing: 6) {
-          if progress.pieces > 0 { Text("Delar klara: \(progress.pieces)") }
+          if progress.pieces > 0 {
+            Text("Delar klara: \(progress.pieces)")
+              .contentTransition(.numericText(value: Double(progress.pieces)))
+              .animation(Motion.swap, value: progress.pieces)
+          }
           if progress.pieces > 0, startedAt != nil { Text(verbatim: "·") }
           if let startedAt { Text(startedAt, style: .timer).monospacedDigit() }
         }
@@ -93,12 +110,13 @@ struct BuildShow: View {
         .frame(minHeight: 18)
       }
       .padding(.top, 14)
+      .modifier(arriving(2))
 
       VStack(alignment: .leading, spacing: 8) {
         ForEach(earlier, id: \.self) { line in
           Label(line, systemImage: "checkmark.circle.fill")
             .lineLimit(1)
-            .transition(.move(edge: .top).combined(with: .opacity))
+            .transition(.asymmetric(insertion: .push(from: .top).combined(with: .opacity), removal: .opacity))
         }
       }
       .font(.subheadline)
@@ -106,6 +124,7 @@ struct BuildShow: View {
       .frame(maxWidth: .infinity, minHeight: 78, alignment: .top)
       .padding(.top, 18)
       .animation(.smooth(duration: 0.4), value: earlier)
+      .modifier(arriving(3))
 
       Spacer(minLength: 8)
       HStack(spacing: 10) {
@@ -116,6 +135,7 @@ struct BuildShow: View {
       }
       .buttonStyle(Pill())
       .frame(minHeight: 46)
+      .modifier(arriving(4))
     }
     .foregroundStyle(.white)
     .padding(.horizontal, 26)
@@ -129,6 +149,7 @@ struct BuildShow: View {
       }
       .ignoresSafeArea()
     }
+    .onAppear { hasArrived = true }
     // Read out as it changes, for the person who listens instead of looking.
     .onChange(of: headline) { _, now in
       AccessibilityNotification.Announcement(now).post()
@@ -162,9 +183,24 @@ struct BuildShow: View {
         .padding(.horizontal, 18)
         .frame(minHeight: 46)
         .background(.white.opacity(0.2), in: .capsule)
-        .scaleEffect(configuration.isPressed ? 0.94 : 1)
-        .animation(.bouncy(duration: 0.3), value: configuration.isPressed)
+        .scaleEffect(configuration.isPressed ? 0.96 : 1)
+        .animation(Motion.press, value: configuration.isPressed)
     }
+  }
+}
+
+/// Comes up into place out of a blur, after a delay; without movement for the person who wants less of it.
+private struct Arriving: ViewModifier {
+  let isHere: Bool
+  let delay: Double
+  let reduceMotion: Bool
+
+  func body(content: Content) -> some View {
+    content
+      .opacity(isHere ? 1 : 0)
+      .offset(y: isHere || reduceMotion ? 0 : 16)
+      .blur(radius: isHere || reduceMotion ? 0 : 6)
+      .animation((reduceMotion ? Animation.easeOut(duration: 0.25) : .spring(duration: 0.6, bounce: 0.12)).delay(0.12 + delay), value: isHere)
   }
 }
 

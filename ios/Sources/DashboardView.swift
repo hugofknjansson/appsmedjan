@@ -17,6 +17,16 @@ struct DashboardView: View {
   @FocusState private var isWriting: Bool
   /// Counts the ideas picked, so each pick is felt as a tick.
   @State private var picks = 0
+  /// Counts the times "Build my app" was pressed, so each press is felt.
+  @State private var builds = 0
+  /// An idea writing itself into the box, letter by letter; nil when none is.
+  @State private var typing: Task<Void, Never>?
+  /// The whole of the idea that is writing itself, for a press of the button before it is done.
+  @State private var typingIdea: String?
+  /// The app that was just asked for: it opens out of the card it was asked for in, straight into the show.
+  @State private var justCreated: String?
+  @Namespace private var zoom
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
   private var trimmedPrompt: String { prompt.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -66,6 +76,7 @@ struct DashboardView: View {
                   }
                 }
                 .padding(.vertical, 4)
+                .zoomSource(project.id, in: zoom, cornerRadius: 12)
               }
               .listRowBackground(Color(.card))
             }
@@ -96,10 +107,13 @@ struct DashboardView: View {
       }
       .scrollDismissesKeyboard(.interactively)
       .sensoryFeedback(.selection, trigger: picks)
+      .sensoryFeedback(.impact(weight: .medium), trigger: builds)
       .paperBackground()
       .navigationTitle("App Dance")
       .navigationDestination(for: ProjectSummary.self) { project in
-        ProjectView(project: project, api: model.api)
+        let isNew = project.id == justCreated
+        ProjectView(project: project, api: model.api, isNew: isNew)
+          .zoomDestination(isNew ? "start" : project.id, in: zoom)
       }
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
@@ -134,7 +148,17 @@ struct DashboardView: View {
       .task { await load() }
       // Names change while the agent works, so the list is read again when coming back to it.
       .onChange(of: path) { _, new in
-        if new.isEmpty { Task { await load() } }
+        guard new.isEmpty else { return }
+        Task {
+          await load()
+          // Long enough for the way back to have closed into the card the app was asked for in.
+          try? await Task.sleep(for: .seconds(0.6))
+          justCreated = nil
+        }
+      }
+      // Whoever starts writing takes over from an idea that is writing itself.
+      .onChange(of: isWriting) { _, writing in
+        if writing { finishTyping() }
       }
     }
   }
@@ -156,7 +180,7 @@ struct DashboardView: View {
           .id(speech)
           .transition(.scale(scale: 0.8, anchor: .leading).combined(with: .opacity))
       }
-      .animation(.bouncy(duration: 0.4), value: speech)
+      .animation(Motion.arrive(reduced: reduceMotion), value: speech)
 
       TextField("Beskriv din app med egna ord", text: $prompt, axis: .vertical)
         .lineLimit(3...8)
@@ -165,9 +189,14 @@ struct DashboardView: View {
 
       Button {
         isWriting = false
+        builds += 1
         create()
       } label: {
-        if isCreating { ProgressView().tint(.brandDeep) } else { Text("Bygg min app") }
+        ZStack {
+          Text("Bygg min app").opacity(isCreating ? 0 : 1)
+          if isCreating { ProgressView().tint(.brandDeep).transition(.scale(scale: 0.6).combined(with: .opacity)) }
+        }
+        .animation(Motion.swap, value: isCreating)
       }
       .buttonStyle(.bouncyInverted)
       .disabled(isCreating || trimmedPrompt.isEmpty)
@@ -177,10 +206,14 @@ struct DashboardView: View {
           .font(.footnote.weight(.medium))
           .foregroundStyle(.white.opacity(0.92))
           .multilineTextAlignment(.center)
+          .transition(.opacity)
       }
     }
+    .animation(Motion.arrive(reduced: reduceMotion), value: trimmedPrompt.isEmpty)
     .padding(18)
     .background(.brandGradient, in: .rect(cornerRadius: 28, style: .continuous))
+    // The app that is asked for here opens out of this card, which turns into the show of it being built.
+    .zoomSource("start", in: zoom, cornerRadius: 28)
   }
 
   /// The whole way in three steps, so nobody wonders what happens after the button.
@@ -229,9 +262,30 @@ struct DashboardView: View {
     }
   }
 
+  /// The idea writes itself into the box, quickly, as if typed by someone who knows what they want.
   private func pick(_ idea: String) {
-    withAnimation(.bouncy(duration: 0.35)) { prompt = idea }
     picks += 1
+    isWriting = false
+    typing?.cancel()
+    guard !reduceMotion else {
+      prompt = idea
+      return
+    }
+    typingIdea = idea
+    typing = Task {
+      let letters = Array(idea)
+      // Done in about half a second, however long the idea is.
+      let step = max(1, letters.count / 30)
+      var shown = 0
+      prompt = ""
+      while shown < letters.count {
+        try? await Task.sleep(for: .milliseconds(16))
+        guard !Task.isCancelled else { return }
+        shown = min(letters.count, shown + step)
+        prompt = String(letters[..<shown])
+      }
+      typingIdea = nil
+    }
   }
 
   private func load() async {
@@ -253,16 +307,27 @@ struct DashboardView: View {
     }
   }
 
+  /// An idea that is still writing itself is written out at once.
+  private func finishTyping() {
+    typing?.cancel()
+    typing = nil
+    if let typingIdea { prompt = typingIdea }
+    typingIdea = nil
+  }
+
   private func create() {
+    finishTyping()
     isCreating = true
     errorText = nil
     Task {
       defer { isCreating = false }
       do throws(APIError) {
         let project = try await model.api.createProject(prompt: trimmedPrompt, name: String(localized: "Ny app"))
-        prompt = ""
-        projects.insert(project, at: 0)
+        justCreated = project.id
         path = [project]
+        // Emptied once the card has turned into the show, not while it still shows.
+        try? await Task.sleep(for: .seconds(0.5))
+        prompt = ""
       } catch {
         // The plan does not hold this: the answer is the plans, or the paywall, and not a line of red.
         if error.code.hasPrefix("plan_") {
