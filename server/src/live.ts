@@ -1,6 +1,7 @@
 // In-memory live state per project: connected browsers, the run in progress, and the simulator preview.
 import type { WebSocket } from 'ws';
 import { frameKind, type Part, type PreviewState, type ServerToClient, type Step } from '../../shared/protocol';
+import { config } from './config';
 
 export interface Live {
   clients: Set<WebSocket>;
@@ -159,7 +160,7 @@ export function live(projectId: string): Live {
       clients: new Set(),
       running: false,
       parts: [],
-      preview: { status: 'idle', mime: 'image/jpeg', canInput: false },
+      preview: { status: 'idle', mime: 'image/jpeg', canInput: false, ...(config.predictFinger ? {} : { predictFinger: false }) },
       lastFrame: null,
       recent: [],
       recentBytes: 0,

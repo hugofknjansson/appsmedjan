@@ -3,28 +3,18 @@
 import SwiftUI
 
 /// The streamed screen, as video or as a still picture, in its own proportions. A finger on it is
-/// sent to the simulator as it moves, so that what is under it there follows it.
+/// sent to the simulator as it moves, so that what is under it there follows it (see Finger.swift).
 struct LiveScreen: View {
   let store: ProjectStore
 
-  /// The finger that is down: when it was last sent to the simulator, and where it was then. Nil when none is down.
-  @State private var finger: (sentAt: Date, x: Double, y: Double)?
-
   private var canInput: Bool { store.preview.canInput && store.preview.status == .running }
-
-  /// The shortest time between two reports of where the finger is.
-  private static let moveGap: TimeInterval = 0.012
 
   var body: some View {
     picture
       .overlay {
-        GeometryReader { proxy in
-          Color.clear
-            .contentShape(.rect)
-            .gesture(touches(in: proxy.size))
-        }
+        // Sent where it is heading unless the server says to send it where it is.
+        FingerSurface(isOn: canInput, looksAhead: store.preview.predictFinger ?? true) { store.input($0) }
       }
-      .onDisappear(perform: liftFinger)
       .accessibilityElement()
       .accessibilityLabel("Appens skärm i simulatorn")
   }
@@ -36,44 +26,6 @@ struct LiveScreen: View {
     } else if let frame = store.frame {
       Image(uiImage: frame).resizable().aspectRatio(contentMode: .fit)
     }
-  }
-
-  private func touches(in size: CGSize) -> some Gesture {
-    DragGesture(minimumDistance: 0)
-      .onChanged { value in
-        guard canInput, size.width > 0, size.height > 0 else { return }
-        let now = Date.now
-        let x = unit(value.location.x, of: size.width), y = unit(value.location.y, of: size.height)
-        guard let last = finger else {
-          finger = (now, x, y)
-          store.input(.touch(.down, x: unit(value.startLocation.x, of: size.width), y: unit(value.startLocation.y, of: size.height)))
-          return
-        }
-        // No more often than the simulator draws, which is sixty times a second; where the finger
-        // lifts is always sent. A phone reports its finger twice as often as that, and a gap of
-        // exactly a sixtieth would let through only every third report: the second one comes a
-        // hair too early.
-        guard now.timeIntervalSince(last.sentAt) >= Self.moveGap else { return }
-        finger = (now, x, y)
-        store.input(.touch(.move, x: x, y: y))
-      }
-      .onEnded { value in
-        guard finger != nil else { return }
-        finger = nil
-        store.input(.touch(.up, x: unit(value.location.x, of: size.width), y: unit(value.location.y, of: size.height)))
-      }
-  }
-
-  /// A finger that never got to lift, because the screen went away under it, is lifted where it was.
-  private func liftFinger() {
-    guard let last = finger else { return }
-    finger = nil
-    store.input(.touch(.up, x: last.x, y: last.y))
-  }
-
-  /// A place on the screen as a share of its width or height, between 0 and 1.
-  private func unit(_ place: CGFloat, of length: CGFloat) -> Double {
-    min(max(place / length, 0), 1)
   }
 }
 

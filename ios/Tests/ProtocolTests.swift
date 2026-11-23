@@ -204,6 +204,37 @@ private func summary() -> ProjectSummary {
     #expect(try JSONDecoder().decode(Sent.self, from: data) == Sent(kind: "touch", phase: "move", x: 0.25, y: 0.75))
   }
 
+  @Test func `a moving finger is sent where it is heading, no more often than the simulator draws`() {
+    let screen = CGSize(width: 400, height: 800)
+    var track = FingerTrack(landingAt: CGPoint(x: 200, y: 600), time: 10, on: screen)
+    #expect(track.landing == .touch(.down, x: 0.5, y: 0.75))
+    // Seen 120 times a second: every second report is sent, and it is the place ahead that goes.
+    #expect(track.move(to: CGPoint(x: 200, y: 592), heading: CGPoint(x: 200, y: 576), time: 10.0083) == nil)
+    #expect(track.move(to: CGPoint(x: 200, y: 584), heading: CGPoint(x: 200, y: 568), time: 10.0166) == .touch(.move, x: 0.5, y: 0.71))
+    #expect(track.move(to: CGPoint(x: 200, y: 576), heading: CGPoint(x: 200, y: 560), time: 10.025) == nil)
+    #expect(track.move(to: CGPoint(x: 200, y: 568), heading: CGPoint(x: 200, y: 552), time: 10.0333) == .touch(.move, x: 0.5, y: 0.69))
+    // Let go of while still moving: it lifts where the simulator's finger already is, not a step back.
+    #expect(track.lift(at: CGPoint(x: 200, y: 560), time: 10.0416) == .touch(.up, x: 0.5, y: 0.69))
+    // Let go of after it has come to rest: it lifts exactly where it is.
+    #expect(track.lift(at: CGPoint(x: 200, y: 568), time: 10.4) == .touch(.up, x: 0.5, y: 0.71))
+    #expect(track.letGo == .touch(.up, x: 0.5, y: 0.69))
+  }
+
+  @Test func `a finger that is not looked ahead for is sent where it is`() {
+    var track = FingerTrack(landingAt: CGPoint(x: 100, y: 100), time: 0, on: CGSize(width: 400, height: 800))
+    #expect(track.move(to: CGPoint(x: 100, y: 140), heading: nil, time: 0.02) == .touch(.move, x: 0.25, y: 0.175))
+    #expect(track.lift(at: CGPoint(x: 100, y: 180), time: 0.03) == .touch(.up, x: 0.25, y: 0.225))
+    // A place outside the screen, as a finger heading off its edge is reckoned to reach, stays on it.
+    #expect(track.move(to: CGPoint(x: 100, y: 790), heading: CGPoint(x: 100, y: 830), time: 0.06) == .touch(.move, x: 0.25, y: 1))
+  }
+
+  @Test func `the server can have the finger sent where it is`() throws {
+    let plain = try JSONDecoder().decode(PreviewState.self, from: Data(#"{"status":"running","mime":"video/h264","canInput":true}"#.utf8))
+    #expect(plain.predictFinger == nil)
+    let off = try JSONDecoder().decode(PreviewState.self, from: Data(#"{"status":"running","mime":"video/h264","canInput":true,"predictFinger":false}"#.utf8))
+    #expect(off.predictFinger == false)
+  }
+
   @Test func `what the builder says is shown and is not counted as work`() throws {
     func said(_ text: String) -> Part {
       .step(Step(id: UUID().uuidString, kind: .say, detail: text, status: .done))

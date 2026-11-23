@@ -144,6 +144,9 @@ nonisolated struct PreviewState: Decodable, Equatable {
   var mime: String
   /// Whether taps and typing can be forwarded to the simulator.
   var canInput: Bool
+  /// False when a moving finger is to be sent where it is, not where it is heading. Missing from
+  /// servers that have no say in it, which means where it is heading.
+  var predictFinger: Bool?
 
   static let idle = PreviewState(status: .idle, stage: nil, mime: "image/jpeg", canInput: false)
 }

@@ -91,6 +91,11 @@ export const config = {
    * Apple developer account. Changing it makes the stored keys unreadable (people connect again).
    */
   secretsKey: process.env.SECRETS_KEY ?? '',
+  /**
+   * The iPhone app sends a moving finger where iOS reckons it is heading, which takes a little off
+   * the wait for what follows it in the simulator. PREDICT_FINGER=0 has it sent where it is.
+   */
+  predictFinger: process.env.PREDICT_FINGER !== '0',
   /** How long a simulator stays up after the last viewer leaves. */
   releaseAfterMs: Number(process.env.RELEASE_AFTER_MS ?? 5 * 60_000),
 };

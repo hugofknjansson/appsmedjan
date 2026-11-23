@@ -82,6 +82,11 @@ export interface PreviewState {
   mime: string;
   /** Whether taps and typing can be forwarded to the simulator. */
   canInput: boolean;
+  /**
+   * False when the iPhone app is to send a moving finger where it is, instead of where iOS reckons
+   * it is heading. Left out otherwise.
+   */
+  predictFinger?: boolean;
 }
 
 /** Coordinates are normalized to 0..1 of the screen. */
