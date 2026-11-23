@@ -1,4 +1,5 @@
 import { StrictMode, useCallback, useEffect, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { api, type User } from './api';
 import { Auth } from './Auth';
@@ -9,6 +10,8 @@ import './styles.css';
 function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [path, setPath] = useState(location.pathname);
+  /** The page that was just opened out of the card it was asked for in, straight into the show of it being built. */
+  const [grown, setGrown] = useState<string | null>(null);
 
   useEffect(() => {
     api.me().then((r) => setUser(r.user)).catch(() => setUser(null));
@@ -17,16 +20,32 @@ function App() {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  const navigate = useCallback((to: string) => {
-    history.pushState({}, '', to);
-    setPath(to);
+  /**
+   * `grow`: the new page grows out of the start card, where the browser can do that (and the person
+   * has not asked for less motion). What is named `start` on both pages is what morphs.
+   */
+  const navigate = useCallback((to: string, options?: { grow?: boolean }) => {
+    const go = () => {
+      history.pushState({}, '', to);
+      setPath(to);
+      setGrown(options?.grow ? to : null);
+    };
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (options?.grow && !still && typeof document.startViewTransition === 'function') {
+      const transition = document.startViewTransition(() => flushSync(go));
+      // A tab in the background skips the movement; the page changes all the same.
+      transition.ready.catch(() => undefined);
+      transition.finished.catch(() => undefined);
+    } else {
+      go();
+    }
   }, []);
 
   if (user === undefined) return null;
   if (user === null) return <Auth onDone={setUser} />;
 
   const project = /^\/p\/([a-z0-9]+)$/.exec(path);
-  if (project) return <Project key={project[1]} id={project[1]!} navigate={navigate} />;
+  if (project) return <Project key={project[1]} id={project[1]!} isNew={grown === path} navigate={navigate} />;
   return (
     <Dashboard
       user={user}

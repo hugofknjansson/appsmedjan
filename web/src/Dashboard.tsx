@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError, api, type AppRequest, type ProjectSummary, type User } from './api';
 import { AppleAccountDialog } from './AppleAccount';
 import { Logo } from './Logo';
@@ -8,7 +8,7 @@ import { apiErrorText, lang, t } from './i18n';
 
 interface Props {
   user: User;
-  navigate: (to: string) => void;
+  navigate: (to: string, options?: { grow?: boolean }) => void;
   onLogout: () => void;
 }
 
@@ -30,6 +30,44 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
   const [appleOpen, setAppleOpen] = useState(false);
   const [plansOn, setPlansOn] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
+  // An idea writing itself into the box, letter by letter: the timer, and the whole of the idea.
+  const typing = useRef<number | null>(null);
+  const typingIdea = useRef<string | null>(null);
+
+  useEffect(() => () => stopTyping(), []);
+
+  function stopTyping() {
+    if (typing.current !== null) window.clearInterval(typing.current);
+    typing.current = null;
+    typingIdea.current = null;
+  }
+
+  /** An idea that is still writing itself is written out at once. Returns what the box then holds. */
+  function finishTyping(): string {
+    const idea = typingIdea.current;
+    stopTyping();
+    if (idea !== null) setPrompt(idea);
+    return idea ?? prompt;
+  }
+
+  /** The idea writes itself into the box, quickly, as if typed by someone who knows what they want. */
+  function pick(idea: string) {
+    stopTyping();
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setPrompt(idea);
+      return;
+    }
+    typingIdea.current = idea;
+    // Done in about half a second, however long the idea is.
+    const step = Math.max(1, Math.round(idea.length / 30));
+    let shown = 0;
+    setPrompt('');
+    typing.current = window.setInterval(() => {
+      shown = Math.min(idea.length, shown + step);
+      setPrompt(idea.slice(0, shown));
+      if (shown >= idea.length) stopTyping();
+    }, 16);
+  }
 
   useEffect(() => {
     api.projects().then((r) => setProjects(r.projects)).catch(() => setProjects([]));
@@ -47,12 +85,14 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
   }, []);
 
   async function build() {
-    if (!prompt.trim() || busy) return;
+    const text = finishTyping();
+    if (!text.trim() || busy) return;
     setBusy(true);
     setError('');
     try {
-      const { project } = await api.createProject(prompt, lang === 'sv' ? 'Ny app' : 'New app');
-      navigate(`/p/${project.id}`);
+      const { project } = await api.createProject(text, lang === 'sv' ? 'Ny app' : 'New app');
+      // The card it was asked for in turns into the show of it being built.
+      navigate(`/p/${project.id}`, { grow: true });
     } catch (err) {
       const code = err instanceof ApiError ? err.code : 'internal';
       // The plan does not hold this: the answer is the plans, or the paywall, and not a line of red.
@@ -108,7 +148,8 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
               <h1>{t.heroTitle}</h1>
               <p>{t.heroSub}</p>
             </div>
-            <Mascot dancing={busy} tile="#fff" eyes="#c74005" />
+            {/* It dances once there is an idea. */}
+            <Mascot dancing={busy || prompt.trim() !== ''} tile="#fff" eyes="#c74005" />
           </div>
           {notice && <p className="notice">{notice}</p>}
           <form className="composer big" onSubmit={create}>
@@ -118,6 +159,7 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
               maxLength={8000}
               placeholder={t.promptPlaceholder}
               aria-label={t.heroTitle}
+              onFocus={() => void finishTyping()}
               onChange={(e) => setPrompt(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void create(e);
@@ -136,7 +178,7 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
           )}
           <div className="chips">
             {t.suggestions.map((s) => (
-              <button key={s} type="button" className="chip" onClick={() => setPrompt(s)}>
+              <button key={s} type="button" className="chip" onClick={() => pick(s)}>
                 {s}
               </button>
             ))}

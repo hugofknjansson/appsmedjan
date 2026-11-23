@@ -16,6 +16,10 @@ interface Props {
   startedAt: number | null;
   onChat: () => void;
   onStop: () => void;
+  /** True when the show grew out of the card the app was asked for in, and needs no entrance of its own. */
+  grown?: boolean;
+  /** True while it goes away. */
+  leaving?: boolean;
 }
 
 /** What the builder has said it is making, oldest first. */
@@ -53,7 +57,7 @@ function Clock({ startedAt }: { startedAt: number }) {
   return <>{`${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`}</>;
 }
 
-export function BuildShow({ stage, parts, phone, startedAt, onChat, onStop }: Props) {
+export function BuildShow({ stage, parts, phone, startedAt, onChat, onStop, grown, leaving }: Props) {
   const progress = runProgress(parts);
   const said = allSaid(parts);
   const building = stage === 'building';
@@ -68,14 +72,14 @@ export function BuildShow({ stage, parts, phone, startedAt, onChat, onStop }: Pr
   // Escape leaves the show for the chat, as it would close a dialog.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && stage !== 'done') onChat();
+      if (event.key === 'Escape' && stage !== 'done' && !leaving) onChat();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [stage, onChat]);
+  }, [stage, onChat, leaving]);
 
   return (
-    <div className="show" role="dialog" aria-modal="true" aria-label={t.show.label}>
+    <div className="show" role="dialog" aria-modal="true" aria-label={t.show.label} aria-hidden={leaving || undefined} data-grown={grown || undefined} data-leaving={leaving || undefined}>
       <div className="show-tiles" aria-hidden="true">
         {TILES.map((style, tile) => (
           <i key={tile} style={style} />

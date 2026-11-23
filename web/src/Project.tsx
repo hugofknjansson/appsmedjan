@@ -78,7 +78,8 @@ function reduce(state: State | null, ev: ServerToClient): State | null {
   }
 }
 
-export function Project({ id, navigate }: { id: string; navigate: (to: string) => void }) {
+/** `isNew`: the app has just been asked for and is being built; the show is then up from the very first frame. */
+export function Project({ id, navigate, isNew = false }: { id: string; navigate: (to: string) => void; isNew?: boolean }) {
   const [state, dispatch] = useReducer(reduce, null);
   const [connected, setConnected] = useState(true);
   const [missing, setMissing] = useState(false);
@@ -187,10 +188,12 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
   const running = state?.running ?? false;
   const lastFailed = state?.messages.at(-1)?.parts.some((part) => part.t === 'error') ?? false;
   // While the app is built, the wait is a show that takes the whole page; null when there is none to see.
-  const [show, setShow] = useState<ShowStage | null>(null);
+  const [show, setShow] = useState<ShowStage | null>(isNew ? 'building' : null);
   // False once the person has chosen the chat over the show, until the next time something is built.
   const [watching, setWatching] = useState(true);
-  const [runStartedAt, setRunStartedAt] = useState<number | null>(null);
+  const [runStartedAt, setRunStartedAt] = useState<number | null>(isNew ? Date.now() : null);
+  // True while the show is the one that grew out of the start card; the next one comes in by itself.
+  const [grown, setGrown] = useState(isNew);
   useEffect(() => {
     if (running && !wasRunning.current) {
       setShow('building');
@@ -209,6 +212,26 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
     }
     wasRunning.current = running;
   }, [running, lastFailed]);
+  // A new app whose build turned out not to be running after all: no show for nothing.
+  const loaded = state !== null;
+  useEffect(() => {
+    if (loaded && !wasRunning.current) setShow((now) => (now === 'building' ? null : now));
+  }, [loaded]);
+  // The show goes away with a moment of its own, and the app it was about comes forward in its place.
+  const visible = show && watching ? show : null;
+  const [leaving, setLeaving] = useState<ShowStage | null>(null);
+  const [arriving, setArriving] = useState(false);
+  const lastVisible = useRef<ShowStage | null>(visible);
+  useEffect(() => {
+    const before = lastVisible.current;
+    lastVisible.current = visible;
+    if (!before || visible) return;
+    setGrown(false);
+    setLeaving(before);
+    if (before === 'done') setArriving(true);
+    const timer = setTimeout(() => setLeaving(null), 320);
+    return () => clearTimeout(timer);
+  }, [visible]);
   // The cheer lasts a moment. Then the show goes on if the app is being made ready for the phone,
   // and otherwise gives way to the question that comes after the wait.
   const phoneWorking = useRef(false);
@@ -245,8 +268,17 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
   return (
     <div className="page project">
       <Confetti trigger={cheers} />
-      {state && show && watching && (
-        <BuildShow stage={show} parts={state.parts} phone={phone} startedAt={runStartedAt} onChat={leaveShow} onStop={() => void api.stop(id).catch(() => undefined)} />
+      {(visible ?? leaving) && (
+        <BuildShow
+          stage={(visible ?? leaving)!}
+          parts={state?.parts ?? []}
+          phone={phone}
+          startedAt={runStartedAt}
+          grown={grown}
+          leaving={!visible}
+          onChat={leaveShow}
+          onStop={() => void api.stop(id).catch(() => undefined)}
+        />
       )}
       <header className="topbar">
         <button className="btn ghost" onClick={() => navigate('/')} aria-label={t.back}>
@@ -313,7 +345,13 @@ export function Project({ id, navigate }: { id: string; navigate: (to: string) =
 
       <div className="workspace" data-tab={tab}>
         <section className="chat-pane">{state && <Chat id={id} state={state} phone={phone} onPhone={() => choose('phone')} onTry={() => choose('preview')} onPlans={() => setPlanOpen(true)} onShow={() => setWatching(true)} />}</section>
-        <section className="stage-pane">
+        <section
+          className="stage-pane"
+          data-arriving={arriving || undefined}
+          onAnimationEnd={(e) => {
+            if (e.target === e.currentTarget) setArriving(false);
+          }}
+        >
           {state && tab === 'phone' && phone && (
             <div className="phone-tab">
               <DirectInstallSteps id={id} direct={phone} running={state.running} />
@@ -406,6 +444,9 @@ interface ChatProps {
 }
 
 function Chat({ id, state, phone, onPhone, onTry, onPlans, onShow }: ChatProps) {
+  // What was there when the page opened is simply there; what comes after rises into place.
+  const firstCount = useRef(state.messages.length);
+  const rises = (index: number) => (index >= firstCount.current ? ' rise' : '');
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -471,19 +512,19 @@ function Chat({ id, state, phone, onPhone, onTry, onPlans, onShow }: ChatProps) 
           pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
         }}
       >
-        {state.messages.map((m) =>
+        {state.messages.map((m, index) =>
           m.role === 'user' ? (
-            <div key={m.id} className="msg user">
+            <div key={m.id} className={'msg user' + rises(index)}>
               {m.text}
             </div>
           ) : m.id === asked?.id ? null : (
-            <div key={m.id} className="msg assistant">
+            <div key={m.id} className={'msg assistant' + rises(index)}>
               <Parts parts={m.parts} />
             </div>
           ),
         )}
         {state.running && (
-          <div className="msg assistant" aria-live="polite">
+          <div className="msg assistant rise" aria-live="polite">
             <Parts parts={state.parts} />
             <button type="button" className="progress-open" title={t.show.open} onClick={onShow}>
               <ProgressCard {...runClues(state.parts)} timed />
@@ -587,7 +628,7 @@ function InstallAsk({ words, phone, locked, busy, onTry, onYes }: { words: strin
   const headline = arrived ? t.direct.fetched : arriving ? t.direct.steps[2]! : text.ready;
   const question = locked ? text.locked : phone.phones === 0 ? text.noPhone : text.install;
   return (
-    <div className="install-ask">
+    <div className="install-ask rise">
       <Mascot cheering={arriving} />
       {words && <p className="muted">{rich(words)}</p>}
       <strong>{headline}</strong>

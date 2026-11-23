@@ -16,6 +16,8 @@
   --shadow: 0 1px 2px rgb(40 30 20 / 6%), 0 8px 24px rgb(40 30 20 / 7%);
   /* How a control springs back when it is let go. */
   --bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Arriving and answering: fast at first, then settling. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   color-scheme: light dark;
   /* The rounded system face where there is one (Apple's devices), the plain one elsewhere. */
   font-family: ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -124,8 +126,8 @@ textarea {
 
   .btn:active:not(:disabled),
   .chip:active {
-    transform: scale(0.95);
-    transition-duration: 0.08s;
+    transform: scale(0.97);
+    transition: transform 0.1s var(--ease-out);
   }
 }
 
@@ -2228,4 +2230,109 @@ img.app-icon {
 .plan-code input {
   flex: 1;
   min-width: 0;
+}
+
+/* --- From idea to app in one movement ----------------------------------------
+   The start card grows into the show (a view transition named "start"), what is on the show comes
+   up into place one part after the other, the show goes with a moment of its own, and the app comes
+   forward where it was. The same movement as the iPhone app. */
+
+.hero,
+.show {
+  view-transition-name: start;
+}
+
+::view-transition-group(start) {
+  animation-duration: 0.5s;
+  animation-timing-function: var(--ease-out);
+}
+
+::view-transition-old(start),
+::view-transition-new(start) {
+  height: 100%;
+  object-fit: cover;
+}
+
+/* The show is solid orange from the start, and grows; only the card's words fade away on it. */
+::view-transition-new(start) {
+  animation: none;
+}
+
+::view-transition-old(start) {
+  animation-duration: 0.2s;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+    filter: blur(4px);
+  }
+}
+
+@keyframes blur-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+    filter: blur(6px);
+  }
+}
+
+@keyframes show-out {
+  to {
+    opacity: 0;
+    transform: scale(1.03);
+  }
+}
+
+@keyframes app-open {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+    filter: blur(10px);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rise {
+    transform-origin: bottom center;
+    animation: rise 0.45s var(--ease-out) both;
+  }
+
+  /* Grown out of the start card: the growing was its entrance. */
+  .show[data-grown] {
+    animation: none;
+  }
+
+  .show-body > * {
+    animation: rise 0.6s var(--ease-out) both;
+  }
+
+  .show-body > :nth-child(1) { animation-delay: 0.12s; }
+  .show-body > :nth-child(2) { animation-delay: 0.18s; }
+  .show-body > :nth-child(3) { animation-delay: 0.24s; }
+  .show-body > :nth-child(4) { animation-delay: 0.28s; }
+  .show-body > :nth-child(5) { animation-delay: 0.32s; }
+  .show-body > :nth-child(6) { animation-delay: 0.36s; }
+
+  /* One line turning into the next, out of a blur, rather than a jump. */
+  .show h2 {
+    animation: blur-up 0.5s var(--ease-out);
+  }
+
+  .show[data-leaving] {
+    pointer-events: none;
+    animation: show-out 0.3s var(--ease-out) forwards;
+  }
+
+  .stage-pane[data-arriving] {
+    animation: app-open 0.6s var(--ease-out) both;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .show[data-leaving] {
+    pointer-events: none;
+    animation: show-out 0.2s ease-out forwards;
+  }
 }
