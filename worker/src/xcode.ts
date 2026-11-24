@@ -122,8 +122,11 @@ export class XcodeDriver implements Driver {
   /** The same, unless live touches are switched off: null then, and each touch is an idb command of its own. */
   private touchPython: string | null = null;
   private publisher: Publisher | null = null;
-  /** SIM_TEMPLATE=0 makes every new app's simulator from scratch again, with its slow first boot. */
-  private readonly useTemplates = process.env.SIM_TEMPLATE !== '0';
+  /**
+   * SIM_TEMPLATE=0 makes every new app's simulator from scratch again, with its slow first boot. A
+   * signing-only worker (PREVIEWS=0) runs no simulators, so it makes no template either.
+   */
+  private readonly useTemplates = process.env.SIM_TEMPLATE !== '0' && process.env.PREVIEWS !== '0';
   /** SIM_EARLY_STREAM=0 starts the screen stream only once the app has started, as before. */
   private readonly earlyStream = process.env.SIM_EARLY_STREAM !== '0';
   /** The template for each model of phone, by device type: its udid once it has done its first boot. */
