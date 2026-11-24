@@ -247,7 +247,7 @@ export interface PlanLimits {
 
 /** The plans. Changing a number here changes it everywhere: the server enforces it and the clients show it. */
 export const PLANS: Record<PlanId, PlanLimits> = {
-  free: { apps: 1, messages: 20, install: false, store: false, credits: 25, creditsOnce: true },
+  free: { apps: 1, messages: 20, install: true, store: false, credits: 25, creditsOnce: true },
   create: { apps: 10, messages: 300, install: true, store: false, credits: 100 },
   publish: { apps: 50, messages: 600, install: true, store: true, credits: 260 },
 };

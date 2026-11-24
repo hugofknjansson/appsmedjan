@@ -34,12 +34,13 @@ Vad en person får göra kan styras av en plan. Det finns tre, och de står i `s
 
 | Plan | Appar | Meddelanden per månad | Appen på telefonen | App Store-guiden |
 |---|---|---|---|---|
-| Prova (`free`) | 1 | 20 | nej | nej |
+| Prova (`free`) | 1 | 20 | ja | nej |
 | Skapa (`create`) | 10 | 300 | ja | nej |
 | Publicera (`publish`) | 50 | 600 | ja | ja |
 
 Gränserna följer det som kostar: meddelanden till byggaren är modellens arbete, och en telefon tar
-en plats i utvecklarkontot. De som driver tjänsten (`OPERATOR_EMAILS`) räknas inte.
+en plats i utvecklarkontot. Alla planer får prova appen på sin egen telefon; `FREE_INSTALL=0` tar bort
+telefonen ur Prova, så att den bara provar i simulatorn. De som driver tjänsten (`OPERATOR_EMAILS`) räknas inte.
 
 Det finns ingen betalning än. En person ber om en större plan under "Min plan", eller från frågan om
 att installera på telefonen, och den som driver tjänsten ser förfrågan längst ned på sin startsida

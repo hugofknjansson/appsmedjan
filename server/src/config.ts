@@ -79,6 +79,8 @@ export const config = {
    * What the smallest plan holds, when it is to hold something else than usual: FREE_APPS=0 makes
    * it a paywall, where nothing is built before the person has paid or given a code.
    */
+  /** FREE_INSTALL=0 leaves the phone out of the smallest plan: it is then tried in the simulator only. */
+  freeInstall: process.env.FREE_INSTALL !== '0',
   freeApps: process.env.FREE_APPS === undefined || process.env.FREE_APPS === '' ? null : Math.max(0, Number(process.env.FREE_APPS) || 0),
   freeMessages: process.env.FREE_MESSAGES === undefined || process.env.FREE_MESSAGES === '' ? null : Math.max(0, Number(process.env.FREE_MESSAGES) || 0),
   /** Codes that let a person past the paywall, and the plan each gives: "kod1, kod2=create". */

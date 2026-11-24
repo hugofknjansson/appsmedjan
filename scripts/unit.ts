@@ -178,7 +178,8 @@ for (let i = 1; i < PLAN_ORDER.length; i++) {
   assert.ok(larger.apps >= smaller.apps && larger.messages >= smaller.messages && larger.credits >= smaller.credits, 'more room in a larger plan');
   assert.ok((larger.install || !smaller.install) && (larger.store || !smaller.store), 'nothing is lost in a larger plan');
 }
-assert.equal(planFor('install', { apps: 0, messages: 0 }), 'create');
+assert.equal(planFor('install', { apps: 0, messages: 0 }), 'free', 'the phone is in every plan');
+assert.equal(planFor('install', { apps: 0, messages: 0 }, { ...PLANS, free: { ...PLANS.free, install: false } }), 'create');
 assert.equal(planFor('store', { apps: 0, messages: 0 }), 'publish');
 // Behind a paywall the smallest plan holds nothing, and the first app already needs the next one.
 assert.equal(planFor('apps', { apps: 0, messages: 0 }, { ...PLANS, free: { ...PLANS.free, apps: 0, messages: 0 } }), 'create');

@@ -14,7 +14,13 @@ import { isOperator } from './routing';
  * larger plan, by paying or by giving a code.
  */
 const plansHere: Record<PlanId, PlanLimits> = {
-  free: { ...PLANS.free, apps: config.freeApps ?? PLANS.free.apps, messages: config.freeMessages ?? PLANS.free.messages, credits: credits.creditsOf('free') },
+  free: {
+    ...PLANS.free,
+    apps: config.freeApps ?? PLANS.free.apps,
+    messages: config.freeMessages ?? PLANS.free.messages,
+    install: PLANS.free.install && config.freeInstall,
+    credits: credits.creditsOf('free'),
+  },
   create: { ...PLANS.create, credits: credits.creditsOf('create') },
   publish: { ...PLANS.publish, credits: credits.creditsOf('publish') },
 };
