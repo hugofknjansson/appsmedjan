@@ -54,10 +54,11 @@ export const config = {
    */
   internalTesters: process.env.INTERNAL_TESTERS === '1',
   /**
-   * Lets people who use the operator's developer account have apps signed for their own phone and
-   * installed straight from a link, without TestFlight. Off unless asked for: every phone takes one
-   * of the account's 100 places for a year, and Apple means those for people who test with you.
-   * People with their own connected account can always do it; the places are theirs.
+   * Lets everyone have apps signed for their own phone by the operator's developer account and
+   * installed straight from a link, without TestFlight: the way to try an app. Sharing it or putting
+   * it on the App Store takes an account of their own. Off unless asked for: every phone takes one of
+   * the account's 100 places for a year, and Apple means those for people who test with you. People
+   * with their own connected account can always do it; the places are theirs.
    */
   directInstall: process.env.DIRECT_INSTALL === '1',
   /**

@@ -18,7 +18,7 @@ import { config } from './config';
 import * as db from './db';
 import { live } from './live';
 import { escapeHtml } from './pages';
-import { route } from './routing';
+import { directRoute } from './routing';
 import * as workers from './workers';
 
 const DIR = path.join(config.dataDir, 'direct');
@@ -58,9 +58,9 @@ export function phonesOf(userId: string): Phone[] {
 
 export function state(project: db.Project): DirectInstall {
   const owner = db.getUser(project.userId);
-  const routing = route(owner);
-  // In the operator's account every phone takes a place for a year, so the operator decides.
-  const offered = routing.account === 'own' || (routing.account === 'operator' && config.directInstall);
+  const routing = directRoute(owner);
+  // In the operator's account every phone takes a place for a year, so the operator decides (DIRECT_INSTALL).
+  const offered = routing.account !== 'none';
   // Not offered to this person: nothing to show, whatever they had before it was taken away.
   if (!offered) return { available: false, phones: 0, maxPhones: config.maxPhones, status: 'idle' };
   const base = { available: routing.available, phones: owner ? db.listPhones(owner.id).length : 0, maxPhones: config.maxPhones };
@@ -118,8 +118,8 @@ export function buildAfterRun(projectId: string): void {
 export type StartResult = 'started' | 'forbidden' | 'unavailable' | 'busy' | 'no_phones';
 
 export function start(project: db.Project, user: db.User): StartResult {
-  const routing = route(user);
-  if (routing.account === 'none' || (routing.account === 'operator' && !config.directInstall)) return 'forbidden';
+  const routing = directRoute(user);
+  if (routing.account === 'none') return 'forbidden';
   if (!routing.available) return 'unavailable';
   // While the agent is editing, the files may be half-way through a change.
   if (working.has(project.id) || live(project.id).running) return 'busy';

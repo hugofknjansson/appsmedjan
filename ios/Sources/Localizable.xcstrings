@@ -751,6 +751,16 @@
         }
       }
     },
+    "Att dela appen via TestFlight ingår inte här. Hör av dig till den som driver tjänsten.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sharing the app through TestFlight is not offered here. Get in touch with whoever runs the service."
+          }
+        }
+      }
+    },
     "Avbryt": {
       "localizations": {
         "en": {
@@ -2051,16 +2061,6 @@
         }
       }
     },
-    "För att installera appen behövs ett Apple-utvecklarkonto att ladda upp den till.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "To install the app, an Apple developer account to upload it to is needed."
-          }
-        }
-      }
-    },
     "För många försök. Vänta en stund och försök igen.": {
       "localizations": {
         "en": {
@@ -2547,16 +2547,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Installing straight onto the phone is not turned on for your account."
-          }
-        }
-      }
-    },
-    "Installation på telefonen är inte påslagen för ditt konto. Hör av dig till den som driver tjänsten.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Installing on the phone is not turned on for your account. Get in touch with whoever runs the service."
           }
         }
       }
@@ -4617,6 +4607,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Do you want to keep it on your phone?"
+          }
+        }
+      }
+    },
+    "Vill du dela appen med andra via TestFlight, eller lägga upp den i App Store, behöver du ett eget Apple-utvecklarkonto.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To share the app with others through TestFlight, or put it on the App Store, you need an Apple developer account of your own."
           }
         }
       }

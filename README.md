@@ -441,7 +441,10 @@ Det som begränsar:
 
 Inställningar på servern:
 
-- `DIRECT_INSTALL=1`: låter dem som använder tjänstens konto (`TESTFLIGHT_USERS`) lägga till telefoner.
+- `DIRECT_INSTALL=1`: låter alla som är inloggade prova sina appar på sin egen telefon via tjänstens
+  konto, oavsett `TESTFLIGHT_USERS`. Det är vad tjänstens konto lånas ut till. Att dela appen via
+  TestFlight eller lägga upp den i App Store kräver ett eget kopplat utvecklarkonto, om personen inte
+  står i `TESTFLIGHT_USERS`. Alla delar på kontots 100 telefonplatser per år.
 - `MAX_PHONES_PER_USER`: hur många telefoner en person får lägga till (2 om inget anges).
 - `PUBLIC_URL`: adressen telefoner når tjänsten på, om den inte går att läsa ut ur anropet.
   Installationen kräver https med ett giltigt certifikat.

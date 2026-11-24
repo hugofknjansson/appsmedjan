@@ -40,10 +40,10 @@ struct InstallView: View {
         if publish.account == .none {
           Section {
             if publish.canConnect {
-              Text("För att installera appen behövs ett Apple-utvecklarkonto att ladda upp den till.")
+              Text("Vill du dela appen med andra via TestFlight, eller lägga upp den i App Store, behöver du ett eget Apple-utvecklarkonto.")
               Button("Koppla ditt Apple-utvecklarkonto") { isShowingAccount = true }
             } else {
-              Text("Installation på telefonen är inte påslagen för ditt konto. Hör av dig till den som driver tjänsten.")
+              Text("Att dela appen via TestFlight ingår inte här. Hör av dig till den som driver tjänsten.")
             }
           }
         } else {

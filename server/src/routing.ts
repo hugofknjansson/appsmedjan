@@ -11,10 +11,10 @@ export function isOperator(email: string): boolean {
 }
 
 /**
- * Who may use the operator's own Apple developer account, for TestFlight, the App Store and apps
- * signed for their own phone: the people who run the service, whose account it is, and whoever
- * TESTFLIGHT_USERS lists besides ("*" for everyone). Everyone else connects an account of their
- * own for those things, and can build apps and try them in the simulator without one.
+ * Who may use the operator's own Apple developer account for TestFlight and the App Store: the people
+ * who run the service, whose account it is, and whoever TESTFLIGHT_USERS lists besides ("*" for
+ * everyone). Everyone else connects an account of their own for those things. Trying an app on one's
+ * own phone is another matter: see `directRoute`.
  */
 export function userMayPublish(email: string): boolean {
   const allowed = config.testflightUsers;
@@ -31,6 +31,19 @@ export function route(owner: db.User | null): Pick<PublishState, 'account' | 'av
   if (owner && userMayPublish(owner.email)) {
     return { account: 'operator', available: workers.canPublish('operator'), canConnect: own.enabled };
   }
+  return { account: 'none', available: false, canConnect: own.enabled };
+}
+
+/**
+ * Whose developer account signs apps for a person's own phones (ad hoc): their own, once connected;
+ * otherwise the operator's, for everyone, when DIRECT_INSTALL is on. Trying an app on one's own phone
+ * is what the operator's account is lent for. Sharing it through TestFlight or putting it on the App
+ * Store takes an account of one's own (`route`).
+ */
+export function directRoute(owner: db.User | null): Pick<PublishState, 'account' | 'available' | 'canConnect'> {
+  const own = owner ? accountStatus(owner.id) : { enabled: false, connected: false };
+  if (own.connected) return { account: 'own', available: workers.canPublish('own'), canConnect: true };
+  if (owner && config.directInstall) return { account: 'operator', available: workers.canPublish('operator'), canConnect: own.enabled };
   return { account: 'none', available: false, canConnect: own.enabled };
 }
 
