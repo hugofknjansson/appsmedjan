@@ -7,6 +7,9 @@ import { apiErrorText, t } from './i18n';
 import { Mascot, WaitingCaption } from './Mascot';
 import { Qr } from './OnPhone';
 
+/** Apps whose phone code has been shown by itself on this visit: once is a help, every time would be too many. */
+const shownByItself = new Set<string>();
+
 interface Props {
   id: string;
   direct: DirectInstall;
@@ -34,9 +37,19 @@ export function DirectInstallSteps({ id, direct, running }: Props) {
 
   const addPhone = () =>
     act(async () => {
-      const made = await api.phoneTicket();
+      // From this app: once added, the phone goes straight on to installing it.
+      const made = await api.phoneTicket(id);
       setTicket({ url: location.origin + made.path, expiresAt: Date.now() + made.expiresInMs });
     });
+
+  // Without a phone there is only one thing to do here, so the code to scan is there from the start.
+  useEffect(() => {
+    if (direct.phones > 0 || direct.phones >= direct.maxPhones || shownByItself.has(id)) return;
+    shownByItself.add(id);
+    void addPhone();
+    // Only when the pane first shows without a phone.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // The link lets a phone in without a sign-in, so it is taken off the screen when it stops working,
   // and as soon as the phone it was for has been added.

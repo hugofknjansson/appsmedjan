@@ -61,6 +61,13 @@ export const config = {
    */
   directInstall: process.env.DIRECT_INSTALL === '1',
   /**
+   * A phone added from an app goes straight on to that app: it is built for the phone at once, and
+   * the page the phone lands on after the profile turns into the install button when the build is
+   * ready, so nobody goes back to the computer or scans a second code. QUICK_INSTALL=0 has the phone
+   * sent back to App Dance to press Install, as before.
+   */
+  quickInstall: process.env.QUICK_INSTALL !== '0',
+  /**
    * Turns plans on: what a person may do then depends on the plan they have been given (see
    * shared/protocol.ts). Off, everything is open to everyone who can sign in, as before plans existed.
    */

@@ -491,7 +491,11 @@ api.get('/phones', requireUser, (req, res) => {
  * The phone needs no sign-in to use it, so it is only good for half an hour.
  */
 api.post('/phones/ticket', requireUser, authLimiter, (req, res) => {
-  res.json(direct.newTicket((req as Authed).user.id));
+  const user = (req as Authed).user;
+  // The app it was added from, if any: the phone then goes straight on to installing that app.
+  const asked = (req.body as { projectId?: unknown } | undefined)?.projectId;
+  const project = typeof asked === 'string' && isValidProjectId(asked) ? db.getProject(asked) : null;
+  res.json(direct.newTicket(user.id, project?.userId === user.id ? project.id : undefined));
 });
 
 /** Builds the app for the person's own phones. The result is an install link in the publish state. */
@@ -551,7 +555,7 @@ directPages.post('/enrolled/:ticket', authLimiter, express.raw({ type: () => tru
 });
 
 directPages.get('/done/:ticket', (req, res) => {
-  res.set(PAGE_HEADERS).send(direct.donePage(String(req.params.ticket), langOf(req)));
+  res.set(PAGE_HEADERS).send(direct.donePage(String(req.params.ticket), baseOf(req), langOf(req)));
 });
 
 directPages.get('/i/:token', (req, res) => {

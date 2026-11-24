@@ -26,6 +26,8 @@ fs.mkdirSync(DIR, { recursive: true });
 
 /** Builds in progress. Finished ones are read from the database. */
 const working = new Map<string, Pick<DirectInstall, 'stage' | 'build' | 'at'>>();
+/** When each project's latest build started, to tell whether it is signed for a phone added at a given moment. */
+const startedAt = new Map<string, number>();
 
 /** How far a phone has come with fetching each project's ready build. Forgotten when a new build starts. */
 const fetches = new Map<string, { token: string; stage: DirectFetch }>();
@@ -134,6 +136,7 @@ export function start(project: db.Project, user: db.User): StartResult {
   const build = buildNumberFor(new Date());
   fetches.delete(project.id);
   working.set(project.id, { stage: 'queued', build, at: Date.now() });
+  startedAt.set(project.id, Date.now());
   changed(project.id);
   void run(project, build, phones, account);
   return 'started';
@@ -186,6 +189,10 @@ interface Ticket {
   userId: string;
   expiresAt: number;
   outcome?: 'added' | 'full' | 'unreadable';
+  /** The app the phone was added from: it is built for the phone as soon as the phone is added. */
+  projectId?: string;
+  /** When the phone was added. */
+  addedAt?: number;
 }
 
 const tickets = new Map<string, Ticket>();
@@ -197,9 +204,9 @@ setInterval(() => {
   for (const [key, ticket] of tickets) if (ticket.expiresAt < now) tickets.delete(key);
 }, 60_000).unref();
 
-export function newTicket(userId: string): { path: string; expiresInMs: number } {
+export function newTicket(userId: string, projectId?: string): { path: string; expiresInMs: number } {
   const ticket = crypto.randomBytes(24).toString('base64url');
-  tickets.set(ticketKey(ticket), { userId, expiresAt: Date.now() + TICKET_MS });
+  tickets.set(ticketKey(ticket), { userId, expiresAt: Date.now() + TICKET_MS, projectId });
   return { path: `/d/add/${ticket}`, expiresInMs: TICKET_MS };
 }
 
@@ -254,8 +261,24 @@ export function enroll(ticket: string, body: Buffer): void {
   }
   db.addPhone(found.userId, phone.udid, phone.model);
   found.outcome = 'added';
+  found.addedAt = Date.now();
   console.log(`[direct] a ${phone.model} was added by user ${found.userId}`);
   phonesChanged(found.userId);
+  // Straight on to the app it was added from, signed for the new phone too.
+  if (config.quickInstall && found.projectId && !working.has(found.projectId)) buildForNewPhone(found.projectId);
+}
+
+/**
+ * Builds the app for the phone that was just added. True when it is started, or will be on a later
+ * look because the builder is still changing the app; false when it cannot be built for the phone.
+ */
+function buildForNewPhone(projectId: string): boolean {
+  const project = db.getProject(projectId);
+  const owner = project ? db.getUser(project.userId) : null;
+  if (!project || !owner || !plans.allows(owner, 'install')) return false;
+  const result = start(project, owner);
+  if (result !== 'started' && result !== 'busy') console.log(`[direct] ${projectId}: not built for the new phone (${result})`);
+  return result === 'started' || result === 'busy';
 }
 
 // --- What the phone installs from ---------------------------------------------------
@@ -317,6 +340,11 @@ const TEXTS = {
     waitingTitle: 'Nästan klart',
     waiting: 'Öppna <b>Inställningar</b>, tryck på <b>Profil hämtad</b> och sedan <b>Installera</b>.',
     installTitle: 'Installera {name}',
+    readyTitle: '{name} är klar',
+    buildingFor: 'Nu byggs <b>{name}</b> för den här telefonen. Installationsknappen kommer här när den är klar.',
+    building: 'Bygger appen …',
+    signing: 'Signerar för din telefon …',
+    stayHere: 'Låt sidan vara öppen. Det brukar ta någon minut.',
     installButton: 'Installera',
     installIntro: 'iOS frågar om du vill installera. Appen dyker sedan upp på hemskärmen.',
     devTitle: 'Första gången: slå på Utvecklarläge',
@@ -350,6 +378,11 @@ const TEXTS = {
     waitingTitle: 'Almost there',
     waiting: 'Open <b>Settings</b>, tap <b>Profile Downloaded</b> and then <b>Install</b>.',
     installTitle: 'Install {name}',
+    readyTitle: '{name} is ready',
+    buildingFor: '<b>{name}</b> is being built for this phone. The install button comes here when it is done.',
+    building: 'Building the app …',
+    signing: 'Signing for your phone …',
+    stayHere: 'Leave the page open. It usually takes a minute or so.',
     installButton: 'Install',
     installIntro: 'iOS asks whether you want to install. The app then shows up on the home screen.',
     devTitle: 'The first time: turn on Developer Mode',
@@ -382,12 +415,13 @@ li::before{content:counter(step);position:absolute;left:0;top:0;width:28px;heigh
 h2{margin:0;font-size:1.05rem}
 `;
 
-function page(lang: Lang, title: string, body: string): string {
+/** `refresh`: the page loads itself again after that many seconds, for a page that waits on something. */
+function page(lang: Lang, title: string, body: string, refresh?: number): string {
   return `<!doctype html>
 <html lang="${lang}">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1">${refresh ? `\n<meta http-equiv="refresh" content="${refresh}">` : ''}
 <meta name="robots" content="noindex">
 <title>${escapeHtml(title)}</title>
 <style>${STYLE}</style>
@@ -418,12 +452,49 @@ export function addPage(ticket: string, lang: Lang): string {
   );
 }
 
+/**
+ * The phone has just been added from an app: this page follows that app's build for the phone and
+ * turns into its install button when the build is ready. It looks again every few seconds by itself.
+ */
+function installHere(project: db.Project, addedAt: number, base: string, lang: Lang): string {
+  const t = TEXTS[lang];
+  const done = (extra = '') => page(lang, t.doneTitle, `<p>${t.done}</p>${extra}`);
+  // Only a build started after the phone was added is signed for it. One that was already under way
+  // is let finish; the next look starts the one the phone needs.
+  const covers = (startedAt.get(project.id) ?? 0) >= addedAt;
+  if (!working.has(project.id) && !covers && !buildForNewPhone(project.id)) return done();
+  const now = state(project);
+  const saved = db.getDirectBuild(project.id);
+  if (covers && now.status === 'ready' && saved?.token) {
+    return page(
+      lang,
+      t.readyTitle.replace('{name}', project.name),
+      `<a class="btn" href="${escapeHtml(installLink(saved.token, base))}">${t.installButton}</a>
+<p>${t.installIntro}</p>
+<div class="card"><h2>${t.devTitle}</h2><p class="muted">${t.devIntro}</p>${steps(t.devSteps)}</div>
+<p class="muted">${t.installNote}</p>`,
+    );
+  }
+  if (covers && now.status === 'failed') return done();
+  const doing = now.status === 'working' && now.stage === 'signing' ? t.signing : t.building;
+  return page(lang, t.doneTitle, `<p>${t.buildingFor.replace('{name}', escapeHtml(project.name))}</p><div class="card"><h2>${doing}</h2><p class="muted">${t.stayHere}</p></div>`, 4);
+}
+
+/** The link that has iOS ask whether to install the build. */
+function installLink(token: string, base: string): string {
+  return `itms-services://?action=download-manifest&url=${encodeURIComponent(`${base}/d/app/${token}/manifest.plist`)}`;
+}
+
 /** Where the phone lands after the profile has been installed. */
-export function donePage(ticket: string, lang: Lang): string {
+export function donePage(ticket: string, base: string, lang: Lang): string {
   const t = TEXTS[lang];
   const found = ticketFor(ticket);
   if (!found) return page(lang, t.expiredTitle, `<p>${t.expired}</p>`);
-  if (found.outcome === 'added') return page(lang, t.doneTitle, `<p>${t.done}</p><div class="card"><h2>${t.devTitle}</h2><p class="muted">${t.devIntro}</p>${steps(t.devSteps)}</div>`);
+  if (found.outcome === 'added') {
+    const project = config.quickInstall && found.projectId ? db.getProject(found.projectId) : null;
+    if (project) return installHere(project, found.addedAt ?? 0, base, lang);
+    return page(lang, t.doneTitle, `<p>${t.done}</p><div class="card"><h2>${t.devTitle}</h2><p class="muted">${t.devIntro}</p>${steps(t.devSteps)}</div>`);
+  }
   if (found.outcome === 'full') return page(lang, t.fullTitle, `<p>${t.full}</p>`);
   if (found.outcome === 'unreadable') return page(lang, t.unreadableTitle, `<p>${t.unreadable}</p>`);
   return page(lang, t.waitingTitle, `<p>${t.waiting}</p>`);
@@ -434,7 +505,7 @@ export function installPage(token: string, base: string, lang: Lang): { html: st
   const t = TEXTS[lang];
   const build = db.directBuildByToken(token);
   if (!build || !fs.existsSync(ipaPath(build.projectId))) return { html: page(lang, t.goneTitle, `<p>${t.gone}</p>`), found: false };
-  const link = `itms-services://?action=download-manifest&url=${encodeURIComponent(`${base}/d/app/${token}/manifest.plist`)}`;
+  const link = installLink(token, base);
   const html = page(
     lang,
     t.installTitle.replace('{name}', build.appName),

@@ -199,9 +199,12 @@ extension API {
 
   /// A page for adding this phone, to open in Safari: the profile that hands over the phone's
   /// identifier can only be fetched there. The link lets a phone in without a sign-in, for half an hour.
-  func addPhoneURL() async throws(APIError) -> URL {
+  /// `projectId`: the app it is added from. Once added, the phone goes straight on to installing it,
+  /// from the page Safari lands on, without coming back here first.
+  func addPhoneURL(from projectId: String) async throws(APIError) -> URL {
+    struct Body: Encodable { let projectId: String }
     struct Ticket: Decodable { let path: String }
-    let ticket: Ticket = try await send("POST", "api/phones/ticket", body: Empty())
+    let ticket: Ticket = try await send("POST", "api/phones/ticket", body: Body(projectId: projectId))
     return baseURL.appending(path: ticket.path)
   }
 

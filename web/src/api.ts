@@ -108,7 +108,8 @@ export const api = {
   givePlan: (email: string, plan: PlanId) => call<OperatorPlans>('POST', '/api/operator/plans', { email, plan }),
   giveCredits: (email: string, amount: number) => call<OperatorPlans>('POST', '/api/operator/credits', { email, amount }),
   /** A link for adding a phone, to open (or scan) on that phone. */
-  phoneTicket: () => call<{ path: string; expiresInMs: number }>('POST', '/api/phones/ticket', {}),
+  /** `projectId`: the app the phone is added from, which the phone then goes straight on to install. */
+  phoneTicket: (projectId?: string) => call<{ path: string; expiresInMs: number }>('POST', '/api/phones/ticket', { projectId }),
   /** Builds the app for the person's own phones. */
   direct: (id: string) => call<{ publish: PublishState }>('POST', `/api/projects/${id}/direct`, {}),
   operatorRequests: () => call<{ requests: AppRequest[] }>('GET', '/api/operator/requests'),

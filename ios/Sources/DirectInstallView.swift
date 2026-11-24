@@ -82,7 +82,7 @@ struct DirectInstallSection: View {
   private func addPhone() {
     run { () throws(APIError) in
       // The profile can only be fetched in Safari, which is where this opens.
-      openURL(try await api.addPhoneURL())
+      openURL(try await api.addPhoneURL(from: store.id))
     }
   }
 

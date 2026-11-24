@@ -415,6 +415,14 @@ hämtas till telefonen, installeras på hemskärmen. De två första kommer frå
 ser servern själv, när telefonen ber om listan och sedan hämtar appfilen. Vad iOS gör därefter går
 inte att se utifrån; det tar några sekunder.
 
+Läggs telefonen till från en app går det fortare (`QUICK_INSTALL`, påslaget om inget anges). Koden att
+skanna visas direkt när personen svarar ja på frågan om telefonen, och biljetten i den säger vilken app
+det gäller. När telefonen är tillagd byggs appen för den av sig själv, och sidan telefonen hamnar på
+efter profilen väntar på bygget (den laddar om sig själv) och blir sedan installationssidan. Personen
+behöver alltså varken gå tillbaka till datorn, trycka på Bygg eller skanna en andra kod. Bara ett bygge
+som har startat efter att telefonen lades till räknas, eftersom ett äldre inte är signerat för den.
+`QUICK_INSTALL=0` skickar tillbaka telefonen till App Dance som förut.
+
 Simulatorn finns kvar. Byggaren använder den för att kompilera, rätta fel och titta på skärmen, App
 Store-bilderna tas därifrån, och den är vad den som inte har lagt till en telefon ser.
 
