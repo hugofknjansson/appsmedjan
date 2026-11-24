@@ -424,6 +424,29 @@ behöver alltså varken gå tillbaka till datorn, trycka på Bygg eller skanna e
 som har startat efter att telefonen lades till räknas, eftersom ett äldre inte är signerat för den.
 `QUICK_INSTALL=0` skickar tillbaka telefonen till App Dance som förut.
 
+**Skicka till telefonen från webben.** Har personen lagt till sin telefon skickar ett klick på fliken
+"Min telefon" (eller på installationsknappen efter ett bygge) appen till telefonen
+(`POST /api/projects/:id/to-phone`). iOS installerar aldrig något utan att telefonens ägare säger ja på
+telefonen, så ett tryck finns alltid kvar, men inget mer:
+
+- **När App Dance är öppen på telefonen** har appen en egen förbindelse till servern (`/ws/me`), och
+  iOS fråga om installation visas direkt.
+- **När App Dance är stängd** skickas en notis via Apples push-tjänst. Ett tryck på den öppnar frågan.
+  Appen ber om lov att skicka notiser första gången personen lägger till telefonen eller trycker
+  Installera i appen.
+- **När bygget inte är aktuellt** startar ett nytt, och appen skickas till telefonen när det är klart.
+
+Notiserna kräver en APNs-nyckel från utvecklarkontot (Certificates, Identifiers & Profiles > Keys >
+Apple Push Notifications service). Det är inte samma nyckel som App Store Connect-nyckeln:
+
+```bash
+fly secrets set APNS_KEY="$(cat ~/Downloads/AuthKey_XXXXXXXXXX.p8)" APNS_KEY_ID=XXXXXXXXXX APNS_TEAM_ID=XXXXXXXXXX -a appsmedjan
+```
+
+Utan nyckeln fungerar allt utom notisen. Är appen stängd skannar personen då koden som förut.
+Notisens adress följer telefonen: den som loggar in sist på en telefon får dess notiser, och den
+glöms när personen loggar ut eller Apple säger att appen är borta.
+
 Simulatorn finns kvar. Byggaren använder den för att kompilera, rätta fel och titta på skärmen, App
 Store-bilderna tas därifrån, och den är vad den som inte har lagt till en telefon ser.
 

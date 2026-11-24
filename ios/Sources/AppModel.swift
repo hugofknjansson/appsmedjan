@@ -46,6 +46,8 @@ final class AppModel {
   }
 
   func logOut() async {
+    // This phone stops getting the person's notifications.
+    if let token = Notifications.token { try? await api.forgetPushToken(token) }
     // Even if the server cannot be told, this phone forgets the login.
     try? await api.logOut()
     HTTPCookieStorage.shared.cookies(for: api.baseURL)?.forEach(HTTPCookieStorage.shared.deleteCookie)

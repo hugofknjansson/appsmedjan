@@ -289,6 +289,12 @@ const sv = {
     needContact: 'Apple vill veta vem de kan kontakta om appen. Fyll i det här en gång, så används det för alla dina appar.',
     continue: 'Fortsätt',
   },
+  toPhone: {
+    app: 'Skickad! Tryck på Installera på telefonen.',
+    push: 'Vi skickade en notis till telefonen. Tryck på den, och sedan på Installera.',
+    none: 'Öppna App Dance på telefonen så kommer frågan där, eller skanna koden här under.',
+    building: 'Appen byggs för telefonen och skickas dit när den är klar.',
+  },
   direct: {
     title: 'Direkt på telefonen',
     intro: 'Det snabbaste sättet: appen byggs för just din telefon och installeras med ett tryck, utan TestFlight och utan granskning.',
@@ -930,6 +936,12 @@ const en: typeof sv = {
     auth: 'Apple did not accept your key. Open Apple account next to your apps and connect the account again.',
   },
   myPhone: 'My phone',
+  toPhone: {
+    app: 'Sent! Tap Install on the phone.',
+    push: 'We sent a notification to the phone. Tap it, and then Install.',
+    none: 'Open App Dance on the phone and the question comes up there, or scan the code below.',
+    building: 'The app is being built for the phone and is sent there when it is ready.',
+  },
   simulator: 'Simulator',
   onPhone: 'On my phone',
   onPhoneHint: 'Try the app on your phone, right away or installed',

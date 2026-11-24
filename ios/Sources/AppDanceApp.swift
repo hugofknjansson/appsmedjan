@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct AppDanceApp: App {
+  @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
   @State private var model = AppModel()
 
   init() {
@@ -30,6 +31,7 @@ struct AppDanceApp: App {
 
 struct RootView: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.scenePhase) private var scenePhase
 
   var body: some View {
     switch model.phase {
@@ -45,6 +47,11 @@ struct RootView: View {
       AuthView()
     case .signedIn(let user):
       DashboardView(user: user)
+        // While the app is open, apps sent to this phone from the web come in on a line of its own.
+        .task(id: scenePhase == .active) {
+          guard scenePhase == .active else { return }
+          await PhoneInbox(api: model.api).run()
+        }
     }
   }
 }

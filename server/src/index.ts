@@ -13,6 +13,7 @@ import { addViewer, askViewers, ASK_EVERY_MS, delaySummary, live, sendLatestPict
 import { buildProject, syncViewers } from './preview';
 import { publishState } from './publish';
 import { api, directPages, publicPages, userFromRequest } from './routes';
+import { attachApp } from './tophone';
 import * as workers from './workers';
 
 const app = express();
@@ -70,6 +71,18 @@ server.on('upgrade', (req, socket, head) => {
     const given = (req.headers.authorization ?? '').replace(/^Bearer /, '');
     if (!given || !sameToken(given, config.workerToken)) return reject('401 Unauthorized');
     workerWss.handleUpgrade(req, socket, head, (ws) => workers.attachWorker(ws));
+    return;
+  }
+
+  // The App Dance app on a phone, while it is open and signed in: told when an app is sent to the phone.
+  if (url.pathname === '/ws/me') {
+    if (!originAllowed(req)) return reject('403 Forbidden');
+    const user = userFromRequest(req);
+    if (!user) return reject('401 Unauthorized');
+    clientWss.handleUpgrade(req, socket, head, (ws) => {
+      keepAlive(ws);
+      attachApp(user.id, ws);
+    });
     return;
   }
 

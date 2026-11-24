@@ -450,6 +450,17 @@ export function allocateSpend(grants: CreditGrant[], amount: number, now: number
 // phone once, by installing a small profile that hands over the phone's identifier; after that every
 // build is signed for their phones and installed from a link.
 
+/**
+ * What sending the app to the phone from the web came to. sent: the ready build went to the phone,
+ * `via` the open App Dance app, a notification, or neither (then the person installs from the code).
+ * building: a build for the phone has started, and goes to the phone when it is ready. The rest are
+ * why nothing could be sent.
+ */
+export type ToPhoneResult =
+  | { status: 'sent'; via: 'app' | 'push' | 'none' }
+  | { status: 'building' }
+  | { status: 'no_phones' | 'forbidden' | 'unavailable' | 'busy' };
+
 /** signing: the app is signed for the person's phones and packed. */
 export type DirectStage = 'queued' | 'preparing' | 'archiving' | 'signing';
 

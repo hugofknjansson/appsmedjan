@@ -40,6 +40,11 @@ targets:
         # Lets a development build talk to a server on this Mac over plain http. Other hosts need https.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+    # Notifications from Apple's push service, for "the app is ready, tap to install it".
+    entitlements:
+      path: AppDance.entitlements
+      properties:
+        aps-environment: development
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.appsmedjan.ios

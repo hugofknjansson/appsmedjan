@@ -13,11 +13,13 @@ const shownByItself = new Set<string>();
 interface Props {
   id: string;
   direct: DirectInstall;
+  /** What became of the latest sending of the app to the phone, in words. */
+  note?: string;
   /** True while the agent is working: the files may be half-way through a change. */
   running: boolean;
 }
 
-export function DirectInstallSteps({ id, direct, running }: Props) {
+export function DirectInstallSteps({ id, direct, running, note }: Props) {
   const [ticket, setTicket] = useState<{ url: string; expiresAt: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -68,6 +70,11 @@ export function DirectInstallSteps({ id, direct, running }: Props) {
       <h3>{text.title}</h3>
       <p>{text.intro}</p>
 
+      {note && (
+        <p className="notice" role="status">
+          {note}
+        </p>
+      )}
       <InstallProgress direct={direct} />
 
       <ol className="guide">

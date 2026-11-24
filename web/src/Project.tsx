@@ -176,6 +176,25 @@ export function Project({ id, navigate, isNew = false }: { id: string; navigate:
   // person's own phone, where that can be done, is one tab away.
   const direct = state?.publish.direct;
   const phone = direct && (direct.available || direct.phones > 0 || direct.status !== 'idle') ? direct : null;
+
+  // Sending the app to the phone, where App Dance asks whether to install it: from the tab and from the question after a build.
+  const [sentNote, setSentNote] = useState('');
+  const lastSent = useRef(0);
+  async function sendToPhone(): Promise<boolean> {
+    if (!phone || phone.phones === 0 || state?.publish.plan?.install === false) return false;
+    // One press is one question on the phone; pressing again at once would ask twice.
+    if (Date.now() - lastSent.current < 15_000) return true;
+    lastSent.current = Date.now();
+    try {
+      const result = await api.toPhone(id);
+      setSentNote(result.status === 'building' ? t.toPhone.building : result.status === 'sent' ? t.toPhone[result.via] : '');
+      return true;
+    } catch (err) {
+      lastSent.current = 0;
+      setSentNote(apiErrorText(err instanceof ApiError ? err.code : 'internal'));
+      return false;
+    }
+  }
   // A phone tab that is no longer offered falls back to the simulator.
   useEffect(() => {
     if (state && !phone) setTab((now) => (now === 'phone' ? 'preview' : now));
@@ -297,7 +316,14 @@ export function Project({ id, navigate, isNew = false }: { id: string; navigate:
               {t.chat}
             </button>
             {phone && (
-              <button role="tab" aria-selected={tab === 'phone'} onClick={() => choose('phone')}>
+              <button
+                role="tab"
+                aria-selected={tab === 'phone'}
+                onClick={() => {
+                  choose('phone');
+                  void sendToPhone();
+                }}
+              >
                 {t.myPhone}
               </button>
             )}
@@ -344,7 +370,9 @@ export function Project({ id, navigate, isNew = false }: { id: string; navigate:
       )}
 
       <div className="workspace" data-tab={tab}>
-        <section className="chat-pane">{state && <Chat id={id} state={state} phone={phone} onPhone={() => choose('phone')} onTry={() => choose('preview')} onPlans={() => setPlanOpen(true)} onShow={() => setWatching(true)} />}</section>
+        <section className="chat-pane">
+          {state && <Chat id={id} state={state} phone={phone} onPhone={() => choose('phone')} onSend={sendToPhone} onTry={() => choose('preview')} onPlans={() => setPlanOpen(true)} onShow={() => setWatching(true)} />}
+        </section>
         <section
           className="stage-pane"
           data-arriving={arriving || undefined}
@@ -354,7 +382,7 @@ export function Project({ id, navigate, isNew = false }: { id: string; navigate:
         >
           {state && tab === 'phone' && phone && (
             <div className="phone-tab">
-              <DirectInstallSteps id={id} direct={phone} running={state.running} />
+              <DirectInstallSteps id={id} direct={phone} running={state.running} note={sentNote} />
             </div>
           )}
           {state && tab !== 'phone' && (
@@ -435,6 +463,8 @@ interface ChatProps {
   phone: DirectInstall | null;
   /** Shows the pane where the phone is added and the app installed. */
   onPhone: () => void;
+  /** Sends the app to the phone, where App Dance asks whether to install it. */
+  onSend: () => Promise<boolean>;
   /** Shows the simulator, where the app is tried. */
   onTry: () => void;
   /** Shows the plans, for a person whose plan has no phone in it. */
@@ -443,7 +473,7 @@ interface ChatProps {
   onShow: () => void;
 }
 
-function Chat({ id, state, phone, onPhone, onTry, onPlans, onShow }: ChatProps) {
+function Chat({ id, state, phone, onPhone, onSend, onTry, onPlans, onShow }: ChatProps) {
   // What was there when the page opened is simply there; what comes after rises into place.
   const firstCount = useRef(state.messages.length);
   const rises = (index: number) => (index >= firstCount.current ? ' rise' : '');
@@ -468,7 +498,8 @@ function Chat({ id, state, phone, onPhone, onTry, onPlans, onShow }: ChatProps) 
     setAsking(true);
     setError('');
     try {
-      if (phone.phones > 0 && !(phone.status === 'ready' && phone.fresh !== false)) await api.direct(id);
+      // With a phone added, the app goes to it: App Dance on the phone asks whether to install.
+      if (phone.phones > 0) await onSend();
       onPhone();
     } catch (err) {
       setError(apiErrorText(err instanceof ApiError ? err.code : 'internal'));

@@ -393,9 +393,11 @@ struct ChatView: View {
       do throws(APIError) {
         if phone.phones == 0 {
           // The profile that hands over the phone's identifier can only be fetched in Safari.
+          Notifications.ask()
           openURL(try await api.addPhoneURL(from: store.id))
         } else {
           installsWhenReady = true
+          Notifications.ask()
           try await api.buildForPhone(store.id)
         }
       } catch {

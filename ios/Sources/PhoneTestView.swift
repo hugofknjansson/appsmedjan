@@ -67,6 +67,7 @@ struct PhoneTestView: View {
       Button("Lägg till den här telefonen") {
         run { () throws(APIError) in
           // The profile that hands over the phone's identifier can only be fetched in Safari.
+          Notifications.ask()
           openURL(try await api.addPhoneURL(from: store.id))
         }
       }
@@ -136,6 +137,7 @@ struct PhoneTestView: View {
     case .idle, .failed:
       Button(direct.status == .failed ? "Försök igen" : "Installera på telefonen") {
         installsWhenReady = true
+        Notifications.ask()
         run { () throws(APIError) in try await api.buildForPhone(store.id) }
       }
       .buttonStyle(.bouncy)

@@ -8,6 +8,8 @@ import { hasCredentials } from './agent';
 import { ensureIcon, smallIcon } from './icon';
 import * as credits from './credits';
 import * as plans from './plans';
+import { isPushToken } from './push';
+import { sendToPhone } from './tophone';
 import { config } from './config';
 import * as db from './db';
 import * as direct from './direct';
@@ -496,6 +498,49 @@ api.post('/phones/ticket', requireUser, authLimiter, (req, res) => {
   const asked = (req.body as { projectId?: unknown } | undefined)?.projectId;
   const project = typeof asked === 'string' && isValidProjectId(asked) ? db.getProject(asked) : null;
   res.json(direct.newTicket(user.id, project?.userId === user.id ? project.id : undefined));
+});
+
+/**
+ * Sends the app to the person's phone, where the App Dance app shows iOS's question whether to
+ * install it: at once if the app is open, through a notification if it is not. A build for the phone
+ * is started first when there is no up-to-date one.
+ */
+api.post('/projects/:id/to-phone', requireUser, async (req, res) => {
+  const project = ownProject(req, res);
+  if (!project) return;
+  if (!planCovers(req, res, 'install')) return;
+  const result = await sendToPhone(project, (req as Authed).user);
+  if (result.status === 'forbidden') {
+    res.status(403).json({ error: 'direct_not_offered' });
+    return;
+  }
+  if (result.status === 'unavailable') {
+    res.status(409).json({ error: 'publish_unavailable' });
+    return;
+  }
+  if (result.status === 'no_phones' || result.status === 'busy') {
+    res.status(409).json({ error: result.status });
+    return;
+  }
+  res.json(result);
+});
+
+/** Where notifications reach the App Dance app on this phone. */
+api.post('/push/token', requireUser, (req, res) => {
+  const body = (req.body ?? {}) as { token?: unknown; sandbox?: unknown; lang?: unknown };
+  if (!isPushToken(body.token)) {
+    res.status(400).json({ error: 'bad_token' });
+    return;
+  }
+  db.savePushToken((req as Authed).user.id, body.token.toLowerCase(), body.sandbox === true, body.lang === 'en' ? 'en' : 'sv');
+  res.json({ ok: true });
+});
+
+/** The person signs out on this phone: it stops getting their notifications. */
+api.delete('/push/token', requireUser, (req, res) => {
+  const token = (req.body as { token?: unknown } | undefined)?.token;
+  if (isPushToken(token)) db.deletePushToken(token.toLowerCase(), (req as Authed).user.id);
+  res.json({ ok: true });
 });
 
 /** Builds the app for the person's own phones. The result is an install link in the publish state. */

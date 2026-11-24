@@ -99,6 +99,40 @@ struct API {
 // MARK: - Endpoints
 
 extension API {
+  /// The request that opens the line apps sent from the web come in on, while the app is open.
+  func inboxRequest() -> URLRequest {
+    var parts = URLComponents(url: baseURL.appending(path: "ws/me"), resolvingAgainstBaseURL: false)!
+    parts.scheme = baseURL.scheme == "http" ? "ws" : "wss"
+    var request = URLRequest(url: parts.url!)
+    let cookies = HTTPCookieStorage.shared.cookies(for: baseURL) ?? []
+    for (field, value) in HTTPCookie.requestHeaderFields(with: cookies) {
+      request.setValue(value, forHTTPHeaderField: field)
+    }
+    return request
+  }
+
+  /// Where notifications reach this phone. A development build gets them through Apple's test service.
+  func savePushToken(_ token: String) async throws(APIError) {
+    struct Body: Encodable { let token: String; let sandbox: Bool; let lang: String }
+    #if DEBUG
+    let sandbox = true
+    #else
+    let sandbox = false
+    #endif
+    let lang = Locale.preferredLanguages.first?.hasPrefix("sv") == true ? "sv" : "en"
+    struct Done: Decodable {}
+    let _: Done = try await send("POST", "api/push/token", body: Body(token: token, sandbox: sandbox, lang: lang))
+  }
+
+  /// This phone stops getting the person's notifications, when they sign out.
+  func forgetPushToken(_ token: String) async throws(APIError) {
+    struct Body: Encodable { let token: String }
+    struct Done: Decodable {}
+    let _: Done = try await send("DELETE", "api/push/token", body: Body(token: token))
+  }
+}
+
+extension API {
   private struct Me: Decodable { let user: User? }
   private struct Signed: Decodable { let user: User }
   private struct Config: Decodable {

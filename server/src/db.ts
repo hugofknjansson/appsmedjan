@@ -155,6 +155,13 @@ db.exec(`
     plan TEXT NOT NULL,
     requested_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS push_tokens (
+    token TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    sandbox INTEGER NOT NULL,
+    lang TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS phones (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -953,6 +960,32 @@ const toPhone = (r: Record<string, unknown>): PhoneRow => ({
 export function listPhones(userId: string): PhoneRow[] {
   const rows = db.prepare('SELECT * FROM phones WHERE user_id = ? ORDER BY created_at').all(userId) as unknown as Record<string, unknown>[];
   return rows.map(toPhone);
+}
+
+/**
+ * Where notifications reach the App Dance app on a phone. A phone has one address, so whoever signs in
+ * on it last gets its notifications.
+ */
+export function savePushToken(userId: string, token: string, sandbox: boolean, lang: string): void {
+  db.prepare(
+    `INSERT INTO push_tokens (token, user_id, sandbox, lang, updated_at) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT (token) DO UPDATE SET user_id = excluded.user_id, sandbox = excluded.sandbox, lang = excluded.lang, updated_at = excluded.updated_at`,
+  ).run(token, userId, sandbox ? 1 : 0, lang, Date.now());
+}
+
+export function pushTokensOf(userId: string): Array<{ token: string; sandbox: boolean; lang: string }> {
+  const rows = db.prepare('SELECT token, sandbox, lang FROM push_tokens WHERE user_id = ? ORDER BY updated_at DESC LIMIT 10').all(userId) as unknown as Array<{
+    token: string;
+    sandbox: number;
+    lang: string;
+  }>;
+  return rows.map((r) => ({ token: r.token, sandbox: r.sandbox === 1, lang: r.lang }));
+}
+
+/** Forgets an address: the person signed out on that phone, or Apple says the app is gone from it. */
+export function deletePushToken(token: string, userId?: string): void {
+  if (userId) db.prepare('DELETE FROM push_tokens WHERE token = ? AND user_id = ?').run(token, userId);
+  else db.prepare('DELETE FROM push_tokens WHERE token = ?').run(token);
 }
 
 /** Adds the phone to the person's own. Adding one they already have changes nothing. */

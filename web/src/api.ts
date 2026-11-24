@@ -1,4 +1,4 @@
-import type { PlanId, PlanState, PublishState, ReleaseGuide, ReviewContact, StoreChoices, StoreListing, StorePages, StoreState, TesterPerson } from '../../shared/protocol';
+import type { PlanId, PlanState, PublishState, ReleaseGuide, ReviewContact, StoreChoices, StoreListing, StorePages, StoreState, TesterPerson, ToPhoneResult } from '../../shared/protocol';
 
 /** An app someone is waiting for the operator to create in App Store Connect. */
 export interface AppRequest {
@@ -112,6 +112,8 @@ export const api = {
   phoneTicket: (projectId?: string) => call<{ path: string; expiresInMs: number }>('POST', '/api/phones/ticket', { projectId }),
   /** Builds the app for the person's own phones. */
   direct: (id: string) => call<{ publish: PublishState }>('POST', `/api/projects/${id}/direct`, {}),
+  /** Sends the app to the person's phone, where App Dance asks whether to install it. */
+  toPhone: (id: string) => call<ToPhoneResult>('POST', `/api/projects/${id}/to-phone`, {}),
   operatorRequests: () => call<{ requests: AppRequest[] }>('GET', '/api/operator/requests'),
   store: (id: string) => call<StoreState>('GET', `/api/projects/${id}/store`),
   release: (id: string) => call<ReleaseGuide>('GET', `/api/projects/${id}/release`),

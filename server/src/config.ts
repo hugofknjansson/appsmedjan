@@ -117,6 +117,16 @@ export const config = {
    * the wait for what follows it in the simulator. PREDICT_FINGER=0 has it sent where it is.
    */
   predictFinger: process.env.PREDICT_FINGER !== '0',
+  /**
+   * Apple's push service, for telling the App Dance app on a phone that an app is ready to install
+   * when the app is not open. APNS_KEY is the contents of an APNs key (.p8) from the developer account;
+   * APNS_KEY_ID its id and APNS_TEAM_ID the team. Without them nothing is sent.
+   */
+  apnsKey: (process.env.APNS_KEY ?? '').replace(/\\n/g, '\n'),
+  apnsKeyId: process.env.APNS_KEY_ID ?? '',
+  apnsTeamId: process.env.APNS_TEAM_ID ?? '',
+  /** The app the notifications are for: the App Dance iPhone app's bundle id. */
+  apnsTopic: process.env.APNS_TOPIC ?? 'app.appsmedjan.ios',
   /** How long a simulator stays up after the last viewer leaves. */
   releaseAfterMs: Number(process.env.RELEASE_AFTER_MS ?? 5 * 60_000),
 };

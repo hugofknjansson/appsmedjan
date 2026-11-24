@@ -34,6 +34,12 @@ const fetches = new Map<string, { token: string; stage: DirectFetch }>();
 const FETCH_ORDER: DirectFetch[] = ['asked', 'fetching', 'fetched'];
 
 let changed: (projectId: string) => void = () => undefined;
+const readyListeners: Array<(projectId: string, ok: boolean) => void> = [];
+
+/** Called when a build for the phone has finished, with whether it is ready to install. */
+export function onReady(listener: (projectId: string, ok: boolean) => void): void {
+  readyListeners.push(listener);
+}
 let phonesChanged: (userId: string) => void = () => undefined;
 
 /** Lets the open project follow a build along, and a person's projects notice a new phone. */
@@ -177,6 +183,7 @@ async function run(project: db.Project, build: string, phones: db.PhoneRow[], ac
     db.setDirectBuild(project.id, { status: 'failed', error: outcome.error ?? 'internal', build, token: null, appName: now.name });
   }
   changed(project.id);
+  for (const listener of readyListeners) listener(project.id, outcome.ok);
 }
 
 // --- Adding a phone ----------------------------------------------------------------
