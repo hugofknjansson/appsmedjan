@@ -50,6 +50,38 @@ Planerna gäller först med `PAYWALL=1` på servern. Utan den är allt öppet f�
 planer kan redan delas ut. `DEFAULT_PLAN` är planen för den som inte har fått någon (`free` om inget
 anges). En begäran som en plan inte täcker besvaras med 402 och namnet på den plan som räcker.
 
+### Credits
+
+Med `CREDITS=1` (utöver `PAYWALL=1`) räknar planerna credits i stället för meddelanden. Ett meddelande
+kostar då det som arbetet bakom det kostade: alla tokens byggaren läste och skrev, till modellens
+listpris (`MODEL_RATES` i `shared/protocol.ts`), så en liten ändring kostar lite och en ny app mer.
+Utan `CREDITS=1` räknas meddelanden precis som förut.
+
+| Plan | Credits |
+|---|---|
+| Prova | 25, en gång |
+| Skapa | 100 i månaden |
+| Publicera | 260 i månaden |
+
+- **En credit** är 0,10 dollar av modellens arbete (`CREDIT_DOLLARS`). En ny app med Opus 5.5 och
+  effort `high` blir ungefär 15–20 credits; det är en uppskattning tills riktiga byggen har mätts.
+- **Taket** för ett meddelande är 40 credits (`MAX_CREDITS_PER_MESSAGE`); det som går över bjuder
+  tjänsten på. Ett meddelande drar heller aldrig saldot under noll: den som har några credits kvar
+  får skicka ett meddelande till, och betalar bara det som finns kvar.
+- **Avdraget** görs när byggaren är klar (`[usage]`-raden visar kostnaden i dollar, credits och vad som
+  drogs). En körning som personen stoppar dras; en som tjänsten inte klarade (överbelastning, fel)
+  sparas men dras inte. App Store-texterna som byggaren föreslår dras på samma sätt.
+- **Månadens credits** delas ut första gången personen använder tjänsten den månaden och gäller till
+  slutet av nästa månad. Den som får en större plan mitt i en månad får skillnaden direkt. Credits
+  som delas ut utanför planen gäller ett år. Det som går ut först används först.
+- **Andra tal** för planerna ges med `PLAN_CREDITS`, till exempel `free=10; create=120; publish=300`.
+- **De som driver tjänsten** dras aldrig, kan ge vem som helst credits från sin startsida på webben
+  (`POST /api/operator/credits`), och ser vad varje person har kostat i dollar den här månaden. Det
+  syns även när credits är avstängda, eftersom varje körning sparas med sin kostnad.
+
+Det finns ingen betalning för credits än. En betaltjänst anropar `give` i `server/src/credits.ts`
+för påfyllningar och `give` i `server/src/plans.ts` för planer.
+
 ## Så hänger det ihop
 
 ```

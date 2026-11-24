@@ -1,19 +1,22 @@
 // The person's plan: what it holds, how much of it is used, and a way to ask for a larger one.
 // For someone whose plan lets them build nothing this is the paywall: what they get, what it
 // costs, and a field for a code that lets them past it.
+// Where credits are counted, it shows how many are left and what the latest messages cost.
 // There is no payment yet: asking sends a request, and the people who run the service answer it.
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { PLAN_ORDER, type PlanId, type PlanLimits, type PlanState } from '../../shared/protocol';
+import { PLAN_ORDER, type CreditState, type PlanId, type PlanLimits, type PlanState } from '../../shared/protocol';
 import { ApiError, api, type PlanPerson } from './api';
 import { apiErrorText, lang, t } from './i18n';
 import { Mascot } from './Mascot';
 
-/** What a plan holds, as lines to read. */
-function lines(limits: PlanLimits): string[] {
+/** What a plan holds, as lines to read: its credits where credits are counted, otherwise its messages. */
+function lines(limits: PlanLimits, credits: boolean): string[] {
   const text = t.plan;
   return [
     (limits.apps === 1 ? text.oneApp : text.apps).replace('{n}', String(limits.apps)),
-    text.messages.replace('{n}', String(limits.messages)),
+    credits
+      ? (limits.creditsOnce ? text.creditsOnce : text.credits).replace('{n}', String(limits.credits))
+      : text.messages.replace('{n}', String(limits.messages)),
     ...(limits.install ? [text.install] : []),
     ...(limits.store ? [text.store] : []),
   ];
@@ -89,6 +92,8 @@ export function PlanDialog({ onClose, onUnlock }: { onClose: () => void; onUnloc
                 <strong>{text.pitch}</strong>
                 <p>{text.pitchText}</p>
               </div>
+            ) : plan.credits ? (
+              <Credits credits={plan.credits} apps={plan.used.apps} maxApps={plan.limits.apps} date={date} />
             ) : (
               <div className="plan-used">
                 <Used label={text.usedMessages} used={plan.used.messages} of={plan.limits.messages} />
@@ -108,7 +113,7 @@ export function PlanDialog({ onClose, onUnlock }: { onClose: () => void; onUnloc
                       {plan.prices?.[id] && <span className="plan-price">{plan.prices[id]}</span>}
                     </h3>
                     <ul>
-                      {lines(plan.plans[id]).map((line) => (
+                      {lines(plan.plans[id], plan.credits !== undefined).map((line) => (
                         <li key={line}>{line}</li>
                       ))}
                     </ul>
@@ -148,6 +153,44 @@ export function PlanDialog({ onClose, onUnlock }: { onClose: () => void; onUnloc
   );
 }
 
+const creditCount = (n: number) => (n === 1 ? t.plan.oneCredit : t.plan.creditCount.replace('{n}', String(n)));
+
+/** How many credits are left, when some of them run out, and what the latest messages cost. */
+function Credits({ credits, apps, maxApps, date }: { credits: CreditState; apps: number; maxApps: number; date: Intl.DateTimeFormat }) {
+  const text = t.plan;
+  const when = new Intl.DateTimeFormat(lang, { day: 'numeric', month: 'short' });
+  return (
+    <div className="plan-used">
+      <p className="plan-balance">
+        <span>{text.creditsLeft}</span>
+        <strong>{credits.balance}</strong>
+      </p>
+      {credits.expiring && credits.expiring.amount > 0 && (
+        <p className="muted fine">{text.creditsExpire.replace('{n}', String(credits.expiring.amount)).replace('{date}', date.format(credits.expiring.at))}</p>
+      )}
+      <Used label={text.usedApps} used={apps} of={maxApps} />
+      <p className="muted fine">{text.creditsWhat.replace('{max}', creditCount(credits.maxPerMessage))}</p>
+      {credits.recent.length > 0 && (
+        <details className="plan-recent">
+          <summary>{text.recent}</summary>
+          <ul>
+            {credits.recent.map((spend) => (
+              <li key={`${spend.at}-${spend.what}`}>
+                <span>
+                  {spend.what === 'listing' ? text.spendListing : text.spendBuild}
+                  {spend.app && <span className="muted"> · {spend.app}</span>}
+                  <span className="muted"> · {when.format(spend.at)}</span>
+                </span>
+                <strong>{creditCount(spend.credits)}</strong>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
+}
+
 function Used({ label, used, of }: { label: string; used: number; of: number }) {
   return (
     <label className="plan-meter">
@@ -161,9 +204,11 @@ function Used({ label, used, of }: { label: string; used: number; of: number }) 
 
 /** For the people who run the service: who has asked for a plan, and a way to give anyone one. */
 export function OperatorPlans() {
-  const [state, setState] = useState<{ enforced: boolean; defaultPlan: PlanId; people: PlanPerson[] } | null>(null);
+  const [state, setState] = useState<{ enforced: boolean; credits?: boolean; defaultPlan: PlanId; people: PlanPerson[] } | null>(null);
   const [email, setEmail] = useState('');
   const [plan, setPlan] = useState<PlanId>('create');
+  const [creditsTo, setCreditsTo] = useState('');
+  const [amount, setAmount] = useState('');
   const [error, setError] = useState('');
   const text = t.plan;
 
@@ -183,11 +228,24 @@ export function OperatorPlans() {
     }
   }
 
+  async function giveCredits() {
+    setError('');
+    try {
+      setState(await api.giveCredits(creditsTo, Number(amount)));
+      setCreditsTo('');
+      setAmount('');
+    } catch (err) {
+      setError(apiErrorText(err instanceof ApiError ? err.code : 'internal'));
+    }
+  }
+
   const asking = state.people.filter((p) => p.requested);
   return (
     <section>
       <h2>{text.operatorTitle}</h2>
-      <p className="muted">{state.enforced ? text.operatorOn : text.operatorOff}</p>
+      <p className="muted">
+        {state.enforced ? text.operatorOn : text.operatorOff} {state.credits && text.operatorCredits}
+      </p>
       {asking.length > 0 && (
         <ul className="requests">
           {asking.map((p) => (
@@ -219,6 +277,19 @@ export function OperatorPlans() {
         </select>
         <button className="btn">{text.give}</button>
       </form>
+      {state.credits && (
+        <form
+          className="plan-give"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void giveCredits();
+          }}
+        >
+          <input type="email" required placeholder={t.email} aria-label={t.email} value={creditsTo} onChange={(e) => setCreditsTo(e.target.value)} />
+          <input type="number" required min={1} max={100000} step={1} placeholder={text.amount} aria-label={text.amount} value={amount} onChange={(e) => setAmount(e.target.value)} />
+          <button className="btn">{text.giveCredits}</button>
+        </form>
+      )}
       {error && (
         <p className="form-error" role="alert">
           {error}
@@ -226,6 +297,7 @@ export function OperatorPlans() {
       )}
       <details className="plan-people">
         <summary>{text.everyone.replace('{n}', String(state.people.length))}</summary>
+        <p className="muted fine">{text.operatorDollars}</p>
         <table>
           <thead>
             <tr>
@@ -233,6 +305,8 @@ export function OperatorPlans() {
               <th>{text.column}</th>
               <th>{text.usedApps}</th>
               <th>{text.usedMessages}</th>
+              {state.credits && <th>{text.creditsColumn}</th>}
+              <th>{text.dollarsColumn}</th>
             </tr>
           </thead>
           <tbody>
@@ -242,6 +316,8 @@ export function OperatorPlans() {
                 <td>{text.name[(p.plan as PlanId | null) ?? state.defaultPlan] ?? p.plan}</td>
                 <td>{p.apps}</td>
                 <td>{p.messages}</td>
+                {state.credits && <td>{p.credits ?? 0}</td>}
+                <td>{p.dollars !== undefined ? `$${p.dollars.toFixed(2)}` : '–'}</td>
               </tr>
             ))}
           </tbody>

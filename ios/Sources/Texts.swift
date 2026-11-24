@@ -17,6 +17,7 @@ enum Texts {
     case "project_limit": String(localized: "Du har nått gränsen för antal appar. Ta bort en app för att skapa en ny.")
     case "plan_apps": String(localized: "Din plan rymmer inte fler appar. Ta bort en app, eller be om en större plan under Min plan.")
     case "plan_messages": String(localized: "Månadens meddelanden är slut i din plan. Be om en större plan under Min plan.")
+    case "plan_credits": String(localized: "Dina credits är slut. Be om en större plan under Min plan.")
     case "plan_install": String(localized: "Appen på telefonen ingår i planen Skapa. Du ber om den under Min plan.")
     case "plan_store": String(localized: "App Store-guiden ingår i planen Publicera. Du ber om den under Min plan.")
     case "bad_plan": String(localized: "Det gick inte att be om den planen.")
@@ -97,15 +98,24 @@ enum Texts {
     }
   }
 
-  /// What a plan holds, as lines to read.
-  static func planLines(_ limits: PlanLimits) -> [String] {
+  /// What a plan holds, as lines to read: its credits where credits are counted, otherwise its messages.
+  static func planLines(_ limits: PlanLimits, credits: Bool = false) -> [String] {
     var lines = [
       limits.apps == 1 ? String(localized: "1 app") : String(localized: "\(limits.apps) appar"),
-      String(localized: "\(limits.messages) meddelanden till byggaren i månaden"),
     ]
+    if credits, let amount = limits.credits {
+      lines.append(limits.creditsOnce == true ? String(localized: "\(amount) credits att börja med") : String(localized: "\(amount) credits i månaden"))
+    } else {
+      lines.append(String(localized: "\(limits.messages) meddelanden till byggaren i månaden"))
+    }
     if limits.install { lines.append(String(localized: "Appen på din egen telefon")) }
     if limits.store { lines.append(String(localized: "Hjälp att lägga upp appen i App Store")) }
     return lines
+  }
+
+  /// A number of credits, as a person says it.
+  static func credits(_ amount: Int) -> String {
+    amount == 1 ? String(localized: "1 credit") : String(localized: "\(amount) credits")
   }
 
   static func directStage(_ stage: String?) -> String {

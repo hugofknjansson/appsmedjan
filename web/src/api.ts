@@ -31,10 +31,15 @@ export interface PlanPerson {
   requestedAt: number | null;
   apps: number;
   messages: number;
+  /** Missing from servers before credits. */
+  credits?: number;
+  dollars?: number;
 }
 
 interface OperatorPlans {
   enforced: boolean;
+  /** Whether credits are counted in place of messages. Missing from servers before credits. */
+  credits?: boolean;
   defaultPlan: PlanId;
   people: PlanPerson[];
 }
@@ -101,6 +106,7 @@ export const api = {
   unlockPlan: (code: string) => call<PlanState>('POST', '/api/plan/unlock', { code }),
   operatorPlans: () => call<OperatorPlans>('GET', '/api/operator/plans'),
   givePlan: (email: string, plan: PlanId) => call<OperatorPlans>('POST', '/api/operator/plans', { email, plan }),
+  giveCredits: (email: string, amount: number) => call<OperatorPlans>('POST', '/api/operator/credits', { email, amount }),
   /** A link for adding a phone, to open (or scan) on that phone. */
   phoneTicket: () => call<{ path: string; expiresInMs: number }>('POST', '/api/phones/ticket', {}),
   /** Builds the app for the person's own phones. */

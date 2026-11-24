@@ -36,6 +36,10 @@ import {
   PLAN_ORDER,
   planFor,
   planPrices,
+  planCredits,
+  tokenCost,
+  creditsFor,
+  allocateSpend,
   unlockCodes,
   type StoreListing,
   frameKind,
@@ -171,7 +175,7 @@ assert.equal(firstSentence(''), '');
 // Plans: each one holds at least what the one before it holds, and the right one is named for a limit
 for (let i = 1; i < PLAN_ORDER.length; i++) {
   const smaller = PLANS[PLAN_ORDER[i - 1]!], larger = PLANS[PLAN_ORDER[i]!];
-  assert.ok(larger.apps >= smaller.apps && larger.messages >= smaller.messages, 'more room in a larger plan');
+  assert.ok(larger.apps >= smaller.apps && larger.messages >= smaller.messages && larger.credits >= smaller.credits, 'more room in a larger plan');
   assert.ok((larger.install || !smaller.install) && (larger.store || !smaller.store), 'nothing is lost in a larger plan');
 }
 assert.equal(planFor('install', { apps: 0, messages: 0 }), 'create');
@@ -188,6 +192,47 @@ assert.equal(planFor('apps', { apps: PLANS.free.apps, messages: 0 }), 'create');
 assert.equal(planFor('apps', { apps: PLANS.create.apps, messages: 0 }), 'publish');
 assert.equal(planFor('messages', { apps: 0, messages: PLANS.free.messages }), 'create');
 assert.equal(planFor('messages', { apps: 0, messages: PLANS.publish.messages }), null, 'no plan has room for more');
+
+// Credits: what the model's work cost, at the model's own rates, and what it comes to in credits
+{
+  const million = { input: 1_000_000, cacheWritten: 0, cacheRead: 0, output: 0 };
+  assert.equal(tokenCost([{ model: 'claude-opus-5-5', ...million }]), 4);
+  assert.equal(tokenCost([{ model: 'claude-opus-5-5', input: 0, cacheWritten: 1_000_000, cacheRead: 1_000_000, output: 1_000_000 }]), 5 + 0.2 + 20);
+  assert.equal(tokenCost([{ model: 'claude-sonnet-5-5', ...million }]), 2);
+  assert.equal(tokenCost([{ model: 'claude-sonnet-5-5-20261101', ...million }]), 2, 'a dated id is priced as its model');
+  assert.equal(tokenCost([{ model: 'some-model-not-listed', ...million }]), 5, 'an unknown model is priced as the dearest listed');
+  assert.equal(tokenCost([{ model: 'claude-opus-5-5', ...million }, { model: 'claude-sonnet-5-5', ...million }]), 6, 'turns add up');
+  assert.equal(tokenCost([]), 0);
+  // A typical new app: about 60k tokens written and 400k read from the cache.
+  const app = tokenCost([{ model: 'claude-opus-5-5', input: 5_000, cacheWritten: 120_000, cacheRead: 400_000, output: 60_000 }]);
+  assert.ok(app > 1.5 && app < 2.2, `a new app costs ${app}`);
+  assert.equal(creditsFor(0, 0.1), 0, 'no work, no credits');
+  assert.equal(creditsFor(0.0001, 0.1), 1, 'any work costs at least one');
+  assert.equal(creditsFor(0.3, 0.1), 3, 'a whole number of credits is not rounded up to the next');
+  assert.equal(creditsFor(0.31, 0.1), 4);
+  assert.equal(creditsFor(1.75, 0.1), 18);
+}
+// Spending takes from what runs out first, never more than there is, and never from what has run out
+{
+  const now = 1_000;
+  const grants = [
+    { id: 1, left: 10, expiresAt: null },
+    { id: 2, left: 5, expiresAt: 3_000 },
+    { id: 3, left: 4, expiresAt: 2_000 },
+    { id: 4, left: 50, expiresAt: 500 },
+    { id: 5, left: 0, expiresAt: 2_500 },
+  ];
+  assert.deepEqual(allocateSpend(grants, 6, now), [{ id: 3, take: 4 }, { id: 2, take: 2 }]);
+  assert.deepEqual(allocateSpend(grants, 30, now), [{ id: 3, take: 4 }, { id: 2, take: 5 }, { id: 1, take: 10 }]);
+  assert.deepEqual(allocateSpend(grants, 0, now), []);
+  assert.deepEqual(allocateSpend([], 5, now), []);
+}
+assert.deepEqual(planCredits('free=10; create = 120; publish=x; nope=5; free=-1'), { free: 10, create: 120 });
+assert.deepEqual(planCredits(''), {});
+// More credits come with a larger monthly plan, never with the one that only gives them to start with.
+assert.equal(planFor('credits', { apps: 0, messages: 0, credits: PLANS.free.credits }), 'create');
+assert.equal(planFor('credits', { apps: 0, messages: 0, credits: PLANS.create.credits }), 'publish');
+assert.equal(planFor('credits', { apps: 0, messages: 0, credits: PLANS.publish.credits }), null);
 
 // JPEG splitting across arbitrary chunk boundaries
 const jpg = (n: number) => Buffer.concat([Buffer.from([0xff, 0xd8]), Buffer.alloc(n, 7), Buffer.from([0xff, 0xd9])]);

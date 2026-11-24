@@ -237,17 +237,48 @@ export interface PlanLimits {
   install: boolean;
   /** Whether they get the App Store guide. */
   store: boolean;
+  /**
+   * Credits the plan gives, where the service counts credits in place of messages: every calendar
+   * month, or once for a plan that only gives them to start with (`creditsOnce`).
+   */
+  credits: number;
+  creditsOnce?: boolean;
 }
 
 /** The plans. Changing a number here changes it everywhere: the server enforces it and the clients show it. */
 export const PLANS: Record<PlanId, PlanLimits> = {
-  free: { apps: 1, messages: 20, install: false, store: false },
-  create: { apps: 10, messages: 300, install: true, store: false },
-  publish: { apps: 50, messages: 600, install: true, store: true },
+  free: { apps: 1, messages: 20, install: false, store: false, credits: 25, creditsOnce: true },
+  create: { apps: 10, messages: 300, install: true, store: false, credits: 100 },
+  publish: { apps: 50, messages: 600, install: true, store: true, credits: 260 },
 };
 
-/** What ran into a plan's limit. */
-export type PlanNeed = 'apps' | 'messages' | 'install' | 'store';
+/** What ran into a plan's limit. `credits`: the person has no credits left. */
+export type PlanNeed = 'apps' | 'messages' | 'install' | 'store' | 'credits';
+
+/**
+ * Credits, where the service counts them in place of messages. A message to the builder costs what
+ * the work behind it cost: the tokens the model read and wrote, priced at the model's rates, so a
+ * small change costs little and a new app more.
+ */
+export interface CreditState {
+  /** Credits the person can spend now. */
+  balance: number;
+  /** Credits that run out before the end of next month, and when the first of them do. */
+  expiring?: { amount: number; at: number };
+  /** The latest messages and what each cost, newest first. */
+  recent: CreditSpend[];
+  /** The most one message ever costs. Anything beyond it is on the service. */
+  maxPerMessage: number;
+}
+
+export interface CreditSpend {
+  at: number;
+  /** The app the message was about, when it still exists. */
+  app?: string;
+  /** build: a message to the builder. listing: texts suggested for the App Store page. */
+  what: 'build' | 'listing';
+  credits: number;
+}
 
 export interface PlanState {
   /** False while the people who run the service have not turned plans on: everything is open to everyone. */
@@ -270,6 +301,8 @@ export interface PlanState {
   takesCode?: boolean;
   /** What each plan costs, in the operator's own words ("99 kr i månaden"), for the plans that have a price. */
   prices?: Partial<Record<PlanId, string>>;
+  /** Present where the service counts credits in place of messages. */
+  credits?: CreditState;
 }
 
 /** What the open project needs to know about the plan, to ask for the right thing at the right moment. */
@@ -284,12 +317,14 @@ export function isPlanId(value: unknown): value is PlanId {
 }
 
 /** The smallest plan that has what is needed, or null when no plan does. */
-export function planFor(need: PlanNeed, used: { apps: number; messages: number }, plans: Record<PlanId, PlanLimits> = PLANS): PlanId | null {
+export function planFor(need: PlanNeed, used: { apps: number; messages: number; credits?: number }, plans: Record<PlanId, PlanLimits> = PLANS): PlanId | null {
   return (
     PLAN_ORDER.find((id) => {
       const plan = plans[id];
       if (need === 'install') return plan.install;
       if (need === 'store') return plan.store;
+      // More credits come with a plan that gives more of them each month than the person's own does.
+      if (need === 'credits') return !plan.creditsOnce && plan.credits > (used.credits ?? 0);
       return need === 'apps' ? plan.apps > used.apps : plan.messages > used.messages;
     }) ?? null
   );
@@ -317,6 +352,93 @@ export function planPrices(written: string): Partial<Record<PlanId, string>> {
     if (at > 0 && isPlanId(plan) && price) prices[plan] = price.slice(0, 60);
   }
   return prices;
+}
+
+/**
+ * How many credits each plan gives, as the operator writes it when the numbers are to be other than
+ * the usual ones: "free=25; create=100; publish=260". Plans left out keep their usual number.
+ */
+export function planCredits(written: string): Partial<Record<PlanId, number>> {
+  const credits: Partial<Record<PlanId, number>> = {};
+  for (const entry of written.split(';')) {
+    const at = entry.indexOf('=');
+    const plan = entry.slice(0, at).trim();
+    const amount = Number(entry.slice(at + 1).trim());
+    if (at > 0 && isPlanId(plan) && Number.isInteger(amount) && amount >= 0) credits[plan] = amount;
+  }
+  return credits;
+}
+
+/** What the model's work cost, in tokens of each kind: the four are billed at different rates. */
+export interface TokenUse {
+  model: string;
+  input: number;
+  cacheWritten: number;
+  cacheRead: number;
+  output: number;
+}
+
+/** Dollars per million tokens. Cache writes are for the 5-minute cache, 1.25 times the input rate. */
+interface Rates {
+  input: number;
+  cacheWrite: number;
+  cacheRead: number;
+  output: number;
+}
+
+/**
+ * The models' list prices (Anthropic, November 2026). A model that is not here, such as one the API
+ * fell back to, is priced as the dearest one here, so the service never charges less than it paid.
+ */
+export const MODEL_RATES: Record<string, Rates> = {
+  'claude-opus-5-5': { input: 4, cacheWrite: 5, cacheRead: 0.2, output: 20 },
+  'claude-opus-5': { input: 5, cacheWrite: 6.25, cacheRead: 0.5, output: 25 },
+  'claude-sonnet-5-5': { input: 2, cacheWrite: 2.5, cacheRead: 0.1, output: 10 },
+};
+const DEAREST = MODEL_RATES['claude-opus-5']!;
+
+/** What the tokens cost, in dollars. */
+export function tokenCost(uses: TokenUse[]): number {
+  let dollars = 0;
+  for (const use of uses) {
+    // A model id may carry a date or other suffix after the name.
+    const rates = MODEL_RATES[use.model] ?? Object.entries(MODEL_RATES).find(([name]) => use.model.startsWith(`${name}-`))?.[1] ?? DEAREST;
+    dollars += (use.input * rates.input + use.cacheWritten * rates.cacheWrite + use.cacheRead * rates.cacheRead + use.output * rates.output) / 1_000_000;
+  }
+  return dollars;
+}
+
+/** Credits for a cost in dollars, when one credit stands for `perCredit` dollars: rounded up, and at least one for any work. */
+export function creditsFor(dollars: number, perCredit: number): number {
+  if (!(dollars > 0)) return 0;
+  // A hair of floating-point error must not round a whole number of credits up to the next.
+  return Math.max(1, Math.ceil(dollars / perCredit - 1e-9));
+}
+
+/** A grant of credits as spending sees it: how many are left, and when they run out (null: never). */
+export interface CreditGrant {
+  id: number;
+  left: number;
+  expiresAt: number | null;
+}
+
+/**
+ * Which grants a spend of `amount` credits takes from, and how much from each: those that run out
+ * first are used first, so nobody loses credits they could have spent. Never takes more than there is.
+ */
+export function allocateSpend(grants: CreditGrant[], amount: number, now: number): Array<{ id: number; take: number }> {
+  const usable = grants
+    .filter((g) => g.left > 0 && (g.expiresAt === null || g.expiresAt > now))
+    .sort((a, b) => (a.expiresAt ?? Infinity) - (b.expiresAt ?? Infinity) || a.id - b.id);
+  const takes: Array<{ id: number; take: number }> = [];
+  let rest = Math.max(0, Math.floor(amount));
+  for (const grant of usable) {
+    if (rest === 0) break;
+    const take = Math.min(grant.left, rest);
+    takes.push({ id: grant.id, take });
+    rest -= take;
+  }
+  return takes;
 }
 
 // ---------------------------------------------------------------------------

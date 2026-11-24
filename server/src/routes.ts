@@ -3,9 +3,10 @@ import type { IncomingMessage } from 'node:http';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import express, { type NextFunction, type Request, type Response } from 'express';
-import { isPlanId, isValidProjectId, releaseGuide, testerPersonProblem, type PlanNeed, type TesterPerson } from '../../shared/protocol';
+import { isPlanId, isValidProjectId, releaseGuide, testerPersonProblem, type PlanNeed, type TesterPerson, type TokenUse } from '../../shared/protocol';
 import { hasCredentials } from './agent';
 import { ensureIcon, smallIcon } from './icon';
+import * as credits from './credits';
 import * as plans from './plans';
 import { config } from './config';
 import * as db from './db';
@@ -211,7 +212,7 @@ api.post('/projects', requireUser, (req, res) => {
     res.status(403).json({ error: 'project_limit' });
     return;
   }
-  if (!planCovers(req, res, 'apps') || !planCovers(req, res, 'messages')) return;
+  if (!planCovers(req, res, 'apps') || !planCovers(req, res, plans.messageNeed())) return;
   if (!db.consumeMessage(user.id)) {
     res.status(429).json({ error: 'daily_limit' });
     return;
@@ -251,7 +252,7 @@ api.post('/projects/:id/messages', requireUser, (req, res) => {
     res.status(409).json({ error: 'busy' });
     return;
   }
-  if (!planCovers(req, res, 'messages')) return;
+  if (!planCovers(req, res, plans.messageNeed())) return;
   if (!db.consumeMessage((req as Authed).user.id)) {
     res.status(429).json({ error: 'daily_limit' });
     return;
@@ -440,7 +441,7 @@ api.get('/operator/plans', requireUser, (req, res) => {
     res.status(403).json({ error: 'forbidden' });
     return;
   }
-  res.json({ enforced: config.paywall, defaultPlan: plans.defaultPlan, people: db.listPlans() });
+  res.json({ enforced: config.paywall, credits: credits.counting(), defaultPlan: plans.defaultPlan, people: db.listPlans() });
 });
 
 /** For the people who run the service: gives a person a plan. */
@@ -458,7 +459,24 @@ api.post('/operator/plans', requireUser, (req, res) => {
   }
   // Their open projects find out at once what they may now do.
   accountChanged(person.id);
-  res.json({ enforced: config.paywall, defaultPlan: plans.defaultPlan, people: db.listPlans() });
+  res.json({ enforced: config.paywall, credits: credits.counting(), defaultPlan: plans.defaultPlan, people: db.listPlans() });
+});
+
+/** For the people who run the service: gives a person credits outside their plan, lasting a year. */
+api.post('/operator/credits', requireUser, (req, res) => {
+  const operator = (req as Authed).user;
+  if (!isOperator(operator.email)) {
+    res.status(403).json({ error: 'forbidden' });
+    return;
+  }
+  const given = (req.body ?? {}) as { email?: unknown; amount?: unknown };
+  const person = typeof given.email === 'string' && typeof given.amount === 'number' ? credits.give(given.email, given.amount, `operator ${operator.id}`) : null;
+  if (!person) {
+    res.status(400).json({ error: 'bad_credits' });
+    return;
+  }
+  accountChanged(person.id);
+  res.json({ enforced: config.paywall, credits: credits.counting(), defaultPlan: plans.defaultPlan, people: db.listPlans() });
 });
 
 // --- Straight onto the phone -------------------------------------------------------
@@ -634,12 +652,19 @@ api.post('/projects/:id/store/draft', requireUser, async (req, res) => {
     return;
   }
   // It is a model request like a chat message, and counts as one.
-  if (!planCovers(req, res, 'messages')) return;
+  if (!planCovers(req, res, plans.messageNeed())) return;
   if (!db.consumeMessage((req as Authed).user.id)) {
     res.status(429).json({ error: 'daily_limit' });
     return;
   }
-  const result = await draftListing(project.name, db.getFiles(project.id));
+  const uses: TokenUse[] = [];
+  const result = await draftListing(project.name, db.getFiles(project.id), uses);
+  // Like a message to the builder: charged when the person gets texts back, recorded either way.
+  try {
+    plans.chargeWork(project.userId, { projectId: project.id, what: 'listing', uses, charge: result.ok });
+  } catch (err) {
+    console.error(`[credits] ${project.id}: the draft's cost was not recorded:`, err);
+  }
   if (!result.ok) {
     res.status(result.error === 'rate_limited' || result.error === 'overloaded' ? 503 : 502).json({ error: result.error });
     return;

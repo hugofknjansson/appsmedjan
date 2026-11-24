@@ -21,6 +21,46 @@
         }
       }
     },
+    "%lld av dem går ut %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld of them run out on %@."
+          }
+        }
+      }
+    },
+    "%lld credits": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld credits"
+          }
+        }
+      }
+    },
+    "%lld credits att börja med": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld credits to start with"
+          }
+        }
+      }
+    },
+    "%lld credits i månaden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld credits a month"
+          }
+        }
+      }
+    },
     "%lld meddelanden till byggaren i månaden": {
       "localizations": {
         "en": {
@@ -47,6 +87,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "1 app"
+          }
+        }
+      }
+    },
+    "1 credit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 credit"
           }
         }
       }
@@ -167,6 +217,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "The App Store guide is part of the plan Publish. You ask for it under My plan."
+          }
+        }
+      }
+    },
+    "App Store-texter": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App Store texts"
           }
         }
       }
@@ -931,6 +991,16 @@
         }
       }
     },
+    "Credits kvar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Credits left"
+          }
+        }
+      }
+    },
     "Dansar fram din app": {
       "localizations": {
         "en": {
@@ -1271,6 +1341,16 @@
         }
       }
     },
+    "Det senaste": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Latest"
+          }
+        }
+      }
+    },
     "Det tar ett par minuter att bygga appen för telefonen.": {
       "localizations": {
         "en": {
@@ -1387,6 +1467,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Your apps are uploaded to your own account and published in your name."
+          }
+        }
+      }
+    },
+    "Dina credits är slut. Be om en större plan under Min plan.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your credits are used up. Ask for a larger plan under My plan."
           }
         }
       }
@@ -1807,6 +1897,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Replace the texts"
+          }
+        }
+      }
+    },
+    "Ett meddelande kostar det som arbetet bakom det kostar: en liten ändring brukar ta några få credits och en ny app fler. Inget meddelande kostar mer än %@.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A message costs what the work behind it costs: a small change usually takes a few credits and a new app more. No message costs more than %@."
           }
         }
       }
@@ -3087,6 +3187,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "In your own words, like a text message."
+          }
+        }
+      }
+    },
+    "Meddelande": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Message"
           }
         }
       }

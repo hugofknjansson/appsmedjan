@@ -1,6 +1,7 @@
 // The person's plan: what it holds, how much of it is used, and a way to ask for a larger one.
 // For someone whose plan lets them build nothing this is the paywall: what they get, what it
 // costs, and a field for a code that lets them past it.
+// Where credits are counted, it shows how many are left and what the latest messages cost.
 // There is no payment yet: asking sends a request, and the people who run the service answer it.
 import SwiftUI
 
@@ -29,6 +30,8 @@ struct PlanView: View {
             }
             if plan.isLocked {
               pitch
+            } else if let credits = plan.credits {
+              creditsCard(credits, in: plan)
             } else {
               used(plan)
             }
@@ -125,6 +128,60 @@ struct PlanView: View {
     .card()
   }
 
+  /// How many credits are left, when some of them run out, and what the latest messages cost.
+  private func creditsCard(_ credits: CreditState, in plan: PlanState) -> some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(alignment: .firstTextBaseline) {
+        Text("Credits kvar")
+          .font(.subheadline)
+        Spacer()
+        Text(credits.balance, format: .number)
+          .font(.largeTitle.weight(.heavy))
+          .monospacedDigit()
+          .contentTransition(.numericText())
+      }
+      .padding(14)
+      .background(Color.brand.opacity(0.14), in: .rect(cornerRadius: 16, style: .continuous))
+      .accessibilityElement(children: .combine)
+      if let expiring = credits.expiring, expiring.amount > 0 {
+        Text("\(expiring.amount) av dem går ut \(Date(timeIntervalSince1970: expiring.at / 1000).formatted(.dateTime.day().month(.wide))).")
+          .font(.footnote)
+          .foregroundStyle(.secondary)
+      }
+      meter(String(localized: "Appar"), plan.used.apps, of: plan.limits.apps)
+      Text("Ett meddelande kostar det som arbetet bakom det kostar: en liten ändring brukar ta några få credits och en ny app fler. Inget meddelande kostar mer än \(Texts.credits(credits.maxPerMessage)).")
+        .font(.footnote)
+        .foregroundStyle(.secondary)
+      if !credits.recent.isEmpty {
+        DisclosureGroup("Det senaste") {
+          VStack(spacing: 8) {
+            ForEach(credits.recent) { spend in
+              HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                  Text(spend.what == "listing" ? String(localized: "App Store-texter") : String(localized: "Meddelande"))
+                  Text([spend.app, spend.date.formatted(.dateTime.day().month(.abbreviated))].compactMap(\.self).joined(separator: " · "))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text(Texts.credits(spend.credits))
+                  .fontWeight(.semibold)
+                  .monospacedDigit()
+              }
+              .font(.subheadline)
+              .accessibilityElement(children: .combine)
+            }
+          }
+          .padding(.top, 8)
+        }
+        .font(.subheadline.weight(.semibold))
+        .tint(.primary)
+      }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .card()
+  }
+
   private func meter(_ label: String, _ used: Int, of limit: Int) -> some View {
     VStack(alignment: .leading, spacing: 4) {
       HStack {
@@ -160,7 +217,7 @@ struct PlanView: View {
             .background(.brandGradient, in: .capsule)
         }
       }
-      ForEach(Texts.planLines(limits), id: \.self) { line in
+      ForEach(Texts.planLines(limits, credits: plan.credits != nil), id: \.self) { line in
         Label(line, systemImage: "checkmark.circle.fill")
           .font(.subheadline)
           .symbolRenderingMode(.hierarchical)

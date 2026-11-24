@@ -254,6 +254,39 @@ nonisolated struct PlanLimits: Decodable, Equatable {
   var messages: Int
   var install: Bool
   var store: Bool
+  /// Credits the plan gives each month, or once to start with. Missing from servers before credits.
+  var credits: Int?
+  var creditsOnce: Bool?
+}
+
+/// Credits, where the service counts them in place of messages: a message costs what the work
+/// behind it cost, so a small change costs little and a new app more.
+nonisolated struct CreditState: Decodable, Equatable {
+  nonisolated struct Expiring: Decodable, Equatable {
+    var amount: Int
+    /// Milliseconds since 1970.
+    var at: Double
+  }
+
+  nonisolated struct Spend: Decodable, Equatable, Identifiable {
+    var at: Double
+    /// The app the message was about, when it still exists.
+    var app: String?
+    /// build: a message to the builder. listing: texts for the App Store page.
+    var what: String
+    var credits: Int
+
+    var id: String { "\(at)-\(what)" }
+    var date: Date { Date(timeIntervalSince1970: at / 1000) }
+  }
+
+  var balance: Int
+  /// Credits that run out before the end of next month, and when the first of them do.
+  var expiring: Expiring?
+  /// The latest messages and what each cost, newest first.
+  var recent: [Spend]
+  /// The most one message ever costs.
+  var maxPerMessage: Int
 }
 
 /// The person's plan: what it holds, how much of it is used, and what they have asked for.
@@ -284,6 +317,8 @@ nonisolated struct PlanState: Decodable, Equatable {
   var takesCode: Bool?
   /// What each plan costs, in the operator's own words, for the plans that have a price.
   var prices: [String: String]?
+  /// Present where the service counts credits in place of messages.
+  var credits: CreditState?
 
   var isLocked: Bool { locked == true }
 

@@ -77,6 +77,17 @@ export const config = {
   unlockCodes: process.env.UNLOCK_CODES ?? '',
   /** What the plans cost, to show beside them: "create=99 kr i månaden; publish=249 kr i månaden". */
   planPrices: process.env.PLAN_PRICES ?? '',
+  /**
+   * Counts credits in place of messages while plans are on (PAYWALL=1): a message costs what the
+   * model's work behind it cost. Off, the plans count messages as before credits existed.
+   */
+  credits: process.env.CREDITS === '1',
+  /** How many dollars of the model's work one credit stands for. */
+  creditDollars: Number(process.env.CREDIT_DOLLARS) > 0 ? Number(process.env.CREDIT_DOLLARS) : 0.1,
+  /** The most one message costs, in credits. Anything beyond it is on the service. */
+  maxCreditsPerMessage: Math.max(1, Math.floor(Number(process.env.MAX_CREDITS_PER_MESSAGE ?? 40)) || 40),
+  /** How many credits each plan gives, when other than usual: "free=25; create=100; publish=260". */
+  planCredits: process.env.PLAN_CREDITS ?? '',
   /** How many phones one person may add. */
   maxPhones: Math.max(1, Number(process.env.MAX_PHONES_PER_USER ?? 2) || 2),
   /** The address people reach the service at, for links that phones open. Worked out from the request when empty. */

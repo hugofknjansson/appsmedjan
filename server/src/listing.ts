@@ -2,7 +2,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { betaZodOutputFormat } from '@anthropic-ai/sdk/helpers/beta/zod';
 import { z } from 'zod/v4';
-import { MAX_POLICY_CHARS, STORE_CATEGORIES, STORE_LIMITS, fitWords, type ErrorCode, type StoreListing } from '../../shared/protocol';
+import { MAX_POLICY_CHARS, STORE_CATEGORIES, STORE_LIMITS, fitWords, type ErrorCode, type StoreListing, type TokenUse } from '../../shared/protocol';
 import { anthropic, hasCredentials } from './agent';
 import { config } from './config';
 
@@ -61,6 +61,17 @@ function sourceText(files: Record<string, string>): string {
   return shown.join('\n\n') + note;
 }
 
+/** What a request's tokens were, for what the work cost. */
+function useOf(message: { model: string; usage: Anthropic.Beta.BetaUsage }): TokenUse {
+  return {
+    model: message.model,
+    input: message.usage.input_tokens,
+    cacheWritten: message.usage.cache_creation_input_tokens ?? 0,
+    cacheRead: message.usage.cache_read_input_tokens ?? 0,
+    output: message.usage.output_tokens,
+  };
+}
+
 /** Keeps whole keywords up to Apple's limit, in case the model overshoots. */
 function fitKeywords(keywords: string): string {
   const words = keywords
@@ -89,9 +100,9 @@ const tooLong = (texts: Texts) => LIMITED.filter((key) => length(texts[key]) > S
 /**
  * Models count characters poorly, and a subtitle one character over Apple's limit cannot be sent.
  * Fields that came out too long are sent back once with their exact counts to be shortened; whatever
- * is still too long after that is cut at a word.
+ * is still too long after that is cut at a word. The request's tokens are added to `uses`.
  */
-export async function withinLimits(texts: Texts): Promise<Texts> {
+export async function withinLimits(texts: Texts, uses: TokenUse[] = []): Promise<Texts> {
   let out = { ...texts };
   const over = tooLong(out);
   if (over.length > 0) {
@@ -108,6 +119,7 @@ export async function withinLimits(texts: Texts): Promise<Texts> {
           'You shorten texts for an App Store page so they fit a character limit. Keep the language, the meaning and the tone; drop the least important words rather than abbreviating. Count the characters, spaces included. Give back every field: the shortened text for the ones listed, and an empty string for the others.',
         messages: [{ role: 'user', content: `These are too long:\n\n${lines.join('\n\n')}` }],
       });
+      uses.push(useOf(message));
       const shorter = message.parsed_output;
       if (shorter) for (const key of over) if (shorter[key].trim()) out = { ...out, [key]: shorter[key].trim() };
     } catch (err) {
@@ -118,7 +130,8 @@ export async function withinLimits(texts: Texts): Promise<Texts> {
   return out;
 }
 
-export async function draftListing(appName: string, files: Record<string, string>): Promise<DraftResult> {
+/** The tokens of every request made are added to `uses`, whether the draft comes out or not. */
+export async function draftListing(appName: string, files: Record<string, string>, uses: TokenUse[] = []): Promise<DraftResult> {
   if (!hasCredentials()) return { ok: false, error: 'no_api_key' };
   try {
     const message = await anthropic().beta.messages.parse({
@@ -132,12 +145,13 @@ export async function draftListing(appName: string, files: Record<string, string
       system: SYSTEM,
       messages: [{ role: 'user', content: `The app is called "${appName}". Its source code:\n\n${sourceText(files)}` }],
     });
+    uses.push(useOf(message));
     if (message.stop_reason === 'refusal') return { ok: false, error: 'refused' };
     if (message.stop_reason === 'max_tokens') return { ok: false, error: 'too_long' };
     const draft = message.parsed_output;
     if (!draft) return { ok: false, error: 'internal' };
     const { ageRatingNotes, privacyPolicy, ...texts } = draft;
-    const fitted = await withinLimits(texts);
+    const fitted = await withinLimits(texts, uses);
     return {
       ok: true,
       draft: { ...texts, ...fitted, keywords: fitKeywords(texts.keywords) },

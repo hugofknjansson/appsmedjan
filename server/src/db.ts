@@ -127,6 +127,29 @@ db.exec(`
     plan TEXT NOT NULL,
     updated_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS credit_grants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    period TEXT,
+    amount INTEGER NOT NULL,
+    left INTEGER NOT NULL,
+    expires_at INTEGER,
+    note TEXT,
+    created_at INTEGER NOT NULL,
+    UNIQUE (user_id, period)
+  );
+  CREATE TABLE IF NOT EXISTS credit_spends (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    project_id TEXT,
+    what TEXT NOT NULL,
+    dollars REAL NOT NULL,
+    credits INTEGER NOT NULL,
+    charged INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS credit_spends_user ON credit_spends (user_id, created_at);
   CREATE TABLE IF NOT EXISTS plan_requests (
     user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     plan TEXT NOT NULL,
@@ -356,6 +379,10 @@ export interface PlanRow {
   requestedAt: number | null;
   apps: number;
   messages: number;
+  /** Credits the person can spend now. */
+  credits: number;
+  /** What the model's work for them cost this month, in dollars, whether credits are counted or not. */
+  dollars: number;
 }
 
 /** Everyone with an account, with their plan, what they have asked for and what they have used this month. Newest requests first. */
@@ -364,15 +391,121 @@ export function listPlans(limit = 500): PlanRow[] {
     .prepare(
       `SELECT u.id AS userId, u.email AS email, p.plan AS plan, r.plan AS requested, r.requested_at AS requestedAt,
          (SELECT COUNT(*) FROM projects WHERE user_id = u.id) AS apps,
-         (SELECT COALESCE(SUM(messages), 0) FROM usage WHERE user_id = u.id AND day LIKE ?) AS messages
+         (SELECT COALESCE(SUM(messages), 0) FROM usage WHERE user_id = u.id AND day LIKE ?) AS messages,
+         (SELECT COALESCE(SUM(left), 0) FROM credit_grants WHERE user_id = u.id AND (expires_at IS NULL OR expires_at > ?)) AS credits,
+         (SELECT COALESCE(SUM(dollars), 0) FROM credit_spends WHERE user_id = u.id AND created_at >= ?) AS dollars
        FROM users u
        LEFT JOIN user_plans p ON p.user_id = u.id
        LEFT JOIN plan_requests r ON r.user_id = u.id
        ORDER BY r.requested_at IS NULL, r.requested_at DESC, u.created_at DESC
        LIMIT ?`,
     )
-    .all(`${today().slice(0, 7)}-%`, limit) as unknown as PlanRow[];
+    .all(`${today().slice(0, 7)}-%`, Date.now(), monthStart(), limit) as unknown as PlanRow[];
   return rows;
+}
+
+/** The first moment of this calendar month (UTC). */
+function monthStart(now = new Date()): number {
+  return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+}
+
+// --- Credits -------------------------------------------------------------------
+
+export interface GrantRow {
+  id: number;
+  kind: string;
+  period: string | null;
+  amount: number;
+  left: number;
+  expiresAt: number | null;
+}
+
+/** The person's grants that still have credits in them and have not run out. */
+export function liveGrants(userId: string, now = Date.now()): GrantRow[] {
+  return db
+    .prepare(
+      `SELECT id, kind, period, amount, left, expires_at AS expiresAt FROM credit_grants
+       WHERE user_id = ? AND left > 0 AND (expires_at IS NULL OR expires_at > ?) ORDER BY id`,
+    )
+    .all(userId, now) as unknown as GrantRow[];
+}
+
+/** The grant for a period ("2026-11", or "once" for credits a plan gives only to start with), if there is one. */
+export function periodGrant(userId: string, period: string): GrantRow | null {
+  const row = db
+    .prepare('SELECT id, kind, period, amount, left, expires_at AS expiresAt FROM credit_grants WHERE user_id = ? AND period = ?')
+    .get(userId, period) as GrantRow | undefined;
+  return row ?? null;
+}
+
+/**
+ * Makes sure the period's grant holds at least `amount` credits: a new grant, or more credits in the
+ * one there is (a larger plan in the middle of a month gives the difference). Never takes any away.
+ */
+export function topUpPeriod(userId: string, period: string, kind: string, amount: number, expiresAt: number | null): void {
+  db.prepare(
+    `INSERT INTO credit_grants (user_id, kind, period, amount, left, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (user_id, period) DO UPDATE SET
+       left = left + MAX(0, excluded.amount - amount),
+       amount = MAX(amount, excluded.amount)`,
+  ).run(userId, kind, period, amount, amount, expiresAt, Date.now());
+}
+
+/** Credits given outside a plan: bought, or handed out by the people who run the service. */
+export function addGrant(userId: string, kind: string, amount: number, expiresAt: number | null, note: string): void {
+  db.prepare('INSERT INTO credit_grants (user_id, kind, amount, left, expires_at, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+    userId,
+    kind,
+    amount,
+    amount,
+    expiresAt,
+    note.slice(0, 200),
+    Date.now(),
+  );
+}
+
+/**
+ * Records what a piece of work cost and takes the charged credits from the grants named, all at once:
+ * either everything is written or nothing is.
+ */
+export function recordSpend(
+  spend: { userId: string; projectId: string | null; what: string; dollars: number; credits: number },
+  takes: Array<{ id: number; take: number }>,
+): number {
+  const charged = takes.reduce((sum, t) => sum + t.take, 0);
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const take = db.prepare('UPDATE credit_grants SET left = left - ? WHERE id = ? AND user_id = ? AND left >= ?');
+    for (const t of takes) {
+      const done = take.run(t.take, t.id, spend.userId, t.take);
+      if (Number(done.changes) !== 1) throw new Error(`grant ${t.id} no longer holds ${t.take} credits`);
+    }
+    db.prepare('INSERT INTO credit_spends (user_id, project_id, what, dollars, credits, charged, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+      spend.userId,
+      spend.projectId,
+      spend.what,
+      spend.dollars,
+      spend.credits,
+      charged,
+      Date.now(),
+    );
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+  return charged;
+}
+
+/** The person's latest charges, newest first, with the name of the app each was about when it still exists. */
+export function recentSpends(userId: string, limit = 8): Array<{ at: number; app: string | null; what: string; charged: number }> {
+  return db
+    .prepare(
+      `SELECT s.created_at AS at, p.name AS app, s.what AS what, s.charged AS charged
+       FROM credit_spends s LEFT JOIN projects p ON p.id = s.project_id
+       WHERE s.user_id = ? AND s.charged > 0 ORDER BY s.id DESC LIMIT ?`,
+    )
+    .all(userId, limit) as unknown as Array<{ at: number; app: string | null; what: string; charged: number }>;
 }
 
 // --- Projects ----------------------------------------------------------------

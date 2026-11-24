@@ -2,8 +2,9 @@
 // person asks for a plan, and the people who run the service give it to them; a payment provider
 // can later call `give` in their place.
 import crypto from 'node:crypto';
-import { PLANS, PLAN_ORDER, isPlanId, planFor, planPrices, unlockCodes, type PlanAccess, type PlanId, type PlanLimits, type PlanNeed, type PlanState } from '../../shared/protocol';
+import { PLANS, PLAN_ORDER, isPlanId, planFor, planPrices, unlockCodes, type PlanAccess, type PlanId, type PlanLimits, type PlanNeed, type PlanState, type TokenUse } from '../../shared/protocol';
 import { config } from './config';
+import * as credits from './credits';
 import * as db from './db';
 import { isOperator } from './routing';
 
@@ -13,8 +14,9 @@ import { isOperator } from './routing';
  * larger plan, by paying or by giving a code.
  */
 const plansHere: Record<PlanId, PlanLimits> = {
-  ...PLANS,
-  free: { ...PLANS.free, apps: config.freeApps ?? PLANS.free.apps, messages: config.freeMessages ?? PLANS.free.messages },
+  free: { ...PLANS.free, apps: config.freeApps ?? PLANS.free.apps, messages: config.freeMessages ?? PLANS.free.messages, credits: credits.creditsOf('free') },
+  create: { ...PLANS.create, credits: credits.creditsOf('create') },
+  publish: { ...PLANS.publish, credits: credits.creditsOf('publish') },
 };
 const codes = unlockCodes(config.unlockCodes);
 const prices = planPrices(config.planPrices);
@@ -53,6 +55,7 @@ export function state(user: db.User): PlanState {
     locked: config.paywall && !isOperator(user.email) && plansHere[plan].apps === 0,
     takesCode: codes.length > 0,
     prices,
+    credits: credits.counting() ? credits.state(user, plan) : undefined,
   };
 }
 
@@ -65,8 +68,16 @@ export function allows(user: db.User, need: PlanNeed): boolean {
   const limits = plansHere[planOf(user)];
   if (need === 'install') return limits.install;
   if (need === 'store') return limits.store;
+  // Where credits are counted, a message needs credits left and the month's count of messages does not apply.
+  if ((need === 'messages' || need === 'credits') && credits.counting()) return credits.balance(user, planOf(user)) >= 1;
+  if (need === 'credits') return true;
   const now = used(user);
   return need === 'apps' ? now.apps < limits.apps : now.messages < limits.messages;
+}
+
+/** What a message runs into when the person may not send one: their credits, or the month's messages. */
+export function messageNeed(): PlanNeed {
+  return credits.counting() ? 'credits' : 'messages';
 }
 
 /** What the open project needs to know about its owner's plan. */
@@ -98,7 +109,7 @@ export function give(email: string, plan: PlanId, by: string): db.User | null {
 
 /** The plan that would let the person past the limit they ran into, for saying which one to ask for. */
 export function needed(user: db.User, need: PlanNeed): PlanId | null {
-  return planFor(need, used(user), plansHere);
+  return planFor(need, { ...used(user), credits: plansHere[planOf(user)].credits }, plansHere);
 }
 
 const sameCode = (a: string, b: string) => {
@@ -120,4 +131,16 @@ export function unlock(user: db.User, given: string): boolean {
     console.log(`[plans] user ${user.id} was given the plan "${match.plan}" by a code`);
   }
   return true;
+}
+
+/**
+ * Records what a piece of work for the person cost and charges it where credits are counted. Null
+ * when the person no longer exists.
+ */
+export function chargeWork(
+  userId: string,
+  work: { projectId: string | null; what: 'build' | 'listing'; uses: TokenUse[]; charge: boolean },
+): { dollars: number; credits: number; charged: number } | null {
+  const user = db.getUser(userId);
+  return user ? credits.spend(user, planOf(user), work) : null;
 }

@@ -10,11 +10,13 @@ import {
   type ErrorCode,
   type Step,
   type StepKind,
+  type TokenUse,
 } from '../../shared/protocol';
 import { config } from './config';
 import * as db from './db';
 import { IconError, drawIcon } from './icon';
 import { addPart, appendText, send, upsertStep } from './live';
+import { chargeWork } from './plans';
 import { buildProject } from './preview';
 import { SYSTEM_PROMPT } from './prompt';
 import * as workers from './workers';
@@ -340,7 +342,11 @@ export async function runAgent(
   let streamRetries = 0;
   // What this run cost in tokens, logged when it ends: the four kinds are billed at different rates.
   const used = { turns: 0, input: 0, cacheWritten: 0, cacheRead: 0, output: 0 };
+  // Per turn, with the model that answered it: a fallback model is priced at its own rates.
+  const uses: TokenUse[] = [];
   let outcome = 'done';
+  // Whose work it is, read now: the project may be deleted while the builder works.
+  const owner = db.getProject(projectId)?.userId ?? null;
 
   // Lets a long tool call (a build can take minutes) be abandoned the moment the person presses Stop.
   const stopped = new Promise<never>((_, reject) => {
@@ -422,6 +428,13 @@ export async function runAgent(
         used.cacheWritten += message.usage.cache_creation_input_tokens ?? 0;
         used.cacheRead += message.usage.cache_read_input_tokens ?? 0;
         used.output += message.usage.output_tokens;
+        uses.push({
+          model: message.model,
+          input: message.usage.input_tokens,
+          cacheWritten: message.usage.cache_creation_input_tokens ?? 0,
+          cacheRead: message.usage.cache_read_input_tokens ?? 0,
+          output: message.usage.output_tokens,
+        });
       } catch (err) {
         // A tool input that could not be parsed, or a dropped connection: re-issue the turn.
         if (err instanceof Anthropic.APIError || signal.aborted || streamRetries++ >= 2) throw err;
@@ -499,9 +512,17 @@ export async function runAgent(
     addPart(projectId, { t: 'error', code: runError.code });
     throw runError;
   } finally {
+    // A finished run, or one the person stopped, is charged. One the service failed to finish is only recorded.
+    let cost = '';
+    try {
+      const spent = owner ? chargeWork(owner, { projectId, what: 'build', uses, charge: outcome === 'done' || outcome === 'stopped' }) : null;
+      if (spent) cost = `, ${spent.dollars.toFixed(3)} dollars, ${spent.credits} credits, ${spent.charged} charged`;
+    } catch (err) {
+      console.error(`[credits] ${projectId}: the run's cost was not recorded:`, err);
+    }
     console.log(
       `[usage] ${projectId} ${outcome}: ${used.turns} turns, ${run.builds} builds, ${config.model} ${config.effort}, ` +
-        `input ${used.input}, cache written ${used.cacheWritten}, cache read ${used.cacheRead}, output ${used.output}`,
+        `input ${used.input}, cache written ${used.cacheWritten}, cache read ${used.cacheRead}, output ${used.output}${cost}`,
     );
   }
 }
