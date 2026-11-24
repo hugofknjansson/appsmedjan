@@ -48,7 +48,20 @@ interface Session {
   inputChain: Promise<void>;
   /** Builds, screenshots and release for one project never overlap. */
   chain: Promise<unknown>;
+  /** The latest build's times, finished when its first picture is sent: for the [timing] line. */
+  timing: Timing | null;
+  /** The app's old simulator, when it got the running copy instead: what the app saved there is moved over once it is installed. */
+  migrateFrom: string | null;
 }
+
+/** When each step of a build ended, in milliseconds from its start. */
+interface Timing {
+  start: number;
+  steps: Array<[string, number]>;
+}
+
+const mark = (t: Timing | null, step: string) => t?.steps.push([step, Date.now() - t.start]);
+const timingLine = (t: Timing) => t.steps.map(([step, ms]) => `${step} ${(ms / 1000).toFixed(1)}s`).join(', ');
 
 interface SimDevice {
   udid: string;
@@ -67,6 +80,29 @@ export function simulatorTypeFor(model: string | undefined, byModel: ReadonlyMap
 }
 
 const DEVICE_PREFIX = 'asm-';
+/**
+ * A clean simulator that has done its first boot, which a new app's simulator is copied from. A new
+ * simulator spends close to a minute on its first boot; a copy of one that has booted before starts
+ * in a few seconds.
+ */
+const TEMPLATE_PREFIX = `${DEVICE_PREFIX}template-`;
+/** A copy of the template that is already running, for the next new app to take over without any wait. */
+const SPARE_PREFIX = `${DEVICE_PREFIX}spare-`;
+/** An app's old simulator while what the app saved in it is moved to the running copy it got instead. */
+const OLD_PREFIX = `${DEVICE_PREFIX}old-`;
+/** How long no app must have been built before a new waiting simulator is started. */
+const SPARE_QUIET_MS = 45_000;
+/** What a template runs once, so that its copies have done their first install and launch too. */
+const WARM_BUNDLE_ID = 'app.appsmedjan.warmup';
+const WARM_APP = `import SwiftUI
+
+@main
+struct WarmApp: App {
+  var body: some Scene {
+    WindowGroup { Text("App Dance") }
+  }
+}
+`;
 const BUILD_TIMEOUT_MS = 10 * 60_000;
 const PRUNE_EVERY_MS = 6 * 3600_000;
 
@@ -86,6 +122,20 @@ export class XcodeDriver implements Driver {
   /** The same, unless live touches are switched off: null then, and each touch is an idb command of its own. */
   private touchPython: string | null = null;
   private publisher: Publisher | null = null;
+  /** SIM_TEMPLATE=0 makes every new app's simulator from scratch again, with its slow first boot. */
+  private readonly useTemplates = process.env.SIM_TEMPLATE !== '0';
+  /** SIM_EARLY_STREAM=0 starts the screen stream only once the app has started, as before. */
+  private readonly earlyStream = process.env.SIM_EARLY_STREAM !== '0';
+  /** The template for each model of phone, by device type: its udid once it has done its first boot. */
+  private templates = new Map<string, Promise<string | null>>();
+  /** SIM_SPARE=0 keeps no running copy waiting for the next app. */
+  private readonly useSpare = process.env.SIM_SPARE !== '0';
+  /** A running copy of the usual model's template, waiting for the next new app; one at most. */
+  private spare: { udid: string; type: string } | null = null;
+  private makingSpare: Promise<void> | null = null;
+  /** When an app was last built: a simulator starting up takes the Mac's power from it for a while. */
+  private lastBuildAt = 0;
+  private spareTimer: NodeJS.Timeout | null = null;
   private readonly workDir: string;
   private readonly maxSimulators: number;
 
@@ -122,6 +172,15 @@ export class XcodeDriver implements Driver {
         await exec('xcrun', ['simctl', 'shutdown', d.udid]);
         await forgetCompanion(d.udid);
       }
+    }
+    for (const d of await this.listDevices()) {
+      if (d.name.startsWith(SPARE_PREFIX) || d.name.startsWith(OLD_PREFIX)) await exec('xcrun', ['simctl', 'delete', d.udid], { timeoutMs: 60_000 });
+    }
+    // The usual model's template is made ready in the background, so the first app does not wait for
+    // it, and then a running copy of it for the first app to take over.
+    if (this.useTemplates) {
+      await this.forgetOldTemplates();
+      void this.templateFor(this.deviceTypeId).then(() => this.keepSpare());
     }
     // Uploads go to the operator's own account (key in this worker's environment), to people's own
     // accounts (key sent with each job; opt in with PUBLISH_FOR_USERS=1), or both.
@@ -174,6 +233,225 @@ export class XcodeDriver implements Driver {
     this.typesByModel = new Map(all.flatMap((t) => (t.modelIdentifier && runs.has(t.identifier) ? [[t.modelIdentifier, t.identifier] as const] : [])));
   }
 
+  /** The template's name for a model of phone on this runtime: a new Xcode gets new templates. */
+  private templateName(type: string): string {
+    const short = (id: string) => id.split('.').pop()!.replace(/[^A-Za-z0-9-]/g, '');
+    return `${TEMPLATE_PREFIX}${short(type)}-${short(this.runtimeId)}`;
+  }
+
+  /** Templates from an earlier runtime are of no more use. */
+  private async forgetOldTemplates(): Promise<void> {
+    const current = new Set([...this.typesByModel.values(), this.deviceTypeId].map((type) => this.templateName(type)));
+    for (const d of await this.listDevices()) {
+      if (d.name.startsWith(TEMPLATE_PREFIX) && !current.has(d.name)) {
+        await exec('xcrun', ['simctl', 'shutdown', d.udid], { timeoutMs: 60_000 });
+        await exec('xcrun', ['simctl', 'delete', d.udid], { timeoutMs: 60_000 });
+      }
+    }
+  }
+
+  /**
+   * The template for a model of phone, made the first time it is asked for: a new simulator that is
+   * booted once, so that it has done what a first boot does, and shut down again. Null when it could
+   * not be made; new simulators are then made from scratch.
+   */
+  private templateFor(type: string): Promise<string | null> {
+    const made = this.templates.get(type);
+    if (made) return made;
+    const making = (async () => {
+      const name = this.templateName(type);
+      const found = (await this.listDevices()).find((d) => d.name === name);
+      if (found) {
+        if (found.state !== 'Shutdown') await exec('xcrun', ['simctl', 'shutdown', found.udid], { timeoutMs: 60_000 });
+        return found.udid;
+      }
+      const started = Date.now();
+      const udid = (await mustExec('xcrun', ['simctl', 'create', name, type, this.runtimeId])).trim();
+      try {
+        const app = await this.warmApp().catch((err: Error) => {
+          console.warn(`[xcode] template without a first app: ${err.message}`);
+          return null;
+        });
+        await mustExec('xcrun', ['simctl', 'boot', udid], { timeoutMs: 180_000 });
+        await mustExec('xcrun', ['simctl', 'bootstatus', udid, '-b'], { timeoutMs: 300_000 });
+        // The first install and launch in a simulator are slow too; the template has them behind it.
+        if (app) {
+          await exec('xcrun', ['simctl', 'install', udid, app], { timeoutMs: 300_000 });
+          await exec('xcrun', ['simctl', 'launch', udid, WARM_BUNDLE_ID], { timeoutMs: 120_000 });
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+          await exec('xcrun', ['simctl', 'terminate', udid, WARM_BUNDLE_ID]);
+          await exec('xcrun', ['simctl', 'uninstall', udid, WARM_BUNDLE_ID], { timeoutMs: 120_000 });
+        }
+        // And a second boot, after which a simulator starts in a few seconds.
+        await exec('xcrun', ['simctl', 'shutdown', udid], { timeoutMs: 60_000 });
+        await mustExec('xcrun', ['simctl', 'boot', udid], { timeoutMs: 180_000 });
+        await mustExec('xcrun', ['simctl', 'bootstatus', udid, '-b'], { timeoutMs: 300_000 });
+      } finally {
+        await exec('xcrun', ['simctl', 'shutdown', udid], { timeoutMs: 60_000 });
+      }
+      console.log(`[xcode] template for ${type.split('.').pop()} ready in ${Math.round((Date.now() - started) / 1000)}s`);
+      return udid;
+    })().catch((err: Error) => {
+      console.warn(`[xcode] no template for ${type}: ${err.message}`);
+      this.templates.delete(type);
+      return null;
+    });
+    this.templates.set(type, making);
+    return making;
+  }
+
+  /** The small warm-up app, built once per worker process when first needed. */
+  private warmAppPath: Promise<string> | null = null;
+
+  /** Builds the small app a template runs once, and every simulator installs once it is up. Returns where the app is. */
+  private warmApp(): Promise<string> {
+    this.warmAppPath ??= this.buildWarmApp().catch((err: Error) => {
+      this.warmAppPath = null;
+      throw err;
+    });
+    return this.warmAppPath;
+  }
+
+  private async buildWarmApp(): Promise<string> {
+    const dir = path.join(this.workDir, 'warmup');
+    await fs.mkdir(path.join(dir, 'Sources'), { recursive: true });
+    await fs.writeFile(path.join(dir, 'Sources', 'WarmApp.swift'), WARM_APP);
+    await fs.writeFile(path.join(dir, 'project.yml'), projectSpec({ appName: 'Warmup', bundleId: WARM_BUNDLE_ID }));
+    await mustExec('xcodegen', ['generate', '--spec', 'project.yml', '--quiet'], { cwd: dir, timeoutMs: 60_000 });
+    await mustExec(
+      'xcodebuild',
+      ['-project', 'App.xcodeproj', '-scheme', 'App', '-configuration', 'Debug', '-destination', 'generic/platform=iOS Simulator', '-derivedDataPath', 'build', '-quiet', 'CODE_SIGNING_ALLOWED=NO', 'COMPILER_INDEX_STORE_ENABLE=NO', 'build'],
+      { cwd: dir, timeoutMs: BUILD_TIMEOUT_MS },
+    );
+    return path.join(dir, 'build', 'Build', 'Products', 'Debug-iphonesimulator', 'App.app');
+  }
+
+  /**
+   * The first install after a simulator has started takes many seconds, whatever the app; the next
+   * one takes about one. So the warm-up app goes in and out first, while the person's app compiles.
+   */
+  private async prime(udid: string): Promise<void> {
+    if (process.env.SIM_PRIME === '0') return;
+    const app = await this.warmApp().catch(() => null);
+    if (!app) return;
+    await exec('xcrun', ['simctl', 'install', udid, app], { timeoutMs: 120_000 });
+    await exec('xcrun', ['simctl', 'uninstall', udid, WARM_BUNDLE_ID], { timeoutMs: 60_000 });
+  }
+
+  /**
+   * Moves what the app saved in its old simulator into its new one, where it has just been installed,
+   * and removes the old simulator. Done as well as it can be: an app that saved nothing, or a folder
+   * that cannot be read, simply starts afresh.
+   */
+  private async moveSavedData(s: Session): Promise<void> {
+    const from = s.migrateFrom!;
+    s.migrateFrom = null;
+    try {
+      const apps = path.join(os.homedir(), 'Library', 'Developer', 'CoreSimulator', 'Devices', from, 'data', 'Containers', 'Data', 'Application');
+      let old: string | null = null;
+      for (const entry of await fs.readdir(apps).catch(() => [])) {
+        const metadata = path.join(apps, entry, '.com.apple.mobile_container_manager.metadata.plist');
+        const owner = await exec('plutil', ['-extract', 'MCMMetadataIdentifier', 'raw', '-o', '-', metadata]);
+        if (owner.code === 0 && owner.stdout.trim() === s.bundleId) old = path.join(apps, entry);
+      }
+      if (old) {
+        const fresh = (await mustExec('xcrun', ['simctl', 'get_app_container', s.udid, s.bundleId, 'data'])).trim();
+        for (const entry of await fs.readdir(old)) {
+          if (entry.startsWith('.com.apple.mobile_container_manager')) continue;
+          await exec('ditto', [path.join(old, entry), path.join(fresh, entry)], { timeoutMs: 60_000 });
+        }
+      }
+    } catch (err) {
+      console.warn(`[xcode] ${s.projectId}: what the app saved was not moved (${(err as Error).message})`);
+    }
+    await exec('xcrun', ['simctl', 'delete', from], { timeoutMs: 60_000 });
+  }
+
+  /** How many simulators are running, the waiting copy included. */
+  private runningCount(): number {
+    return [...this.sessions.values()].filter((s) => s.booted).length + (this.spare ? 1 : 0);
+  }
+
+  /**
+   * Keeps a running copy of the template waiting for the next new app, while there is room for one
+   * besides the apps that are open: it gives way the moment an app needs the room.
+   */
+  private keepSpare(): void {
+    if (!this.useTemplates || !this.useSpare || this.spare || this.makingSpare) return;
+    if (this.runningCount() + 1 > this.maxSimulators) return;
+    // Not while someone's app is being built and tried: a starting simulator slows everything on the Mac.
+    const quiet = SPARE_QUIET_MS - (Date.now() - this.lastBuildAt);
+    if (quiet > 0) {
+      if (this.spareTimer) clearTimeout(this.spareTimer);
+      this.spareTimer = setTimeout(() => {
+        this.spareTimer = null;
+        this.keepSpare();
+      }, quiet);
+      this.spareTimer.unref();
+      return;
+    }
+    const type = this.deviceTypeId;
+    this.makingSpare = (async () => {
+      const template = await this.templateFor(type);
+      if (!template || this.runningCount() + 1 > this.maxSimulators) return;
+      const name = `${SPARE_PREFIX}${Date.now().toString(36)}`;
+      const copy = await exec('xcrun', ['simctl', 'clone', template, name], { timeoutMs: 120_000 });
+      const udid = copy.stdout.trim();
+      if (copy.code !== 0 || !udid) return;
+      await mustExec('xcrun', ['simctl', 'boot', udid], { timeoutMs: 180_000 });
+      await mustExec('xcrun', ['simctl', 'bootstatus', udid, '-b'], { timeoutMs: 300_000 });
+      await statusBar(udid);
+      await this.prime(udid);
+      this.spare = { udid, type };
+      console.log('[xcode] a running simulator is waiting for the next app');
+    })()
+      .catch((err: Error) => console.warn(`[xcode] no waiting simulator: ${err.message}`))
+      .finally(() => {
+        this.makingSpare = null;
+      });
+  }
+
+  /** The waiting copy, for a new app of its model: renamed to be the app's. Null when there is none. */
+  private async takeSpare(name: string, type: string): Promise<string | null> {
+    const spare = this.spare;
+    if (!spare || spare.type !== type) return null;
+    this.spare = null;
+    const renamed = await exec('xcrun', ['simctl', 'rename', spare.udid, name], { timeoutMs: 30_000 });
+    if (renamed.code !== 0) {
+      await this.dropSpare(spare.udid);
+      return null;
+    }
+    // The next one is made in the background, if there is room for it.
+    setTimeout(() => this.keepSpare(), 1000);
+    return spare.udid;
+  }
+
+  /** The waiting copy goes, to make room for an app. */
+  private async dropSpare(udid = this.spare?.udid): Promise<void> {
+    if (!udid) return;
+    if (this.spare?.udid === udid) this.spare = null;
+    await exec('xcrun', ['simctl', 'shutdown', udid], { timeoutMs: 60_000 });
+    await exec('xcrun', ['simctl', 'delete', udid], { timeoutMs: 60_000 });
+  }
+
+  /**
+   * A simulator for a new app: a copy of the template when it is ready (a few seconds to start),
+   * otherwise a new one (close to a minute on its first boot).
+   */
+  private async newSimulator(name: string, type: string): Promise<string> {
+    if (this.useTemplates) {
+      const making = this.templateFor(type);
+      // A template still being made is not waited for: that would take as long as a first boot.
+      const template = await Promise.race([making, new Promise<null>((resolve) => setTimeout(() => resolve(null), 50))]);
+      if (template) {
+        const copy = await exec('xcrun', ['simctl', 'clone', template, name], { timeoutMs: 120_000 });
+        if (copy.code === 0 && copy.stdout.trim()) return copy.stdout.trim();
+        console.warn(`[xcode] could not copy the template: ${copy.stderr.trim().slice(-200)}`);
+      }
+    }
+    return (await mustExec('xcrun', ['simctl', 'create', name, type, this.runtimeId])).trim();
+  }
+
   private async listDevices(): Promise<SimDevice[]> {
     const out = await mustExec('xcrun', ['simctl', 'list', 'devices', '-j']);
     const byRuntime = JSON.parse(out).devices as Record<string, SimDevice[]>;
@@ -203,14 +481,34 @@ export class XcodeDriver implements Driver {
       await exec('xcrun', ['simctl', 'delete', found.udid], { timeoutMs: 60_000 });
       found = undefined;
     }
-    const udid = found?.udid ?? (await mustExec('xcrun', ['simctl', 'create', name, type, this.runtimeId])).trim();
+    let taken: string | null = null;
+    let migrateFrom: string | null = null;
+    if (!found || found.state === 'Shutdown') {
+      // A running copy on its way is waited for, rather than a second simulator started beside it.
+      if (!this.spare && this.makingSpare && type === this.deviceTypeId) await this.makingSpare;
+      if (this.spare?.type === type) {
+        // Coming back to an app whose simulator was shut down: the running copy is quicker than
+        // starting that one again, and what the app saved comes along.
+        if (found) {
+          await exec('xcrun', ['simctl', 'rename', found.udid, `${OLD_PREFIX}${job.projectId}`], { timeoutMs: 30_000 });
+          migrateFrom = found.udid;
+        }
+        taken = await this.takeSpare(name, type);
+        if (!taken && migrateFrom) {
+          await exec('xcrun', ['simctl', 'rename', migrateFrom, name], { timeoutMs: 30_000 });
+          migrateFrom = null;
+        }
+      }
+    }
+    const udid = taken ?? found?.udid ?? (await this.newSimulator(name, type));
     const s: Session = {
       projectId: job.projectId,
       dir: path.join(this.workDir, 'projects', job.projectId),
       udid,
       deviceTypeId: type,
       bundleId: job.bundleId,
-      booted: false,
+      // The waiting copy is already running, with its status bar tidied.
+      booted: taken !== null,
       viewers: 0,
       video: false,
       light: false,
@@ -222,6 +520,8 @@ export class XcodeDriver implements Driver {
       screen: null,
       inputChain: Promise.resolve(),
       chain: Promise.resolve(),
+      timing: null,
+      migrateFrom,
     };
     this.sessions.set(job.projectId, s);
     return s;
@@ -256,17 +556,15 @@ export class XcodeDriver implements Driver {
       throw new Error(`Could not boot the simulator: ${res.stderr.trim().slice(-300)}`);
     }
     await mustExec('xcrun', ['simctl', 'bootstatus', s.udid, '-b'], { timeoutMs: 240_000 });
-    // A tidy status bar, like in Apple's own screenshots. Purely cosmetic.
-    await exec('xcrun', [
-      'simctl', 'status_bar', s.udid, 'override',
-      '--time', '9:41', '--batteryState', 'charged', '--batteryLevel', '100', '--cellularBars', '4',
-    ]);
+    await statusBar(s.udid);
+    await this.prime(s.udid);
     s.booted = true;
   }
 
   /** Each simulator uses a couple of GB of memory, so only a few run at once: the least recently used one goes. */
   private async makeRoom(newcomer: Session): Promise<void> {
     const booted = [...this.sessions.values()].filter((s) => s.booted && s !== newcomer);
+    if (this.spare && booted.length + 1 >= this.maxSimulators) await this.dropSpare();
     if (booted.length < this.maxSimulators) return;
     booted.sort((a, b) => (a.viewers === 0 ? 0 : 1) - (b.viewers === 0 ? 0 : 1) || a.lastUsed - b.lastUsed);
     await this.release(booted[0]!.projectId);
@@ -278,16 +576,29 @@ export class XcodeDriver implements Driver {
     if (!isValidProjectId(job.projectId) || !isValidBundleId(job.bundleId)) {
       return { ok: false, errors: 'Invalid project.' };
     }
+    const started = Date.now();
+    this.lastBuildAt = started;
     const s = await this.session(job);
     return this.serial(s, async () => {
+      const t: Timing = { start: started, steps: [] };
+      s.timing = t;
+      const cold = !s.booted;
+      mark(t, 'session');
       s.lastUsed = Date.now();
       progress('preparing');
       await this.syncFiles(s, job);
       await touch(s.dir);
+      mark(t, 'files');
 
       progress('compiling');
       // The simulator boots while the code compiles; both must finish before installing.
-      const booting = this.boot(s);
+      // Once it is up, the screen stream starts too, so that it is running by the time the app is.
+      // The warm-up app is built ahead, so that priming a starting simulator does not wait for it.
+      void this.warmApp().catch(() => undefined);
+      const booting = this.boot(s).then(async () => {
+        mark(t, cold ? 'booted' : 'was booted');
+        if (this.earlyStream) await this.startStream(s);
+      });
       booting.catch(() => undefined);
       const compile = await exec(
         'xcodebuild',
@@ -304,7 +615,11 @@ export class XcodeDriver implements Driver {
         ],
         { cwd: s.dir, timeoutMs: BUILD_TIMEOUT_MS },
       );
+      mark(t, 'compiled');
+      this.lastBuildAt = Date.now();
       if (compile.code !== 0) {
+        console.log(`[timing] ${s.projectId} failed to compile: ${timingLine(t)}`);
+        s.timing = null;
         return { ok: false, errors: extractErrors(compile.stdout + '\n' + compile.stderr, s.dir) };
       }
       await booting;
@@ -312,32 +627,54 @@ export class XcodeDriver implements Driver {
       progress('installing');
       const appPath = path.join(s.dir, 'build', 'Build', 'Products', 'Debug-iphonesimulator', 'App.app');
       await mustExec('xcrun', ['simctl', 'install', s.udid, appPath], { timeoutMs: 120_000 });
+      if (s.migrateFrom) await this.moveSavedData(s);
+      mark(t, 'installed');
 
       progress('launching');
       await exec('xcrun', ['simctl', 'terminate', s.udid, s.bundleId]);
       await mustExec('xcrun', ['simctl', 'launch', s.udid, s.bundleId], { timeoutMs: 60_000 });
+      mark(t, 'launched');
 
       if (!s.streamer) {
-        // Asking idb for the screen's size also starts the simulator's companion, once, before the
-        // stream and the touches both come asking for it at the same moment.
-        if (this.hasIdb) await this.screenSize(s);
-        s.streamer = new Streamer(
-          s.udid,
-          this.hasIdb,
-          (frame) => this.emit.frame(s.projectId, frame),
-          (format) => this.emit.streamInfo(s.projectId, format === 'h264' ? VIDEO_MIME : 'image/jpeg'),
-          this.liveVideo ? this.idbPython : null,
-        );
-        this.emit.streamInfo(s.projectId, 'image/jpeg');
-        s.streamer.setLight(s.light);
-        s.streamer.setFormat(s.video && this.liveVideo ? 'h264' : 'mjpeg');
-        s.streamer.setActive(s.viewers > 0);
-        if (this.touchPython) s.toucher = new Toucher(s.udid, this.touchPython);
+        await this.startStream(s);
       } else {
         s.streamer.refresh();
       }
       return { ok: true };
     });
+  }
+
+  /** Starts sending the simulator's screen, unless it is being sent already. */
+  private async startStream(s: Session): Promise<void> {
+    if (s.streamer) return;
+    // Asking idb for the screen's size also starts the simulator's companion, once, before the
+    // stream and the touches both come asking for it at the same moment.
+    if (this.hasIdb) await this.screenSize(s);
+    if (s.streamer) return;
+    s.streamer = new Streamer(
+      s.udid,
+      this.hasIdb,
+      (frame) => {
+        this.firstPicture(s);
+        return this.emit.frame(s.projectId, frame);
+      },
+      (format) => this.emit.streamInfo(s.projectId, format === 'h264' ? VIDEO_MIME : 'image/jpeg'),
+      this.liveVideo ? this.idbPython : null,
+    );
+    this.emit.streamInfo(s.projectId, 'image/jpeg');
+    s.streamer.setLight(s.light);
+    s.streamer.setFormat(s.video && this.liveVideo ? 'h264' : 'mjpeg');
+    s.streamer.setActive(s.viewers > 0);
+    if (this.touchPython) s.toucher = new Toucher(s.udid, this.touchPython);
+  }
+
+  /** The build's first picture after the app started: its times are complete. */
+  private firstPicture(s: Session): void {
+    const t = s.timing;
+    if (!t || !t.steps.some(([step]) => step === 'launched')) return;
+    s.timing = null;
+    mark(t, 'first picture');
+    console.log(`[timing] ${s.projectId}: ${timingLine(t)}`);
   }
 
   async publish(job: PublishJob, progress: (stage: PublishStage) => void): Promise<PublishResult> {
@@ -391,7 +728,7 @@ export class XcodeDriver implements Driver {
 
       // A simulator is as old as its project's folder; one without a folder belongs to nothing.
       const simulators = (await this.listDevices())
-        .filter((d) => d.name.startsWith(DEVICE_PREFIX) && d.state === 'Shutdown')
+        .filter((d) => d.name.startsWith(DEVICE_PREFIX) && !d.name.startsWith(TEMPLATE_PREFIX) && !d.name.startsWith(SPARE_PREFIX) && d.state === 'Shutdown')
         .map((d) => ({ udid: d.udid, id: d.name.slice(DEVICE_PREFIX.length) }));
       const staleSims = new Set(
         staleIds(simulators.map((d) => ({ id: d.id, lastUsedMs: lastUsed.get(d.id) ?? null })), inUse, Date.now(), days),
@@ -579,9 +916,11 @@ export class XcodeDriver implements Driver {
     await forgetCompanion(s.udid);
     if (process.env.DELETE_SIMULATORS_ON_RELEASE) await exec('xcrun', ['simctl', 'delete', s.udid]);
     this.emit.stopped(projectId);
+    this.keepSpare();
   }
 
   async shutdown(): Promise<void> {
+    await this.dropSpare();
     await Promise.all([...this.sessions.keys()].map((id) => this.release(id)));
   }
 }
@@ -594,6 +933,11 @@ export class XcodeDriver implements Driver {
  * through it is thrown away. So it is ended whenever its simulator stops or starts, and idb starts
  * a fresh one the next time it is asked for something.
  */
+/** A tidy status bar, like in Apple's own screenshots. Purely cosmetic. */
+async function statusBar(udid: string): Promise<void> {
+  await exec('xcrun', ['simctl', 'status_bar', udid, 'override', '--time', '9:41', '--batteryState', 'charged', '--batteryLevel', '100', '--cellularBars', '4']);
+}
+
 async function forgetCompanion(udid: string): Promise<void> {
   // Off idb's own list first: a companion that is listed but gone is never replaced.
   await exec('idb', ['disconnect', udid], { timeoutMs: 20_000 });

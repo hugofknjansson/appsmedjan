@@ -188,6 +188,35 @@ Inställningar: `MAX_SIMULATORS` (standard 2, varje simulator tar ett par GB min
 (till exempel `iPhone 16`; annars väljs nyaste vanliga iPhone-modellen). Flera Macar kan ansluta till
 samma server; nya projekt hamnar på den minst belastade.
 
+#### Så startar simulatorn snabbt
+
+En helt ny simulator lägger nästan en minut på sin första start, och den första installationen efter
+varje start tar ytterligare 6–14 sekunder. Medan det pågår drar iOS egna bakgrundstjänster (Siri,
+Apple Intelligence, Hälsa med flera) så mycket kraft att allt annat på Macen går trögt. Arbetaren
+gör därför detta:
+
+- **En mall per telefonmodell** (`asm-template-…`). Den görs en gång, i bakgrunden när arbetaren
+  startar: den startas, installerar och startar en liten app, tar bort den och startas en gång till.
+  Varje ny app får en kopia av mallen, och en kopia startar på några sekunder. `SIM_TEMPLATE=0` gör
+  nya simulatorer från början som förut.
+- **En färdigstartad reserv** (`asm-spare-…`), när det finns plats bredvid apparna som är öppna. En
+  ny app tar över den direkt utan någon start alls. Det gör också den som kommer tillbaka till en app
+  vars simulator har stängts av; det appen har sparat flyttas då över, och den gamla simulatorn tas
+  bort. Reserven viker för en app som behöver platsen, och nästa reserv startas först när ingen app har
+  byggts på 45 sekunder, eftersom en simulator som startar gör byggen långsammare. `SIM_SPARE=0`
+  stänger av den.
+- **Uppvärmning** efter varje start: en liten app installeras och tas bort medan användarens kod
+  kompileras, så att användarens installation blir den snabba andra. `SIM_PRIME=0` stänger av den.
+- **Bildströmmen startar när simulatorn är uppe**, inte när appen har startat, så att den redan är
+  igång när appen visas. `SIM_EARLY_STREAM=0` stänger av det.
+
+Varje bygge skriver en rad `[timing]` i arbetarens logg med när varje steg var klart: filer,
+kompilering, start, installation, uppstart och första bilden till tittaren. Mätt på en Mac med många
+simulatorer igång tog en ny app 79 sekunder till första bilden före och omkring 9 sekunder efter, en
+ändring omkring 2 sekunder, och att komma tillbaka till en avstängd app omkring 8 sekunder. Utan reserv,
+till exempel när två nya appar kommer tätt efter varandra, tar en ny app längre tid, eftersom
+kopian ska starta och värmas upp först.
+
 ### Hyrda Macar
 
 Arbetaren behöver inte köras på din egen dator. En hyrd Mac i ett datacenter fungerar likadant: den
