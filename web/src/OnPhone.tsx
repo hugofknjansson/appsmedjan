@@ -6,6 +6,7 @@ import {
   EMPTY_CONTACT,
   contactProblem,
   testerPersonProblem,
+  type PublishStage,
   type PublishState,
   type ReviewContact,
   type TesterPerson,
@@ -13,9 +14,13 @@ import {
 import { ApiError, api } from './api';
 import { DirectInstallSteps } from './Direct';
 import { apiErrorText, t } from './i18n';
+import { Detail } from './Detail';
+import { WaitCard } from './Waiting';
 
 const TESTFLIGHT_APP = 'https://apps.apple.com/app/testflight/id899247664';
 const CONNECT_URL = 'https://appstoreconnect.apple.com/apps';
+/** Roughly how far an upload has come at each stage, for the bar. */
+const UPLOAD_PROGRESS: Record<PublishStage, number> = { queued: 0.05, preparing: 0.15, waiting_for_app: 0.2, archiving: 0.5, uploading: 0.8 };
 
 const errorText = (err: unknown) => apiErrorText(err instanceof ApiError ? err.code : 'internal');
 
@@ -145,8 +150,12 @@ export function OnPhoneDialog({ id, publish, running, onClose, onConnect }: Prop
               <>
                 {!publish.available && <p className="muted">{t.phone.noWorker}</p>}
                 <button className="btn primary" disabled={busy || uploading || running || !publish.available} onClick={() => void act(() => api.testflight(id))}>
-                  {uploading ? `${t.publishStage[publish.stage ?? 'queued']}…` : uploaded ? t.phone.sendAgain : t.phone.send}
+                  {uploaded ? t.phone.sendAgain : t.phone.send}
                 </button>
+                {/* The upload takes minutes: what it is doing, and how far it has come. */}
+                {uploading && publish.stage !== 'waiting_for_app' && (
+                  <WaitCard title={t.publishStage[publish.stage ?? 'queued']} lines={t.wait.upload} fraction={UPLOAD_PROGRESS[publish.stage ?? 'queued']} />
+                )}
                 {running && <p className="muted fine">{t.phone.waitForAgent}</p>}
 
                 {uploading && publish.stage === 'waiting_for_app' && (
@@ -215,9 +224,10 @@ export function OnPhoneDialog({ id, publish, running, onClose, onConnect }: Prop
                     <h4>{t.phone.fastTitle}</h4>
                     <p className="muted fine">{t.phone.fastText}</p>
                     {fast.status === 'failed' && (
-                      <p className="form-error" role="alert">
-                        {t.phone.fastFailed} {fast.error === 'rejected' ? fast.detail : ''}
-                      </p>
+                      <div className="form-error" role="alert">
+                        {t.phone.fastFailed}
+                        {fast.error === 'rejected' && <Detail text={fast.detail} />}
+                      </div>
                     )}
                     <label>
                       <span>{t.phone.fastEmail}</span>
@@ -239,9 +249,7 @@ export function OnPhoneDialog({ id, publish, running, onClose, onConnect }: Prop
                 )}
 
                 {uploaded && (test.status === 'none' || test.status === 'working' || test.status === 'processing') && (
-                  <p className="notice" role="status">
-                    <span className="spinner small" /> {t.phone.processing}
-                  </p>
+                  <WaitCard title={t.phone.processing} lines={t.wait.processing} />
                 )}
                 {uploaded && test.status === 'review' && (
                   <p className="notice" role="status">
@@ -281,9 +289,10 @@ export function OnPhoneDialog({ id, publish, running, onClose, onConnect }: Prop
                 )}
                 {uploaded && test.status === 'failed' && (
                   <div className="form-error" role="alert">
-                    <p>
-                      {t.store.error[test.error ?? 'internal']} {test.error === 'rejected' ? test.detail : ''}
-                    </p>
+                    <div>
+                      {t.store.error[test.error ?? 'internal']}
+                      {test.error === 'rejected' && <Detail text={test.detail} />}
+                    </div>
                     <button className="btn" disabled={busy} onClick={() => void act(() => api.shareAgain(id))}>
                       {t.phone.retry}
                     </button>

@@ -876,6 +876,497 @@ textarea {
   font-size: 0.85rem;
 }
 
+/* What Apple answered, word for word, behind a press. */
+.detail {
+  margin-top: 6px;
+  font-size: 0.85rem;
+}
+
+.detail summary {
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.detail > span {
+  display: block;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+/* --- Waiting ----------------------------------------------------------------------- */
+
+/* The mascot dancing where something is on its way. */
+.waiting {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 18px 0;
+  color: var(--muted);
+}
+
+.waiting .mascot {
+  width: 96px;
+}
+
+.waiting.page {
+  min-height: 100dvh;
+  align-content: center;
+}
+
+/* The same card as the build's, among other things on a page. */
+.wait-card {
+  background: var(--sunken);
+}
+
+/* --- Connecting an Apple account, one step at a time ------------------------------ */
+
+.apple-guide {
+  gap: 14px;
+}
+
+.apple-step {
+  display: grid;
+  gap: 14px;
+}
+
+.apple-step h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.apple-step p {
+  margin: 0;
+}
+
+.apple-centre {
+  justify-items: center;
+  text-align: center;
+  padding: 8px 0 4px;
+}
+
+.apple-centre .caption {
+  min-width: 16ch;
+}
+
+.apple-choice,
+.apple-next {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.apple-next {
+  justify-content: flex-end;
+}
+
+a.btn {
+  text-decoration: none;
+}
+
+.apple-classic {
+  justify-self: center;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+/* Where the person is among the counted steps. */
+.apple-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.apple-dots i {
+  width: 26px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--line);
+  transition: background-color 0.25s ease;
+}
+
+.apple-dots i[data-on='true'] {
+  background: var(--accent);
+}
+
+.apple-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  counter-reset: apple;
+}
+
+.apple-list li {
+  counter-increment: apple;
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 10px;
+  align-items: start;
+  font-size: 0.95rem;
+}
+
+.apple-list li::before {
+  content: counter(apple);
+}
+
+.apple-list li::before,
+.pic-row > b {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+/* Apple's page, drawn as simply as it can be. The thing to press on each row lights up in turn. */
+.apple-pic {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--sunken);
+  font-size: 0.85rem;
+}
+
+.pic-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 12px;
+  border-radius: 11px;
+  background: var(--surface);
+}
+
+.pic-row > span {
+  color: var(--muted);
+}
+
+.pic-row > i {
+  font-style: normal;
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.pic-faint {
+  opacity: 0.5;
+}
+
+.pic-press {
+  position: relative;
+  margin-left: auto;
+  padding: 4px 12px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-style: normal;
+  font-weight: 700;
+}
+
+.pic-press.pic-round {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.pic-press.pic-text {
+  background: none;
+  color: var(--accent);
+  padding: 4px 6px;
+}
+
+/* A ring that spreads out from the thing to press, like a finger landing on it. */
+.pic-press::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 2px solid var(--accent);
+  border-radius: inherit;
+  opacity: 0;
+}
+
+.pic-press.pic-text::after {
+  border-radius: 9px;
+}
+
+.apple-field {
+  display: grid;
+  gap: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.apple-field input,
+.apple-field small {
+  font-weight: 400;
+}
+
+/* Where the key file is dropped, or pressed to choose it. */
+.drop {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding: 28px 16px 22px;
+  border: 2px dashed var(--line);
+  border-radius: 20px;
+  background: var(--sunken);
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 0.16s ease,
+    background-color 0.16s ease,
+    transform 0.2s var(--ease-out);
+}
+
+.drop input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.drop:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.drop[data-over='true'],
+.drop[data-ok='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.drop[data-ok='true'] {
+  border-style: solid;
+  border-color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+}
+
+.drop-file {
+  width: 48px;
+  height: 56px;
+}
+
+.drop-sheet {
+  fill: var(--surface);
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.drop-fold,
+.drop-ink {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.apple-tick {
+  flex: none;
+  width: 28px;
+  height: 28px;
+}
+
+.apple-tick circle {
+  fill: var(--ok);
+}
+
+.apple-tick path {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.drop .apple-tick {
+  width: 48px;
+  height: 48px;
+  margin: 4px 0;
+}
+
+.apple-code {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.apple-code input {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9rem;
+  transition: border-color 0.16s ease;
+}
+
+.apple-code[data-ok='true'] input {
+  border-color: var(--ok);
+}
+
+.apple-linked {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+
+.apple-details summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.apple-details p {
+  margin-top: 6px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .drop:hover {
+    border-color: var(--accent);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* A step arrives: up a little and into focus. */
+  .apple-step {
+    animation: apple-step-in 0.24s var(--ease-out) backwards;
+  }
+
+  .drop[data-over='true'] {
+    transform: scale(1.02);
+  }
+
+  /* The file waits to be picked up: it bobs, slowly. */
+  .drop-file {
+    animation: apple-bob 1.6s ease-in-out infinite alternate;
+  }
+
+  .apple-tick {
+    animation: tick-in 0.3s var(--bounce) backwards;
+  }
+
+  /* One row at a time is the one to look at: six seconds for the three of them. */
+  .pic-row[data-beat='1'],
+  .pic-row[data-beat='2'],
+  .pic-row[data-beat='3'] {
+    animation: apple-row 6s linear infinite backwards;
+  }
+
+  .pic-row[data-beat] .pic-press::after {
+    animation: apple-press 6s var(--ease-out) infinite backwards;
+  }
+
+  /* Started part of the way into the round, so that the rows wait their turn from the first moment. */
+  .pic-row[data-beat='2'],
+  .pic-row[data-beat='2'] .pic-press::after {
+    animation-delay: -4s;
+  }
+
+  .pic-row[data-beat='3'],
+  .pic-row[data-beat='3'] .pic-press::after {
+    animation-delay: -2s;
+  }
+
+  .pic-row[data-beat='solo'] .pic-press::after {
+    animation-duration: 2s;
+    animation-name: apple-press-solo;
+  }
+}
+
+/* Without movement the step still fades in, so that it does not jump. */
+@media (prefers-reduced-motion: reduce) {
+  .apple-step {
+    animation: apple-fade 0.2s ease backwards;
+  }
+}
+
+@keyframes apple-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes apple-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes apple-bob {
+  from {
+    transform: translateY(-3px);
+  }
+  to {
+    transform: translateY(3px);
+  }
+}
+
+/* A third of the time in front, the rest stepped back. */
+@keyframes apple-row {
+  0%,
+  30% {
+    opacity: 1;
+  }
+  36%,
+  96% {
+    opacity: 0.45;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Two presses during the row's turn, nothing for the rest of the round. */
+@keyframes apple-press {
+  0%,
+  16% {
+    opacity: 0.9;
+    transform: scale(0.9);
+  }
+  14%,
+  30% {
+    opacity: 0;
+    transform: scale(1.45);
+  }
+  15%,
+  31%,
+  100% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes apple-press-solo {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.9);
+  }
+  60%,
+  100% {
+    opacity: 0;
+    transform: scale(1.45);
+  }
+}
+
 /* --- App Store page ------------------------------------------------------------- */
 
 .sheet.wide {

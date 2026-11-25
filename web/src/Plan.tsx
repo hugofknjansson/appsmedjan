@@ -10,6 +10,7 @@ import { PLAN_ORDER, type CreditState, type PlanId, type PlanLimits, type PlanSt
 import { ApiError, api, type PlanPerson } from './api';
 import { apiErrorText, lang, t } from './i18n';
 import { Mascot } from './Mascot';
+import { WaitCard } from './Waiting';
 
 /** What a plan holds, as lines to read: its credits where credits are counted, otherwise its messages. */
 function lines(limits: PlanLimits, credits: boolean): string[] {
@@ -116,11 +117,15 @@ export function PlanDialog({ onClose, onUnlock, paid = false }: { onClose: () =>
         {plan && (
           <>
             {!plan.enforced && <p className="notice">{text.open}</p>}
-            {paid && plan.pay && (
-              <p className="notice" role="status">
-                {plan.pay.plan ? text.paid : text.paidWaiting}
-              </p>
-            )}
+            {paid &&
+              plan.pay &&
+              (plan.pay.plan ? (
+                <p className="notice" role="status">
+                  {text.paid}
+                </p>
+              ) : (
+                <WaitCard title={text.paidWaiting} lines={t.wait.plan} />
+              ))}
             {locked ? (
               <div className="plan-pitch">
                 <Mascot dancing tile="#fff" eyes="#c74005" />

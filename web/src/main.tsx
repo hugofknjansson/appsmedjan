@@ -6,6 +6,7 @@ import { ResetPassword } from './Account';
 import { Auth } from './Auth';
 import { Dashboard } from './Dashboard';
 import { Project } from './Project';
+import { Waiting } from './Waiting';
 import './styles.css';
 
 function App() {
@@ -42,7 +43,7 @@ function App() {
     }
   }, []);
 
-  if (user === undefined) return null;
+  if (user === undefined) return <Waiting page />;
   // The link in the mail for a new password: works signed in or out, and signs the person in.
   const reset = /^\/reset\/([A-Za-z0-9_-]{20,100})$/.exec(path);
   if (reset) {

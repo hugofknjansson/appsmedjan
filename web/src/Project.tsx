@@ -16,10 +16,10 @@ import { OnPhoneDialog } from './OnPhone';
 import { PlanDialog } from './Plan';
 import { ReleaseDialog } from './Release';
 import { StoreDialog } from './Store';
-import { Logo } from './Logo';
 import { FrameBus } from './frames';
 import { Phone } from './Phone';
 import { Confetti, Mascot, MascotBadge, WaitingCaption } from './Mascot';
+import { Waiting } from './Waiting';
 import { apiErrorText, t } from './i18n';
 
 interface State {
@@ -395,7 +395,7 @@ export function Project({ id, navigate, isNew = false }: { id: string; navigate:
               onCapture={captureForStore}
             />
           )}
-          {!state && <Logo small />}
+          {!state && <Waiting />}
         </section>
       </div>
     </div>

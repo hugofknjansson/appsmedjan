@@ -22,6 +22,8 @@ import {
 } from '../../shared/protocol';
 import { ApiError, api } from './api';
 import { apiErrorText, lang, t } from './i18n';
+import { Detail } from './Detail';
+import { WaitCard, Waiting } from './Waiting';
 
 const CONNECT_URL = 'https://appstoreconnect.apple.com/apps';
 
@@ -262,7 +264,7 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
 
       <div className="sheet-body">
         <p className="muted">{t.store.intro}</p>
-        {!store && !error && <span className="spinner" />}
+        {!store && !error && <Waiting />}
 
         {store && (
           <ol className="guide">
@@ -271,9 +273,9 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
               <div className="guide-form">
                 <div>
                   <button className="btn" disabled={busy !== ''} onClick={() => void draft()}>
-                    {busy === 'draft' ? `${t.store.drafting}…` : t.store.draft}
+                    {t.store.draft}
                   </button>
-                  <p className="muted fine">{t.store.draftHelp}</p>
+                  {busy === 'draft' ? <WaitCard title={t.store.drafting} lines={t.wait.draft} /> : <p className="muted fine">{t.store.draftHelp}</p>}
                 </div>
                 {field('name', t.store.name)}
                 {field('subtitle', t.store.subtitle)}
@@ -468,8 +470,9 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
                 disabled={busy !== '' || syncing || problems.length > 0 || !store.available || store.account === 'none'}
                 onClick={() => void send()}
               >
-                {syncing ? `${t.store.stage[sync?.stage ?? 'queued']}…` : t.store.send}
+                {t.store.send}
               </button>
+              {syncing && <WaitCard title={t.store.stage[sync?.stage ?? 'queued']} lines={t.wait.store} />}
 
               {sync?.status === 'done' && (
                 <div className="notice" role="status">
@@ -478,9 +481,10 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
                 </div>
               )}
               {sync?.status === 'failed' && (
-                <p className="form-error" role="alert">
-                  {t.store.error[sync.error ?? 'internal']} {sync.error === 'rejected' ? sync.detail : ''}
-                </p>
+                <div className="form-error" role="alert">
+                  {t.store.error[sync.error ?? 'internal']}
+                  {sync.error === 'rejected' && <Detail text={sync.detail} />}
+                </div>
               )}
             </li>
 
@@ -503,8 +507,9 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
                 </p>
               )}
               <button className="btn primary" disabled={busy !== '' || submitting || syncing || dirty || !store.canSubmit} onClick={() => void submit()}>
-                {submitting ? `${t.store.submitting}…` : t.store.submit}
+                {t.store.submit}
               </button>
+              {submitting && <WaitCard title={t.store.submitting} lines={t.wait.review} />}
               {store.submit.status === 'done' && (
                 <p className="notice" role="status">
                   {t.store.submitted}
@@ -512,9 +517,10 @@ export function StoreDialog({ id, onClose, onConnect }: { id: string; onClose: (
               )}
               {store.submit.status === 'failed' && (
                 <div className="form-error" role="alert">
-                  <p>
-                    {t.store.submitError[store.submit.error ?? 'internal']} {store.submit.error === 'rejected' ? store.submit.detail : ''}
-                  </p>
+                  <div>
+                    {t.store.submitError[store.submit.error ?? 'internal']}
+                    {store.submit.error === 'rejected' && <Detail text={store.submit.detail} />}
+                  </div>
                   {store.submit.error === 'rejected' && refusalHints(store.submit.detail ?? '').length > 0 && (
                     <ul className="plain-list">
                       {refusalHints(store.submit.detail ?? '').map((hint) => (

@@ -5,6 +5,7 @@ import { AppleAccountDialog } from './AppleAccount';
 import { Logo } from './Logo';
 import { Mascot, WaitingCaption } from './Mascot';
 import { OperatorPlans, PlanDialog } from './Plan';
+import { Waiting } from './Waiting';
 import { apiErrorText, lang, t } from './i18n';
 
 interface Props {
@@ -247,6 +248,7 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
 
         <section>
           <h2>{t.yourApps}</h2>
+          {projects === null && !error && <Waiting lines={t.wait.apps} />}
           {projects !== null && projects.length === 0 && (
             <div className="empty">
               <Mascot />
