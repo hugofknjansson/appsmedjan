@@ -12,6 +12,8 @@ export interface AppRequest {
 export interface User {
   id: string;
   email: string;
+  /** Whether the address is confirmed. Missing from servers before confirming. */
+  emailVerified?: boolean;
 }
 
 export interface ProjectSummary {
@@ -79,12 +81,17 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
 }
 
 export const api = {
-  config: () => call<{ inviteRequired: boolean; paywall?: boolean }>('GET', '/api/config'),
+  config: () => call<{ inviteRequired: boolean; paywall?: boolean; mail?: boolean }>('GET', '/api/config'),
   me: () => call<{ user: User | null }>('GET', '/api/me'),
   signup: (email: string, password: string, inviteCode: string) =>
     call<{ user: User }>('POST', '/api/auth/signup', { email, password, inviteCode }),
   login: (email: string, password: string) => call<{ user: User }>('POST', '/api/auth/login', { email, password }),
   logout: () => call<{ ok: true }>('POST', '/api/auth/logout', {}),
+  /** Mails a link for a new password, if there is an account with the address. The answer is the same either way. */
+  forgotPassword: (email: string) => call<{ ok: true; mail?: boolean }>('POST', '/api/auth/forgot', { email }),
+  resetPassword: (token: string, password: string) => call<{ user: User }>('POST', '/api/auth/reset', { token, password }),
+  verifyAgain: () => call<{ status: 'sent' | 'already' | 'too_soon' | 'not_sent' }>('POST', '/api/auth/verify/again', {}),
+  deleteAccount: (password: string) => call<{ ok: true }>('DELETE', '/api/me', { password }),
   projects: () => call<{ projects: ProjectSummary[] }>('GET', '/api/projects'),
   createProject: (text: string, name: string) =>
     call<{ project: ProjectSummary }>('POST', '/api/projects', { text, name }),

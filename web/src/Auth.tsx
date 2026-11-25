@@ -8,7 +8,9 @@ import { Mascot, WaitingCaption } from './Mascot';
 import { apiErrorText, t } from './i18n';
 
 export function Auth({ onDone }: { onDone: (user: User) => void }) {
-  const [mode, setMode] = useState<'login' | 'signup'>('signup');
+  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('signup');
+  /** What the forgot-password form said after sending: the link has gone, or mail cannot be sent. */
+  const [forgotSaid, setForgotSaid] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [invite, setInvite] = useState('');
@@ -35,6 +37,11 @@ export function Auth({ onDone }: { onDone: (user: User) => void }) {
     setBusy(true);
     setError('');
     try {
+      if (mode === 'forgot') {
+        const res = await api.forgotPassword(email);
+        setForgotSaid(res.mail === false ? t.account.noMail : t.account.forgotSent.replace('{email}', email));
+        return;
+      }
       const res = mode === 'signup' ? await api.signup(email, password, invite) : await api.login(email, password);
       onDone(res.user);
     } catch (err) {
@@ -91,24 +98,27 @@ export function Auth({ onDone }: { onDone: (user: User) => void }) {
       </section>
 
       <form className="auth-card" onSubmit={submit}>
-        <h2>{mode === 'signup' ? text.start : text.back}</h2>
+        <h2>{mode === 'forgot' ? t.account.forgotTitle : mode === 'signup' ? text.start : text.back}</h2>
         {mode === 'signup' && <p className="muted">{paywall ? text.freeThenPlan : text.free}</p>}
+        {mode === 'forgot' && <p className="muted">{t.account.forgotText}</p>}
         <label>
           <span>{t.email}</span>
           <input type="email" autoComplete="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
-        <label>
-          <span>{t.password}</span>
-          <input
-            type="password"
-            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-            required
-            minLength={8}
-            placeholder={mode === 'signup' ? t.passwordHint : undefined}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </label>
+        {mode !== 'forgot' && (
+          <label>
+            <span>{t.password}</span>
+            <input
+              type="password"
+              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+              required
+              minLength={8}
+              placeholder={mode === 'signup' ? t.passwordHint : undefined}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </label>
+        )}
         {mode === 'signup' && inviteRequired && (
           <label>
             <span>{t.inviteCode}</span>
@@ -120,22 +130,57 @@ export function Auth({ onDone }: { onDone: (user: User) => void }) {
             {error}
           </p>
         )}
-        <button className="btn primary" disabled={busy}>
-          {mode === 'signup' ? t.signup : t.login}
-        </button>
-        <p className="auth-switch">
-          {mode === 'signup' ? t.haveAccount : t.noAccount}{' '}
+        {mode === 'forgot' && forgotSaid && (
+          <p className="notice" role="status">
+            {forgotSaid}
+          </p>
+        )}
+        {!(mode === 'forgot' && forgotSaid) && (
+          <button className="btn primary" disabled={busy}>
+            {mode === 'forgot' ? t.account.forgotSend : mode === 'signup' ? t.signup : t.login}
+          </button>
+        )}
+        {mode === 'login' && (
           <button
             type="button"
-            className="link"
+            className="link auth-forgot"
             onClick={() => {
-              setMode(mode === 'signup' ? 'login' : 'signup');
+              setMode('forgot');
               setError('');
+              setForgotSaid('');
             }}
           >
-            {mode === 'signup' ? t.login : t.signup}
+            {t.account.forgot}
           </button>
-        </p>
+        )}
+        {mode === 'forgot' ? (
+          <p className="auth-switch">
+            <button
+              type="button"
+              className="link"
+              onClick={() => {
+                setMode('login');
+                setError('');
+              }}
+            >
+              {t.account.backToLogin}
+            </button>
+          </p>
+        ) : (
+          <p className="auth-switch">
+            {mode === 'signup' ? t.haveAccount : t.noAccount}{' '}
+            <button
+              type="button"
+              className="link"
+              onClick={() => {
+                setMode(mode === 'signup' ? 'login' : 'signup');
+                setError('');
+              }}
+            >
+              {mode === 'signup' ? t.login : t.signup}
+            </button>
+          </p>
+        )}
       </form>
     </main>
   );

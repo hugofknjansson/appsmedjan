@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ApiError, api, type AppRequest, type ProjectSummary, type User } from './api';
+import { AccountDialog, VerifyNote } from './Account';
 import { AppleAccountDialog } from './AppleAccount';
 import { Logo } from './Logo';
 import { Mascot, WaitingCaption } from './Mascot';
@@ -30,6 +31,8 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
   const [appleOpen, setAppleOpen] = useState(false);
   const [plansOn, setPlansOn] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [mailOn, setMailOn] = useState(false);
   const [writing, setWriting] = useState(false);
   // An idea writing itself into the box, letter by letter: the timer, and the whole of the idea.
   const typing = useRef<number | null>(null);
@@ -76,6 +79,7 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
     api.operatorRequests().then((r) => setRequests(r.requests)).catch(() => undefined);
     api.appleAccount().then((s) => setAppleEnabled(s.enabled)).catch(() => undefined);
     api.plan().then((p) => setPlansOn(p.enforced)).catch(() => undefined);
+    api.config().then((c) => setMailOn(c.mail === true)).catch(() => undefined);
     fetch('/api/status')
       .then((r) => r.json())
       .then((s: { workers: number; agentReady: boolean }) => {
@@ -121,7 +125,9 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
       <header className="topbar">
         <Logo small />
         <div className="topbar-right">
-          <span className="muted hide-narrow">{user.email}</span>
+          <button className="btn ghost" onClick={() => setAccountOpen(true)}>
+            {t.account.title}
+          </button>
           {appleEnabled && (
             <button className="btn ghost" onClick={() => setAppleOpen(true)}>
               {t.appleAccount}
@@ -139,6 +145,7 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
       </header>
 
       {appleOpen && <AppleAccountDialog onClose={() => setAppleOpen(false)} />}
+      {accountOpen && <AccountDialog user={user} onClose={() => setAccountOpen(false)} onDeleted={onLogout} />}
       {/* Let past the paywall with a code: on with the app the person was about to build. */}
       {planOpen && <PlanDialog onClose={() => setPlanOpen(false)} onUnlock={() => void build()} />}
 
@@ -153,6 +160,7 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
             <Mascot dancing={busy || prompt.trim() !== ''} tile="#fff" eyes="#c74005" />
           </div>
           {notice && <p className="notice">{notice}</p>}
+          <VerifyNote user={user} mail={mailOn} />
           <form className="start-steps" onSubmit={create}>
             <StepLabel number={1} text={t.startSteps.describe} now={!prompt.trim()} />
             <div className="composer big start-field">

@@ -27,6 +27,30 @@ former släpps igenom: ingen text, inga bilder utifrån, inga skript, och bakgru
 kvadraten. En app som byggaren inte hann rita åt får en enkel ikon i en egen färg, och en ikon som
 personen själv har valt i App Store-guiden skrivs aldrig över.
 
+## Konton
+
+Ett konto är en e-postadress och ett lösenord. Runt det finns:
+
+- **Bekräftelse av e-post.** När kontot skapas skickas ett mejl med en länk (`/api/auth/verify/…`, gäller
+  i sju dagar). Tills den är öppnad ber webben om den och erbjuder att skicka mejlet igen, högst en
+  gång i minuten. Med `REQUIRE_VERIFIED_EMAIL=1` byggs inget innan adressen är bekräftad
+  (`email_unverified`), vilket hindrar att någon skapar konto efter konto för gratis credits. Utan den
+  skickas och efterfrågas mejlet, men inget väntar på det.
+- **Glömt lösenord.** Personen skriver sin adress och får en länk (`/reset/…`, gäller en timme och en
+  gång) där ett nytt lösenord väljs. Svaret är detsamma oavsett om adressen har ett konto, så att ingen
+  kan ta reda på vilka adresser som finns. Ett nytt lösenord loggar ut kontot överallt, loggar in
+  personen där och räknar adressen som bekräftad.
+- **Radera kontot**, under Mitt konto i både webben och iPhone-appen (Apple kräver det i appen).
+  Lösenordet efterfrågas igen. Appar, chattar, telefoner, plan, credits och en kopplad Apple-nyckel
+  försvinner, och simulatorerna och appfilerna för telefonen städas bort. Telefoner som har registrerats
+  i ett utvecklarkonto står kvar där tills medlemsåret förnyas, eftersom Apple inte låter dem tas bort
+  tidigare.
+
+Mejlen skickas genom Resend: `MAIL_API_KEY` och `MAIL_FROM`, en avsändare på en domän som är verifierad
+hos Resend (`App Dance <hej@din-domän.se>`). Utan dem skickas inga mejl: glömt lösenord svarar då att
+tjänsten inte kan skicka mejl, och bekräftelsen efterfrågas inte. På en utvecklingsdator skrivs mejlen
+i serverns logg i stället, med länk, så att flödena går att prova.
+
 ## Planer
 
 Vad en person får göra kan styras av en plan. Det finns tre, och de står i `shared/protocol.ts`

@@ -161,6 +161,16 @@
         }
       }
     },
+    "Allt försvinner: dina appar, chattarna, telefonerna du har lagt till, din plan och dina credits. Det går inte att ångra.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Everything goes: your apps, the chats, the phones you have added, your plan and your credits. It cannot be undone."
+          }
+        }
+      }
+    },
     "Allt är inte ifyllt än.": {
       "localizations": {
         "en": {
@@ -777,6 +787,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Need an idea?"
+          }
+        }
+      }
+    },
+    "Bekräfta din e-post först. Vi har skickat en länk till din adress.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Confirm your email first. We have sent a link to your address."
           }
         }
       }
@@ -1511,6 +1531,16 @@
         }
       }
     },
+    "Ditt lösenord": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your password"
+          }
+        }
+      }
+    },
     "Du har bett om den här planen. Vi slår på den åt dig och hör av oss.": {
       "localizations": {
         "en": {
@@ -1951,6 +1981,16 @@
         }
       }
     },
+    "Fel lösenord.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wrong password."
+          }
+        }
+      }
+    },
     "Filen är inte en giltig nyckel från App Store Connect.": {
       "localizations": {
         "en": {
@@ -2177,6 +2217,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Try again"
+          }
+        }
+      }
+    },
+    "Glömt lösenordet?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Forgot your password?"
           }
         }
       }
@@ -2607,6 +2657,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Installed on the home screen"
+          }
+        }
+      }
+    },
+    "Inte bekräftad än. Vi har skickat en länk till din adress.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not confirmed yet. We have sent a link to your address."
           }
         }
       }
@@ -3271,6 +3331,16 @@
         }
       }
     },
+    "Mitt konto": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "My account"
+          }
+        }
+      }
+    },
     "Musik": {
       "localizations": {
         "en": {
@@ -3381,6 +3451,16 @@
         }
       }
     },
+    "Nytt lösenord": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New password"
+          }
+        }
+      }
+    },
     "Något gick fel hos oss. Försök igen.": {
       "localizations": {
         "en": {
@@ -3417,6 +3497,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Entertainment"
+          }
+        }
+      }
+    },
+    "OK": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        }
+      }
+    },
+    "Om det finns ett konto med %@ har vi skickat en länk dit. Den gäller i en timme.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If there is an account with %@, we have sent a link there. It works for an hour."
           }
         }
       }
@@ -3557,6 +3657,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Delete"
+          }
+        }
+      }
+    },
+    "Radera kontot": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete the account"
+          }
+        }
+      }
+    },
+    "Radera kontot och allt i det för alltid?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete the account and everything in it for good?"
+          }
+        }
+      }
+    },
+    "Radera mitt konto": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete my account"
           }
         }
       }
@@ -3801,6 +3931,16 @@
         }
       }
     },
+    "Skicka bekräftelsen igen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send the confirmation again"
+          }
+        }
+      }
+    },
     "Skicka en ny version": {
       "localizations": {
         "en": {
@@ -3837,6 +3977,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Submit for review"
+          }
+        }
+      }
+    },
+    "Skicka länken": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send the link"
           }
         }
       }
@@ -3881,12 +4031,32 @@
         }
       }
     },
+    "Skickat! Titta i inkorgen, och i skräpposten.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sent! Look in your inbox, and in spam."
+          }
+        }
+      }
+    },
     "Skissar hur allt ska hänga ihop": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Sketching how it all fits together"
+          }
+        }
+      }
+    },
+    "Skriv din e-postadress, så skickar vi en länk där du väljer ett nytt lösenord.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type your email address, and we send you a link where you choose a new password."
           }
         }
       }
@@ -4381,6 +4551,16 @@
         }
       }
     },
+    "Tjänsten kan inte skicka mejl just nu. Hör av dig till den som driver den.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The service cannot send mail right now. Get in touch with whoever runs it."
+          }
+        }
+      }
+    },
     "Tjänsten saknar API-nyckel, så appar kan inte byggas ännu.": {
       "localizations": {
         "en": {
@@ -4587,6 +4767,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "We sign the app for your phone. The first time, the phone asks you to turn on Developer Mode in Settings."
+          }
+        }
+      }
+    },
+    "Vi skickade nyss ett mejl. Vänta en minut och försök igen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "We sent a mail a moment ago. Wait a minute and try again."
           }
         }
       }

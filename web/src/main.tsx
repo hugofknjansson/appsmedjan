@@ -2,6 +2,7 @@ import { StrictMode, useCallback, useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { api, type User } from './api';
+import { ResetPassword } from './Account';
 import { Auth } from './Auth';
 import { Dashboard } from './Dashboard';
 import { Project } from './Project';
@@ -42,6 +43,19 @@ function App() {
   }, []);
 
   if (user === undefined) return null;
+  // The link in the mail for a new password: works signed in or out, and signs the person in.
+  const reset = /^\/reset\/([A-Za-z0-9_-]{20,100})$/.exec(path);
+  if (reset) {
+    return (
+      <ResetPassword
+        token={reset[1]!}
+        onDone={(signedIn) => {
+          setUser(signedIn);
+          navigate('/');
+        }}
+      />
+    );
+  }
   if (user === null) return <Auth onDone={setUser} />;
 
   const project = /^\/p\/([a-z0-9]+)$/.exec(path);

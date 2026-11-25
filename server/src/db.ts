@@ -155,6 +155,13 @@ db.exec(`
     plan TEXT NOT NULL,
     requested_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS email_tokens (
+    token_hash TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS push_tokens (
     token TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -211,6 +218,8 @@ function addColumn(table: string, column: string, type: string): void {
   if (!columns.some((c) => c.name === column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
 }
 addColumn('publishes', 'tester', 'TEXT');
+// When the person confirmed their email address; null while they have not.
+addColumn('users', 'email_verified_at', 'INTEGER');
 addColumn('store_listings', 'choices', 'TEXT');
 addColumn('store_listings', 'pages', 'TEXT');
 // Whose icon it is: the person's own choice (as every icon was before this column), the builder's drawing, or the stand-in.
@@ -285,6 +294,67 @@ export function checkLogin(email: string, password: string): User | null {
     return null;
   }
   return verifyPassword(password, row.password) ? { id: row.id, email: row.email } : null;
+}
+
+/** Whether the person's password is this one. */
+export function passwordIs(userId: string, password: string): boolean {
+  const row = db.prepare('SELECT password FROM users WHERE id = ?').get(userId) as { password: string } | undefined;
+  return row ? verifyPassword(password, row.password) : false;
+}
+
+export function setPassword(userId: string, password: string): void {
+  db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashPassword(password), userId);
+}
+
+/** Signs the person out everywhere. */
+export function deleteSessionsOf(userId: string): void {
+  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(userId);
+}
+
+/** Removes the person and, with them, everything that is theirs in the database. */
+export function deleteUser(userId: string): void {
+  db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+}
+
+export function emailVerified(userId: string): boolean {
+  const row = db.prepare('SELECT email_verified_at AS at FROM users WHERE id = ?').get(userId) as { at: number | null } | undefined;
+  return row?.at != null;
+}
+
+export function setEmailVerified(userId: string): void {
+  db.prepare('UPDATE users SET email_verified_at = COALESCE(email_verified_at, ?) WHERE id = ?').run(Date.now(), userId);
+}
+
+/** A link for a mail: good once, until it runs out. Earlier links of the same kind stop working. */
+export function createEmailToken(userId: string, kind: 'verify' | 'reset', validMs: number): string {
+  const token = crypto.randomBytes(32).toString('base64url');
+  db.prepare('DELETE FROM email_tokens WHERE user_id = ? AND kind = ?').run(userId, kind);
+  db.prepare('INSERT INTO email_tokens (token_hash, user_id, kind, expires_at, created_at) VALUES (?, ?, ?, ?, ?)').run(
+    sha256(token),
+    userId,
+    kind,
+    Date.now() + validMs,
+    Date.now(),
+  );
+  return token;
+}
+
+/** When the latest link of this kind was made for the person, or null when there is none. */
+export function lastEmailTokenAt(userId: string, kind: 'verify' | 'reset'): number | null {
+  const row = db.prepare('SELECT created_at AS at FROM email_tokens WHERE user_id = ? AND kind = ?').get(userId, kind) as { at: number } | undefined;
+  return row?.at ?? null;
+}
+
+/** Uses up a link: the person it was for, or null when it is not one, or has run out. */
+export function useEmailToken(token: string, kind: 'verify' | 'reset'): string | null {
+  if (typeof token !== 'string' || token.length < 20 || token.length > 100) return null;
+  const hash = sha256(token);
+  const row = db.prepare('SELECT user_id AS userId, expires_at AS expiresAt FROM email_tokens WHERE token_hash = ? AND kind = ?').get(hash, kind) as
+    | { userId: string; expiresAt: number }
+    | undefined;
+  if (!row) return null;
+  db.prepare('DELETE FROM email_tokens WHERE token_hash = ?').run(hash);
+  return row.expiresAt > Date.now() ? row.userId : null;
 }
 
 const SESSION_MS = 30 * 24 * 3600_000;

@@ -184,6 +184,29 @@ extension API {
     try await send("POST", "api/auth/logout")
   }
 
+  /// Mails a link for a new password, if there is an account with the address; the answer is the
+  /// same either way. False when the service cannot send mail at all.
+  func forgotPassword(email: String) async throws(APIError) -> Bool {
+    struct Body: Encodable { let email: String }
+    struct Answer: Decodable { let mail: Bool? }
+    let answer: Answer = try await send("POST", "api/auth/forgot", body: Body(email: email))
+    return answer.mail ?? true
+  }
+
+  /// Sends the mail that confirms the address again: "sent", "already", "too_soon" or "not_sent".
+  func verifyAgain() async throws(APIError) -> String {
+    struct Answer: Decodable { let status: String }
+    let answer: Answer = try await send("POST", "api/auth/verify/again", body: Empty())
+    return answer.status
+  }
+
+  /// Deletes the account and everything in it. The password is asked for again.
+  func deleteAccount(password: String) async throws(APIError) {
+    struct Body: Encodable { let password: String }
+    struct Done: Decodable {}
+    let _: Done = try await send("DELETE", "api/me", body: Body(password: password))
+  }
+
   func status() async throws(APIError) -> Status {
     try await get("api/status")
   }

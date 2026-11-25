@@ -45,6 +45,13 @@ final class AppModel {
     phase = .signedIn(try await api.signUp(email: email, password: password, inviteCode: inviteCode))
   }
 
+  /// Deletes the account, and this phone forgets the login.
+  func deleteAccount(password: String) async throws(APIError) {
+    try await api.deleteAccount(password: password)
+    HTTPCookieStorage.shared.cookies(for: api.baseURL)?.forEach(HTTPCookieStorage.shared.deleteCookie)
+    phase = .signedOut
+  }
+
   func logOut() async {
     // This phone stops getting the person's notifications.
     if let token = Notifications.token { try? await api.forgetPushToken(token) }

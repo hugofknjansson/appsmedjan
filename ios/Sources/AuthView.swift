@@ -18,6 +18,9 @@ struct AuthView: View {
   /// False while the short film of what the service does is playing; the form comes after it.
   @State private var isPastIntro = false
   @FocusState private var isOnEmail: Bool
+  @State private var isForgetting = false
+  /// What came of asking for a new password, shown once.
+  @State private var forgotSaid: String?
 
   private var canSubmit: Bool {
     !isBusy && email.contains("@") && password.count >= 8 && (mode == .logIn || !inviteRequired || !inviteCode.isEmpty)
@@ -160,6 +163,24 @@ struct AuthView: View {
       .disabled(!canSubmit)
       .padding(.top, 6)
 
+      if mode == .logIn {
+        Button("Glömt lösenordet?") { isForgetting = true }
+          .font(.subheadline)
+          .alert("Nytt lösenord", isPresented: $isForgetting) {
+            TextField("E-post", text: $email)
+              .textContentType(.emailAddress)
+              .keyboardType(.emailAddress)
+              .textInputAutocapitalization(.never)
+            Button("Skicka länken") { forgot() }
+            Button("Avbryt", role: .cancel) {}
+          } message: {
+            Text("Skriv din e-postadress, så skickar vi en länk där du väljer ett nytt lösenord.")
+          }
+          .alert(forgotSaid ?? "", isPresented: Binding(get: { forgotSaid != nil }, set: { if !$0 { forgotSaid = nil } })) {
+            Button("OK", role: .cancel) {}
+          }
+      }
+
       Button(mode == .logIn ? "Ny här? Skapa konto" : "Har du redan ett konto? Logga in") {
         withAnimation(.bouncy(duration: 0.35)) {
           mode = mode == .logIn ? .signUp : .logIn
@@ -205,6 +226,21 @@ struct AuthView: View {
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .card(padding: 20)
+  }
+
+  private func forgot() {
+    let address = email.trimmingCharacters(in: .whitespaces)
+    guard address.contains("@") else { return }
+    Task {
+      do throws(APIError) {
+        let mail = try await model.api.forgotPassword(email: address)
+        forgotSaid = mail
+          ? String(localized: "Om det finns ett konto med \(address) har vi skickat en länk dit. Den gäller i en timme.")
+          : String(localized: "Tjänsten kan inte skicka mejl just nu. Hör av dig till den som driver den.")
+      } catch {
+        forgotSaid = Texts.apiError(error.code)
+      }
+    }
   }
 
   private func submit() {

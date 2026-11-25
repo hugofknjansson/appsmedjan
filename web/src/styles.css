@@ -426,6 +426,41 @@ textarea {
   box-shadow: var(--shadow);
 }
 
+/* A page with the form alone: the one the link for a new password opens. */
+.auth.auth-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.auth-card .auth-forgot {
+  justify-self: start;
+  font-size: 0.92rem;
+}
+
+.verify-note {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: baseline;
+}
+
+.account-delete {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.account-delete h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.account-delete label {
+  display: grid;
+  gap: 4px;
+}
+
 .auth-card h2 {
   font-size: 1.5rem;
   font-weight: 800;

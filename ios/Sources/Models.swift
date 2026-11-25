@@ -5,6 +5,8 @@ import Foundation
 nonisolated struct User: Codable, Equatable, Identifiable {
   let id: String
   let email: String
+  /// Whether the address is confirmed. Missing from servers before confirming.
+  var emailVerified: Bool?
 }
 
 nonisolated struct ProjectSummary: Codable, Hashable, Identifiable {

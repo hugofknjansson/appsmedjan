@@ -127,6 +127,19 @@ export const config = {
   apnsTeamId: process.env.APNS_TEAM_ID ?? '',
   /** The app the notifications are for: the App Dance iPhone app's bundle id. */
   apnsTopic: process.env.APNS_TOPIC ?? 'app.appsmedjan.ios',
+  /**
+   * Mail through Resend: MAIL_API_KEY, and MAIL_FROM, an address on a domain verified with Resend
+   * ("App Dance <hej@example.se>"). Without them no mail is sent: no confirming of addresses and no
+   * links for a new password.
+   */
+  mailApiKey: process.env.MAIL_API_KEY ?? '',
+  mailFrom: process.env.MAIL_FROM ?? '',
+  /**
+   * REQUIRE_VERIFIED_EMAIL=1: nothing is built before the person has confirmed their address, which
+   * stops one person from making account after account for the free credits. Off, the mail is sent
+   * and asked for, but building does not wait for it. Needs mail to be set up.
+   */
+  requireVerifiedEmail: process.env.REQUIRE_VERIFIED_EMAIL === '1',
   /** How long a simulator stays up after the last viewer leaves. */
   releaseAfterMs: Number(process.env.RELEASE_AFTER_MS ?? 5 * 60_000),
 };

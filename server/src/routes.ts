@@ -6,7 +6,9 @@ import express, { type NextFunction, type Request, type Response } from 'express
 import { isPlanId, isValidProjectId, releaseGuide, testerPersonProblem, type PlanNeed, type TesterPerson, type TokenUse } from '../../shared/protocol';
 import { hasCredentials } from './agent';
 import { ensureIcon, smallIcon } from './icon';
+import * as account from './account';
 import * as credits from './credits';
+import { mailEnabled } from './mail';
 import * as plans from './plans';
 import { isPushToken } from './push';
 import { sendToPhone } from './tophone';
@@ -80,6 +82,13 @@ function ownProject(req: Request, res: Response): db.Project | null {
  * Stops the request when the person's plan does not cover what it asks for, and says which plan
  * would. The answer is 402: nothing is wrong with the request, it needs a larger plan.
  */
+/** Stops a request that builds while the person has not confirmed their address, where that is asked for. */
+function emailConfirmed(req: Request, res: Response): boolean {
+  if (!account.needsConfirming((req as Authed).user)) return true;
+  res.status(403).json({ error: 'email_unverified' });
+  return false;
+}
+
 function planCovers(req: Request, res: Response, need: PlanNeed): boolean {
   const user = (req as Authed).user;
   if (plans.allows(user, need)) return true;
@@ -122,11 +131,15 @@ export const api = express.Router();
 api.get('/config', (_req, res) => {
   // What a visitor needs to know before signing in: whether an invite is asked for, and whether
   // building costs something, so that the welcome can say so.
-  res.json({ inviteRequired: Boolean(config.inviteCode), paywall: config.paywall });
+  res.json({ inviteRequired: Boolean(config.inviteCode), paywall: config.paywall, mail: mailEnabled() });
 });
 
+/** The person as the clients see them: with whether their address is confirmed. */
+const userJson = (user: db.User) => ({ ...user, emailVerified: db.emailVerified(user.id) });
+
 api.get('/me', (req, res) => {
-  res.json({ user: userFromRequest(req) });
+  const user = userFromRequest(req);
+  res.json({ user: user ? userJson(user) : null });
 });
 
 function credentials(body: unknown): { email: string; password: string } | null {
@@ -154,7 +167,9 @@ api.post('/auth/signup', authLimiter, (req, res) => {
     return;
   }
   setSession(res, user.id);
-  res.json({ user });
+  // The link that confirms the address goes out at once; nothing waits for it.
+  void account.sendVerification(user, baseOf(req), langOf(req));
+  res.json({ user: userJson(user) });
 });
 
 api.post('/auth/login', authLimiter, (req, res) => {
@@ -165,7 +180,71 @@ api.post('/auth/login', authLimiter, (req, res) => {
     return;
   }
   setSession(res, user.id);
-  res.json({ user });
+  res.json({ user: userJson(user) });
+});
+
+/** The link in the mail that confirms the address: back to the service, which says how it went. */
+api.get('/auth/verify/:token', (req, res) => {
+  const user = account.verify(String(req.params.token));
+  res.redirect(302, user ? '/?verified=1' : '/?verified=0');
+});
+
+/** Sends the confirming mail again. */
+api.post('/auth/verify/again', requireUser, authLimiter, async (req, res) => {
+  const result = await account.sendVerification((req as Authed).user, baseOf(req), langOf(req));
+  res.json({ status: result });
+});
+
+/** A link for choosing a new password, mailed if there is an account with the address. The answer is the same either way. */
+api.post('/auth/forgot', authLimiter, async (req, res) => {
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 200) {
+    res.status(400).json({ error: 'invalid_credentials_format' });
+    return;
+  }
+  await account.sendReset(email, baseOf(req), langOf(req));
+  res.json({ ok: true, mail: mailEnabled() });
+});
+
+/** The new password, with the link's token. Signs the person in. */
+api.post('/auth/reset', authLimiter, (req, res) => {
+  const token = typeof req.body?.token === 'string' ? req.body.token : '';
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  if (password.length < 8 || password.length > 200) {
+    res.status(400).json({ error: 'invalid_credentials_format' });
+    return;
+  }
+  const user = account.resetPassword(token, password);
+  if (!user) {
+    res.status(400).json({ error: 'bad_reset_link' });
+    return;
+  }
+  setSession(res, user.id);
+  res.json({ user: userJson(user) });
+});
+
+/**
+ * Deletes the account and everything in it: apps, chats, phones, plans and credits, and a connected
+ * Apple key. The password is asked for again, so that a borrowed signed-in browser cannot do it.
+ */
+api.delete('/me', requireUser, authLimiter, (req, res) => {
+  const user = (req as Authed).user;
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
+  if (!db.passwordIs(user.id, password)) {
+    res.status(401).json({ error: 'wrong_password' });
+    return;
+  }
+  for (const project of db.listProjects(user.id)) {
+    stopRun(project.id);
+    workers.release(project.id);
+    db.deleteProject(project.id);
+    direct.forget(project.id);
+    forget(project.id);
+  }
+  db.deleteUser(user.id);
+  console.log(`[account] user ${user.id} deleted their account`);
+  res.clearCookie(COOKIE, { path: '/' });
+  res.json({ ok: true });
 });
 
 api.post('/auth/logout', (req, res) => {
@@ -214,7 +293,7 @@ api.post('/projects', requireUser, (req, res) => {
     res.status(403).json({ error: 'project_limit' });
     return;
   }
-  if (!planCovers(req, res, 'apps') || !planCovers(req, res, plans.messageNeed())) return;
+  if (!planCovers(req, res, 'apps') || !(emailConfirmed(req, res) && planCovers(req, res, plans.messageNeed()))) return;
   if (!db.consumeMessage(user.id)) {
     res.status(429).json({ error: 'daily_limit' });
     return;
@@ -254,7 +333,7 @@ api.post('/projects/:id/messages', requireUser, (req, res) => {
     res.status(409).json({ error: 'busy' });
     return;
   }
-  if (!planCovers(req, res, plans.messageNeed())) return;
+  if (!(emailConfirmed(req, res) && planCovers(req, res, plans.messageNeed()))) return;
   if (!db.consumeMessage((req as Authed).user.id)) {
     res.status(429).json({ error: 'daily_limit' });
     return;
@@ -701,7 +780,7 @@ api.post('/projects/:id/store/draft', requireUser, async (req, res) => {
     return;
   }
   // It is a model request like a chat message, and counts as one.
-  if (!planCovers(req, res, plans.messageNeed())) return;
+  if (!(emailConfirmed(req, res) && planCovers(req, res, plans.messageNeed()))) return;
   if (!db.consumeMessage((req as Authed).user.id)) {
     res.status(429).json({ error: 'daily_limit' });
     return;

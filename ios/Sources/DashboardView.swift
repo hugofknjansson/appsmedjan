@@ -14,6 +14,7 @@ struct DashboardView: View {
   @State private var requests: [AppRequest] = []
   @State private var isShowingAccount = false
   @State private var isShowingPlan = false
+  @State private var isShowingMyAccount = false
   @FocusState private var isWriting: Bool
   /// Counts the ideas picked, so each pick is felt as a tick.
   @State private var picks = 0
@@ -119,6 +120,7 @@ struct DashboardView: View {
         ToolbarItem(placement: .topBarTrailing) {
           Menu {
             Text(user.email)
+            Button("Mitt konto", systemImage: "person.text.rectangle") { isShowingMyAccount = true }
             Button("Min plan", systemImage: "star.circle") { isShowingPlan = true }
             Button("Apple-utvecklarkonto", systemImage: "person.badge.key") { isShowingAccount = true }
             Button("Logga ut", role: .destructive) {
@@ -137,6 +139,9 @@ struct DashboardView: View {
       }
       .sheet(isPresented: $isShowingAccount) {
         AppleAccountView(api: model.api)
+      }
+      .sheet(isPresented: $isShowingMyAccount) {
+        AccountView(user: user)
       }
       .sheet(isPresented: $isShowingPlan) {
         // Let past the paywall with a code: on with the app the person was about to build.

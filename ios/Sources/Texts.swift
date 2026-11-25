@@ -7,6 +7,8 @@ enum Texts {
     switch code {
     case "network": String(localized: "Det gick inte att nå servern. Kontrollera din uppkoppling.")
     case "wrong_login": String(localized: "Fel e-post eller lösenord.")
+    case "wrong_password": String(localized: "Fel lösenord.")
+    case "email_unverified": String(localized: "Bekräfta din e-post först. Vi har skickat en länk till din adress.")
     case "email_taken": String(localized: "Det finns redan ett konto med den e-postadressen.")
     case "invalid_credentials_format": String(localized: "Ange en giltig e-postadress och ett lösenord på minst 8 tecken.")
     case "bad_invite": String(localized: "Inbjudningskoden stämmer inte.")
