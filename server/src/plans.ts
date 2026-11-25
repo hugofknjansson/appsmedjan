@@ -1,11 +1,12 @@
-// Plans: what a person may do, counted against what they have used. There is no payment here yet. A
-// person asks for a plan, and the people who run the service give it to them; a payment provider
-// can later call `give` in their place.
+// Plans: what a person may do, counted against what they have used. Where payment is set up (see
+// pay.ts) a person buys a plan; where it is not, they ask for one, and the people who run the
+// service give it to them.
 import crypto from 'node:crypto';
 import { PLANS, PLAN_ORDER, isPlanId, planFor, planPrices, unlockCodes, type PlanAccess, type PlanId, type PlanLimits, type PlanNeed, type PlanState, type TokenUse } from '../../shared/protocol';
 import { config } from './config';
 import * as credits from './credits';
 import * as db from './db';
+import * as pay from './pay';
 import { isOperator } from './routing';
 
 /**
@@ -62,6 +63,8 @@ export function state(user: db.User): PlanState {
     takesCode: codes.length > 0,
     prices,
     credits: credits.counting() ? credits.state(user, plan) : undefined,
+    // The people who run the service have the largest plan without paying for it.
+    pay: isOperator(user.email) ? undefined : pay.state(user),
   };
 }
 

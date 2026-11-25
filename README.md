@@ -66,10 +66,9 @@ Gränserna följer det som kostar: meddelanden till byggaren är modellens arbet
 en plats i utvecklarkontot. Alla planer får prova appen på sin egen telefon; `FREE_INSTALL=0` tar bort
 telefonen ur Prova, så att den bara provar i simulatorn. De som driver tjänsten (`OPERATOR_EMAILS`) räknas inte.
 
-Det finns ingen betalning än. En person ber om en större plan under "Min plan", eller från frågan om
-att installera på telefonen, och den som driver tjänsten ser förfrågan längst ned på sin startsida
-på webben och delar ut planen där. När en betaltjänst kopplas in är det den som anropar samma
-funktion (`give` i `server/src/plans.ts`).
+Utan betalning (se "Betalning" nedan) ber en person om en större plan under "Min plan", eller från
+frågan om att installera på telefonen, och den som driver tjänsten ser förfrågan längst ned på sin
+startsida på webben och delar ut planen där. Med betalning köper personen planen själv.
 
 Planerna gäller först med `PAYWALL=1` på servern. Utan den är allt öppet för alla som förut, men
 planer kan redan delas ut. `DEFAULT_PLAN` är planen för den som inte har fått någon (`free` om inget
@@ -88,8 +87,9 @@ Utan `CREDITS=1` räknas meddelanden precis som förut.
 | Skapa | 100 i månaden |
 | Publicera | 260 i månaden |
 
-- **En credit** är 0,10 dollar av modellens arbete (`CREDIT_DOLLARS`). En ny app med Opus 5.5 och
-  effort `high` blir ungefär 15–20 credits; det är en uppskattning tills riktiga byggen har mätts.
+- **En credit** är 0,10 dollar av modellens arbete (`CREDIT_DOLLARS`). Fyra uppmätta körningar med
+  Opus 5.5 och effort `high` (november 2026): en ny app 5 credits (0,46 och 0,50 dollar), en liten
+  ändring 1 credit (0,09 dollar) och en stor ändring med flera byggen 7 credits (0,67 dollar).
 - **Taket** för ett meddelande är 40 credits (`MAX_CREDITS_PER_MESSAGE`); det som går över bjuder
   tjänsten på. Ett meddelande drar heller aldrig saldot under noll: den som har några credits kvar
   får skicka ett meddelande till, och betalar bara det som finns kvar.
@@ -104,8 +104,51 @@ Utan `CREDITS=1` räknas meddelanden precis som förut.
   (`POST /api/operator/credits`), och ser vad varje person har kostat i dollar den här månaden. Det
   syns även när credits är avstängda, eftersom varje körning sparas med sin kostnad.
 
-Det finns ingen betalning för credits än. En betaltjänst anropar `give` i `server/src/credits.ts`
-för påfyllningar och `give` i `server/src/plans.ts` för planer.
+Enstaka påfyllningar av credits går inte att köpa än; de delas ut av den som driver tjänsten
+(`give` i `server/src/credits.ts`).
+
+### Betalning
+
+Med Stripe köper en person sin plan själv, som en prenumeration per månad. Koden finns i
+`server/src/pay.ts` och använder Stripes API direkt, utan något paket.
+
+- **Köpet** görs på Stripes egen sida (Checkout). "Välj Skapa" under "Min plan" skickar personen
+  dit och Stripe skickar tillbaka dem. Kortuppgifter når aldrig den här servern.
+- **Planen** slås på när Stripe meddelar servern (`POST /api/pay/webhook`). Servern litar inte på
+  vad meddelandet innehåller utöver vilken prenumeration det gäller: den frågar Stripe hur
+  prenumerationen ser ut nu och rättar sig efter det. Meddelanden som kommer sent, dubbelt eller i
+  fel ordning gör därför ingen skada. Signaturen kontrolleras, och ett meddelande som är äldre än
+  fem minuter släpps inte in.
+- **Byta plan, byta kort och säga upp** görs på Stripes kundportal ("Hantera betalning"). En
+  uppsagd plan gäller perioden ut. När prenumerationen är slut har personen gratisplanen igen, och
+  de credits som finns kvar ligger kvar tills de går ut.
+- **Credits** för en betald plan ges en gång per betald period och gäller en period till, inte per
+  kalendermånad: annars skulle den som betalar sista dagen i en månad få två månaders credits för
+  en betalning. En betalning som inte går igenom ger inga nya credits förrän den har gått igenom,
+  men planen ligger kvar så länge Stripe försöker igen.
+- **Radera konto** säger först upp prenumerationen hos Stripe. Går inte det raderas inte kontot,
+  så att ingen fortsätter betala för ett konto som är borta.
+- **Återbetalningar** görs i Stripe. Credits tas inte tillbaka av sig själva.
+- **iPhone-appen** säljer inga planer. Köp inne i en app måste gå genom Apple, som tar 15–30 %.
+
+Så slås det på:
+
+1. Skapa två produkter i Stripe med var sitt pris per månad (till exempel 249 kr och 499 kr, moms
+   inräknad).
+2. Lägg till en webhook till `https://din-adress/api/pay/webhook` med händelserna
+   `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`,
+   `customer.subscription.deleted`, `invoice.paid` och `invoice.payment_failed`.
+3. Slå på kundportalen i Stripe och låt kunder säga upp, byta kort och byta mellan de två priserna.
+4. Sätt nyckeln, webhookens hemlighet och priserna:
+
+```bash
+fly secrets set STRIPE_SECRET_KEY=sk_live_... STRIPE_WEBHOOK_SECRET=whsec_... STRIPE_PRICES="create=price_...; publish=price_..."
+```
+
+Utan alla tre visas inga köpknappar och allt fungerar som förut. `STRIPE_TAX_RATE=txr_...` lägger en
+momssats från Stripe på varje prenumeration, så att kvittona visar momsen. `PLAN_PRICES` är texten
+som visas bredvid planerna och ska stämma med priserna i Stripe. Prova först med Stripes testnycklar
+(`sk_test_...`) och ett testkort.
 
 ## Så hänger det ihop
 

@@ -155,6 +155,18 @@ db.exec(`
     plan TEXT NOT NULL,
     requested_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS subscriptions (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    customer_id TEXT NOT NULL,
+    subscription_id TEXT,
+    plan TEXT,
+    status TEXT,
+    period_start INTEGER,
+    period_end INTEGER,
+    ends INTEGER NOT NULL DEFAULT 0,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS subscriptions_customer ON subscriptions (customer_id);
   CREATE TABLE IF NOT EXISTS email_tokens (
     token_hash TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -428,6 +440,48 @@ export function setPlan(userId: string, plan: string): void {
      ON CONFLICT (user_id) DO UPDATE SET plan = excluded.plan, updated_at = excluded.updated_at`,
   ).run(userId, plan, Date.now());
   db.prepare('DELETE FROM plan_requests WHERE user_id = ?').run(userId);
+}
+
+/** Takes the person's plan away: they have the default one again. */
+export function clearPlan(userId: string): void {
+  db.prepare('DELETE FROM user_plans WHERE user_id = ?').run(userId);
+}
+
+/**
+ * What the payment provider knows about a person: who they are there, and the subscription they pay
+ * for, if any. `ends`: the person has cancelled, and the plan stops at the end of the period.
+ */
+export interface Subscription {
+  userId: string;
+  customerId: string;
+  subscriptionId: string | null;
+  plan: string | null;
+  status: string | null;
+  periodStart: number | null;
+  periodEnd: number | null;
+  ends: boolean;
+}
+
+const SUBSCRIPTION = `SELECT user_id AS userId, customer_id AS customerId, subscription_id AS subscriptionId, plan, status,
+  period_start AS periodStart, period_end AS periodEnd, ends FROM subscriptions`;
+const asSubscription = (row: unknown): Subscription | null => (row ? { ...(row as Subscription), ends: Boolean((row as { ends: number }).ends) } : null);
+
+export function subscriptionOf(userId: string): Subscription | null {
+  return asSubscription(db.prepare(`${SUBSCRIPTION} WHERE user_id = ?`).get(userId));
+}
+
+export function subscriptionOfCustomer(customerId: string): Subscription | null {
+  return asSubscription(db.prepare(`${SUBSCRIPTION} WHERE customer_id = ?`).get(customerId));
+}
+
+export function saveSubscription(sub: Subscription): void {
+  db.prepare(
+    `INSERT INTO subscriptions (user_id, customer_id, subscription_id, plan, status, period_start, period_end, ends, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (user_id) DO UPDATE SET customer_id = excluded.customer_id, subscription_id = excluded.subscription_id,
+       plan = excluded.plan, status = excluded.status, period_start = excluded.period_start, period_end = excluded.period_end,
+       ends = excluded.ends, updated_at = excluded.updated_at`,
+  ).run(sub.userId, sub.customerId, sub.subscriptionId, sub.plan, sub.status, sub.periodStart, sub.periodEnd, sub.ends ? 1 : 0, Date.now());
 }
 
 export function getPlanRequest(userId: string): string | null {

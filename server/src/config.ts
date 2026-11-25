@@ -140,6 +140,19 @@ export const config = {
    * and asked for, but building does not wait for it. Needs mail to be set up.
    */
   requireVerifiedEmail: process.env.REQUIRE_VERIFIED_EMAIL === '1',
+  /**
+   * Payment through Stripe: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET (the signing secret of a webhook
+   * to /api/pay/webhook), and STRIPE_PRICES, the monthly price in Stripe that each plan is bought
+   * with: "create=price_123; publish=price_456". Without all three nobody can pay, and plans are
+   * given by the people who run the service, as before.
+   */
+  stripeKey: process.env.STRIPE_SECRET_KEY ?? '',
+  stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET ?? '',
+  stripePrices: process.env.STRIPE_PRICES ?? '',
+  /** A tax rate in Stripe (txr_...) to put on every subscription, so that the receipts show the VAT. */
+  stripeTaxRate: process.env.STRIPE_TAX_RATE ?? '',
+  /** Where Stripe's API is. Only ever other than Stripe's own address when the payment flow is tried against a stand-in. */
+  stripeApi: (process.env.STRIPE_API_URL ?? 'https://api.stripe.com').replace(/\/+$/, ''),
   /** How long a simulator stays up after the last viewer leaves. */
   releaseAfterMs: Number(process.env.RELEASE_AFTER_MS ?? 5 * 60_000),
 };

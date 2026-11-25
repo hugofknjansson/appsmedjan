@@ -12,6 +12,7 @@ import * as db from './db';
 import { addViewer, askViewers, ASK_EVERY_MS, delaySummary, live, sendLatestPicture } from './live';
 import { buildProject, syncViewers } from './preview';
 import { publishState } from './publish';
+import * as pay from './pay';
 import { api, directPages, publicPages, userFromRequest } from './routes';
 import { attachApp } from './tophone';
 import * as workers from './workers';
@@ -19,6 +20,18 @@ import * as workers from './workers';
 const app = express();
 app.disable('x-powered-by');
 if (config.trustProxy) app.set('trust proxy', 1);
+// The payment provider's events are checked against their signature, which is made over the body
+// exactly as it was sent, so this one route takes the body unparsed.
+app.post('/api/pay/webhook', express.raw({ type: () => true, limit: '1mb' }), (req, res) => {
+  if (!pay.enabled()) {
+    res.status(404).json({ error: 'not_found' });
+    return;
+  }
+  const raw = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+  void pay.webhook(raw, String(req.headers['stripe-signature'] ?? '')).then((result) => {
+    res.status(result === 'ok' ? 200 : result === 'bad_signature' ? 400 : 500).json({ received: result === 'ok' });
+  });
+});
 app.use(express.json({ limit: '256kb' }));
 app.use('/api', api);
 app.use('/a', publicPages);

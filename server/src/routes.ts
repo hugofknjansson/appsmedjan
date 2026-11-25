@@ -9,6 +9,7 @@ import { ensureIcon, smallIcon } from './icon';
 import * as account from './account';
 import * as credits from './credits';
 import { mailEnabled } from './mail';
+import * as pay from './pay';
 import * as plans from './plans';
 import { isPushToken } from './push';
 import { sendToPhone } from './tophone';
@@ -227,11 +228,16 @@ api.post('/auth/reset', authLimiter, (req, res) => {
  * Deletes the account and everything in it: apps, chats, phones, plans and credits, and a connected
  * Apple key. The password is asked for again, so that a borrowed signed-in browser cannot do it.
  */
-api.delete('/me', requireUser, authLimiter, (req, res) => {
+api.delete('/me', requireUser, authLimiter, async (req, res) => {
   const user = (req as Authed).user;
   const password = typeof req.body?.password === 'string' ? req.body.password : '';
   if (!db.passwordIs(user.id, password)) {
     res.status(401).json({ error: 'wrong_password' });
+    return;
+  }
+  // A plan the person pays for is ended first: nobody is to go on paying for an account that is gone.
+  if (!(await pay.end(user))) {
+    res.status(502).json({ error: 'payment_unavailable' });
     return;
   }
   for (const project of db.listProjects(user.id)) {
@@ -503,6 +509,37 @@ api.post('/plan/request', requireUser, authLimiter, (req, res) => {
     return;
   }
   res.json(plans.state(user));
+});
+
+/** Starts a payment for a plan: the answer is the address of the payment provider's page for it. */
+api.post('/pay/checkout', requireUser, async (req, res) => {
+  const user = (req as Authed).user;
+  const plan = (req.body as { plan?: unknown } | undefined)?.plan;
+  if (!isPlanId(plan) || !pay.sells(plan)) {
+    res.status(400).json({ error: 'bad_plan' });
+    return;
+  }
+  try {
+    const started = await pay.checkout(user, plan, baseOf(req));
+    if (started === 'already') res.status(409).json({ error: 'already_subscribed' });
+    else res.json(started);
+  } catch (err) {
+    console.warn(`[pay] user ${user.id}: the payment could not be started: ${(err as Error).message}`);
+    res.status(502).json({ error: 'payment_unavailable' });
+  }
+});
+
+/** The address of the payment provider's page where the person changes plan or card, or cancels. */
+api.post('/pay/portal', requireUser, async (req, res) => {
+  const user = (req as Authed).user;
+  try {
+    const url = await pay.portal(user, baseOf(req));
+    if (url) res.json({ url });
+    else res.status(404).json({ error: 'not_found' });
+  } catch (err) {
+    console.warn(`[pay] user ${user.id}: the page for the subscription could not be opened: ${(err as Error).message}`);
+    res.status(502).json({ error: 'payment_unavailable' });
+  }
 });
 
 /** A code in place of paying: the person is let past the paywall, with the plan the code gives. */

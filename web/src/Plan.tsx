@@ -2,7 +2,9 @@
 // For someone whose plan lets them build nothing this is the paywall: what they get, what it
 // costs, and a field for a code that lets them past it.
 // Where credits are counted, it shows how many are left and what the latest messages cost.
-// There is no payment yet: asking sends a request, and the people who run the service answer it.
+// Where payment is set up, a plan is bought on the payment provider's page and changed or cancelled
+// on its page for that. Where it is not, asking sends a request, and the people who run the service
+// answer it.
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { PLAN_ORDER, type CreditState, type PlanId, type PlanLimits, type PlanState } from '../../shared/protocol';
 import { ApiError, api, type PlanPerson } from './api';
@@ -22,8 +24,11 @@ function lines(limits: PlanLimits, credits: boolean): string[] {
   ];
 }
 
-/** `onUnlock` is called when a code has let the person past the paywall, after the dialog has closed. */
-export function PlanDialog({ onClose, onUnlock }: { onClose: () => void; onUnlock?: () => void }) {
+/**
+ * `onUnlock` is called when a code has let the person past the paywall, after the dialog has closed.
+ * `paid`: the person has just come back from paying.
+ */
+export function PlanDialog({ onClose, onUnlock, paid = false }: { onClose: () => void; onUnlock?: () => void; paid?: boolean }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [plan, setPlan] = useState<PlanState | null>(null);
   const [busy, setBusy] = useState(false);
@@ -35,6 +40,31 @@ export function PlanDialog({ onClose, onUnlock }: { onClose: () => void; onUnloc
     dialog.current?.showModal();
     api.plan().then(setPlan).catch((err) => setError(apiErrorText(err instanceof ApiError ? err.code : 'internal')));
   }, []);
+
+  // Back from paying: the payment provider tells the service a moment after it lets the person go,
+  // so the plan is asked for again until it is there, for a quarter of a minute at most.
+  const waiting = paid && plan !== null && plan.pay !== undefined && plan.pay.plan === undefined;
+  const tries = useRef(0);
+  useEffect(() => {
+    if (!waiting || tries.current >= 10) return;
+    const timer = window.setTimeout(() => {
+      tries.current++;
+      api.plan().then(setPlan).catch(() => undefined);
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [waiting, plan]);
+
+  /** On to the payment provider's page: to pay for the plan, or to change what the person pays for. */
+  async function leaveFor(page: () => Promise<{ url: string }>) {
+    setBusy(true);
+    setError('');
+    try {
+      location.assign((await page()).url);
+    } catch (err) {
+      setError(apiErrorText(err instanceof ApiError ? err.code : 'internal'));
+      setBusy(false);
+    }
+  }
 
   async function ask(id: PlanId) {
     setBusy(true);
@@ -86,6 +116,11 @@ export function PlanDialog({ onClose, onUnlock }: { onClose: () => void; onUnloc
         {plan && (
           <>
             {!plan.enforced && <p className="notice">{text.open}</p>}
+            {paid && plan.pay && (
+              <p className="notice" role="status">
+                {plan.pay.plan ? text.paid : text.paidWaiting}
+              </p>
+            )}
             {locked ? (
               <div className="plan-pitch">
                 <Mascot dancing tile="#fff" eyes="#c74005" />
@@ -117,8 +152,29 @@ export function PlanDialog({ onClose, onUnlock }: { onClose: () => void; onUnloc
                         <li key={line}>{line}</li>
                       ))}
                     </ul>
+                    {plan.pay?.plan === id && (
+                      <>
+                        <p className={plan.pay.pastDue ? 'notice' : 'muted fine'}>
+                          {plan.pay.pastDue
+                            ? text.pastDue
+                            : plan.pay.endsAt
+                              ? text.ends.replace('{date}', date.format(plan.pay.endsAt))
+                              : plan.pay.renewsAt
+                                ? text.renews.replace('{date}', date.format(plan.pay.renewsAt))
+                                : ''}
+                        </p>
+                        <button className="btn" disabled={busy} onClick={() => void leaveFor(api.payPortal)}>
+                          {text.manage}
+                        </button>
+                      </>
+                    )}
                     {larger &&
-                      (plan.requested === id ? (
+                      (plan.pay?.plans.includes(id) ? (
+                        // Someone who pays already changes plan where they pay; everyone else buys it.
+                        <button className="btn primary" disabled={busy} onClick={() => void leaveFor(plan.pay?.plan ? api.payPortal : () => api.checkout(id))}>
+                          {(plan.pay.plan ? text.switchTo : text.choose).replace('{plan}', text.name[id])}
+                        </button>
+                      ) : plan.requested === id ? (
                         <p className="notice">{text.asked}</p>
                       ) : (
                         <button className="btn primary" disabled={busy} onClick={() => void ask(id)}>
@@ -140,7 +196,7 @@ export function PlanDialog({ onClose, onUnlock }: { onClose: () => void; onUnloc
                 </div>
               </form>
             )}
-            <p className="muted fine">{text.noPayment}</p>
+            <p className="muted fine">{plan.pay ? text.payFine : text.noPayment}</p>
           </>
         )}
         {error && (

@@ -111,6 +111,10 @@ export const api = {
   /** Asks for a larger plan. There is no payment yet: the people who run the service answer. */
   requestPlan: (plan: PlanId) => call<PlanState>('POST', '/api/plan/request', { plan }),
   unlockPlan: (code: string) => call<PlanState>('POST', '/api/plan/unlock', { code }),
+  /** Starts a payment for the plan: the answer is the page to pay on. */
+  checkout: (plan: PlanId) => call<{ url: string }>('POST', '/api/pay/checkout', { plan }),
+  /** The page where the person changes plan or card, or cancels. */
+  payPortal: () => call<{ url: string }>('POST', '/api/pay/portal', {}),
   operatorPlans: () => call<OperatorPlans>('GET', '/api/operator/plans'),
   givePlan: (email: string, plan: PlanId) => call<OperatorPlans>('POST', '/api/operator/plans', { email, plan }),
   giveCredits: (email: string, amount: number) => call<OperatorPlans>('POST', '/api/operator/credits', { email, amount }),

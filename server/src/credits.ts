@@ -2,12 +2,14 @@
 // the model's work behind it cost. Every piece of work is recorded with its cost in dollars whether
 // credits are counted or not, so the people who run the service can see what each person costs.
 //
-// A plan gives credits every calendar month, and they last until the end of the next month. The
-// smallest plan gives its credits once, to start with. Credits given outside a plan, bought or
+// A plan gives credits every calendar month, and they last until the end of the next month. A plan
+// that is paid for gives them for each period paid instead (see pay.ts). The smallest plan gives
+// its credits once, to start with. Credits given outside a plan, bought or
 // handed out, last a year. Spending takes from the credits that run out first.
 import { PLANS, allocateSpend, creditsFor, planCredits, tokenCost, type CreditState, type PlanId, type TokenUse } from '../../shared/protocol';
 import { config } from './config';
 import * as db from './db';
+import { paidPeriod } from './pay';
 import { isOperator } from './routing';
 
 const YEAR = 365 * 24 * 60 * 60 * 1000;
@@ -42,6 +44,13 @@ function grantPlan(user: db.User, plan: PlanId, now = new Date()): void {
   if (amount <= 0) return;
   if (PLANS[plan].creditsOnce) {
     db.topUpPeriod(user.id, 'once', plan, amount, null);
+    return;
+  }
+  // A plan that is paid for gives its credits once for each period paid, and they last one period
+  // more: counted by calendar month, paying on the last day of one would give two months' credits.
+  const paid = paidPeriod(user.id, plan);
+  if (paid) {
+    if (paid.paid) db.topUpPeriod(user.id, `paid-${paid.start}`, plan, amount, paid.end + (paid.end - paid.start));
     return;
   }
   db.topUpPeriod(user.id, period(now), plan, amount, endOfNextMonth(now));

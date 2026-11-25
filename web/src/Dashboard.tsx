@@ -40,6 +40,16 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
 
   useEffect(() => () => stopTyping(), []);
 
+  // Back from the payment provider's page: the plan is shown, and says how it went if the person paid.
+  const [paid, setPaid] = useState(false);
+  useEffect(() => {
+    const flag = new URLSearchParams(location.search).get('paid');
+    if (flag !== '1' && flag !== '0') return;
+    history.replaceState(history.state, '', location.pathname);
+    setPaid(flag === '1');
+    setPlanOpen(true);
+  }, []);
+
   function stopTyping() {
     if (typing.current !== null) window.clearInterval(typing.current);
     typing.current = null;
@@ -147,7 +157,16 @@ export function Dashboard({ user, navigate, onLogout }: Props) {
       {appleOpen && <AppleAccountDialog onClose={() => setAppleOpen(false)} />}
       {accountOpen && <AccountDialog user={user} onClose={() => setAccountOpen(false)} onDeleted={onLogout} />}
       {/* Let past the paywall with a code: on with the app the person was about to build. */}
-      {planOpen && <PlanDialog onClose={() => setPlanOpen(false)} onUnlock={() => void build()} />}
+      {planOpen && (
+        <PlanDialog
+          paid={paid}
+          onClose={() => {
+            setPlanOpen(false);
+            setPaid(false);
+          }}
+          onUnlock={() => void build()}
+        />
+      )}
 
       <main className="dash">
         <section className="hero">

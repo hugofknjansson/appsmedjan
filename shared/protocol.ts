@@ -303,6 +303,22 @@ export interface PlanState {
   prices?: Partial<Record<PlanId, string>>;
   /** Present where the service counts credits in place of messages. */
   credits?: CreditState;
+  /** Present where plans can be paid for. */
+  pay?: PayState;
+}
+
+/** Paying for a plan: which plans can be bought, and the person's own subscription if they have one. */
+export interface PayState {
+  /** The plans that have a price to pay. */
+  plans: PlanId[];
+  /** The plan the person pays for now. Missing when they pay for none. */
+  plan?: PlanId;
+  /** When the next payment is taken (ms since epoch). */
+  renewsAt?: number;
+  /** When the plan ends, for a subscription the person has cancelled (ms since epoch). */
+  endsAt?: number;
+  /** The latest payment did not go through: the plan stays for now, and no new credits are given. */
+  pastDue?: boolean;
 }
 
 /** What the open project needs to know about the plan, to ask for the right thing at the right moment. */
