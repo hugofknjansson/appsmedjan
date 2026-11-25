@@ -785,7 +785,7 @@ const sv = {
     icon_not_png: 'Ikonen måste vara en PNG-fil.',
     icon_wrong_size: 'Ikonen måste vara exakt 1024 × 1024 punkter.',
     store_forbidden: 'Koppla ditt Apple-utvecklarkonto för att kunna skicka sidan.',
-    store_unavailable: 'Ingen byggserver som kan nå Apple är ansluten just nu.',
+    store_unavailable: 'Det går inte att nå Apple just nu. Försök igen om en stund.',
     store_incomplete: 'Allt är inte ifyllt än.',
     bad_contact: 'Kontaktuppgifterna gick inte att spara.',
     fast_unavailable: 'Det går inte att bjuda in testare just nu.',
