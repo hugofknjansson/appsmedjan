@@ -63,6 +63,26 @@ private func summary() -> ProjectSummary {
     #expect(store.preview.status == .idle)
   }
 
+  @Test func `the code and the key's id are read off what Apple hands out`() {
+    #expect(AppleKey.issuerID(in: "Issuer ID 69A6DE7F-03DB-47E3-E053-5B8C7C11A4D1 Copy") == "69a6de7f-03db-47e3-e053-5b8c7c11a4d1")
+    #expect(AppleKey.issuerID(in: "69a6de7f-03db-47e3") == nil)
+    #expect(AppleKey.keyID(fromFileName: "AuthKey_abc123defg.p8") == "ABC123DEFG")
+    // A second download of the same key, or a file with a name of the person's own.
+    #expect(AppleKey.keyID(fromFileName: "AuthKey_ABC123DEFG (1).p8") == nil)
+    #expect(AppleKey.keyID(fromFileName: "min nyckel.p8") == nil)
+  }
+
+  @Test func `an upload says how far it has come, and never goes backwards`() {
+    var publish = PublishState.none
+    let stages: [String?] = [nil, "preparing", "waiting_for_app", "archiving", "uploading"]
+    let fractions = stages.map { stage in
+      publish.stage = stage
+      return publish.uploadProgress
+    }
+    #expect(fractions == fractions.sorted())
+    #expect(fractions.allSatisfy { $0 > 0 && $0 < 1 })
+  }
+
   @Test func `the upload waiting for the app says which bundle id to pick`() throws {
     store.apply(try event("""
       {"type":"publish","publish":{"available":true,"account":"own","canConnect":true,"status":"working",
@@ -270,6 +290,29 @@ private func summary() -> ProjectSummary {
     // A step of the kind arrives from the server as any other step does.
     let part = try JSONDecoder().decode(Part.self, from: Data(#"{"t":"step","step":{"id":"s","kind":"say","detail":"Ritar ikonen","status":"done"}}"#.utf8))
     #expect([part].said == ["Ritar ikonen"])
+  }
+
+  @Test func `the level is read out of whichever answer carries it`() {
+    // Straight in the answer, as after a message to the builder.
+    let risen = LevelState.read(from: Data(#"{"ok":true,"level":{"level":2,"chosen":null,"fresh":true,"play":false}}"#.utf8))
+    #expect(risen == LevelState(level: 2, chosen: nil, fresh: true, play: false))
+    // With the person, as when the app starts.
+    let own = LevelState.read(from: Data(#"{"user":{"id":"u","email":"a@example.test","level":{"level":3,"chosen":3,"fresh":false,"play":true}}}"#.utf8))
+    #expect(own == LevelState(level: 3, chosen: 3, fresh: false, play: true))
+    // A server without levels says nothing, and something else called level is not taken for it.
+    #expect(LevelState.read(from: Data(#"{"user":{"id":"u","email":"a@example.test"}}"#.utf8)) == nil)
+    #expect(LevelState.read(from: Data(#"{"level":"high"}"#.utf8)) == nil)
+    // A level this app has never heard of is shown as the highest it knows.
+    #expect(LevelState.read(from: Data(#"{"level":{"level":7,"chosen":null,"fresh":false}}"#.utf8))?.level == 3)
+  }
+
+  @Test func `a step names its file only for the people who are shown everything`() {
+    let wrote = Step(id: "w", kind: .write, detail: "Sources/Models/Habit.swift", status: .done)
+    #expect(String(StepText.line(wrote, named: false).characters) == StepText.plain(.write))
+    #expect(String(StepText.line(wrote, named: true).characters).hasSuffix(" Models/Habit.swift"))
+    // A try that did not work says so; what was tried has no file to name.
+    let failed = Step(id: "b", kind: .build, detail: "", status: .error)
+    #expect(String(StepText.line(failed, named: true).characters).hasPrefix(StepText.plain(.build) + " · "))
   }
 
   @Test func `a first sentence that runs on is cut at a word`() {

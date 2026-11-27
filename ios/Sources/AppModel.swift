@@ -49,6 +49,7 @@ final class AppModel {
   func deleteAccount(password: String) async throws(APIError) {
     try await api.deleteAccount(password: password)
     HTTPCookieStorage.shared.cookies(for: api.baseURL)?.forEach(HTTPCookieStorage.shared.deleteCookie)
+    Depth.shared.forget()
     phase = .signedOut
   }
 
@@ -58,6 +59,7 @@ final class AppModel {
     // Even if the server cannot be told, this phone forgets the login.
     try? await api.logOut()
     HTTPCookieStorage.shared.cookies(for: api.baseURL)?.forEach(HTTPCookieStorage.shared.deleteCookie)
+    Depth.shared.forget()
     phase = .signedOut
   }
 }

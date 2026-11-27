@@ -28,13 +28,7 @@ struct DirectInstallSection: View {
           .disabled(isBusy)
       } else {
         if isWorking {
-          HStack(spacing: 12) {
-            MascotBadge(isDancing: true)
-              .frame(width: 40)
-            Text(Texts.directStage(direct.stage))
-              .font(.subheadline.weight(.semibold))
-          }
-          .accessibilityElement(children: .combine)
+          WaitCard(title: Texts.directStage(direct.stage), lines: WaitingLines.phone, fraction: direct.progress)
         } else if let installURL {
           Button("Installera på den här telefonen") { openURL(installURL) }
             .buttonStyle(.bouncy)
@@ -65,11 +59,11 @@ struct DirectInstallSection: View {
       Text("Direkt på telefonen")
     } footer: {
       if direct.phones == 0 {
-        Text("Safari öppnas med stegen. Telefonen lämnar bara sitt id, och ingenting blir kvar på den.")
+        Text("Safari öppnas med stegen. Telefonen presenterar sig bara, och ingenting blir kvar på den.")
       } else if installURL != nil {
         Text("iOS frågar om du vill installera. Första gången ber appen dig slå på Utvecklarläge under Inställningar, Integritet och säkerhet.")
       } else if !direct.available {
-        Text("Ingen byggserver som kan signera är ansluten just nu.")
+        Text("Det går inte att installera på telefonen just nu. Försök igen om en stund.")
       } else if store.isRunning {
         Text("Vänta tills appen är färdigbyggd i chatten.")
       } else if !isWorking {

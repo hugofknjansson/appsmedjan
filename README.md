@@ -27,6 +27,43 @@ former släpps igenom: ingen text, inga bilder utifrån, inga skript, och bakgru
 kvadraten. En app som byggaren inte hann rita åt får en enkel ikon i en egen färg, och en ikon som
 personen själv har valt i App Store-guiden skrivs aldrig över.
 
+## Hur mycket man ser
+
+Alla börjar på samma ställe: ingenting sägs om hur en app görs. Tjänsten läser vad personen skriver
+till byggaren och vad personen gör, och visar mer när det är tydligt att personen vill ha det. Det finns
+tre nivåer (`shared/level.ts`):
+
+| Nivå | Vem | Vad som kommer till |
+| --- | --- | --- |
+| 1 Enkelt | Alla, från början | Ingenting: bara chatten, appen och frågan om telefonen |
+| 2 Mer | Den som har varit nära appbygge | Byggarens steg under varje svar ("Så gjorde byggaren · 6 steg"), Apples egna svar öppna från början, vilket team och vilken nyckel som är kopplade, versionsnumret på en uppladdning |
+| 3 Allt | Utvecklaren som vill ha ut appen | Fliken Kod (alla filer, bundle-id, nedladdning som Xcode-projekt), filnamn i stegen, Apple-kontot som formulär direkt, och en byggare som får prata teknik |
+
+Det som räknas är ord och handlingar, och var sak räknas en gång:
+
+- **Ord för den som varit nära appbygge** (1 poäng): API, databas, backend, JSON, betatest, bundle-id,
+  push-notiser, widget, prototyp, UI, Android med flera.
+- **Ord om butikerna** (1 poäng): App Store, Play Store, TestFlight.
+- **En utvecklares ord** (3 poäng): Swift, SwiftUI, Xcode, git, repo, kompilator, MVVM, källkod, SDK,
+  enhetstest, och att kalla sig utvecklare. "Jag är ingen utvecklare" räknas inte.
+- **Handlingar**: ett eget Apple-konto kopplat (2), en uppladdning till det (1), appens sida skickad
+  till Apple (2), Apples svar öppnat (1), formuläret valt framför guiden (2).
+
+Nivå 2 är tre poäng. Nivå 3 är ett utvecklarord, ett tecken på att appen ska ut (ett ord om butikerna,
+ett eget konto eller en uppladdning) och fem poäng, eller tre utvecklarord. Ord som betyder något annat
+för de flesta är smalare eller borta: en IPA är en öl, Swift en sångerska och en server någon som serverar.
+Det som sparas om en person är vilka ord som har hörts, aldrig texten (`user_levels`).
+
+Nivån går bara uppåt av sig själv. När den gör det sägs det en gång, med en väg tillbaka ("Nej, visa
+mindre"), och under Mitt konto väljer man själv: Välj åt mig, Enkelt, Mer eller Allt. Ett eget val står
+kvar vad man än skriver. Den som fanns före nivåerna får sina tidigare meddelanden lästa en gång.
+
+Byggaren får veta nivån i en rad före personens meddelande (`builderNote`), inte i systemprompten, som
+därför är densamma för alla och ligger kvar i cachen. På nivå 3 får den nämna filer, typer och ramverk.
+
+Den som har frågat om Google Play eller Android får ett rakt svar där butikerna visas: här byggs
+iPhone-appar. `LEVELS=0` stänger av allt det här, och alla ser då nivå 1 som förut.
+
 ## Konton
 
 Ett konto är en e-postadress och ett lösenord. Runt det finns:
@@ -173,8 +210,8 @@ som visas bredvid planerna och ska stämma med priserna i Stripe. Prova först m
 Agenten (`server/src/agent.ts`) är en verktygsloop mot Claudes Messages API med strömmande svar. Den har
 sju verktyg: skriva, ändra, läsa och ta bort filer, bygga och köra, titta på skärmen (skärmbild från
 simulatorn) och döpa appen. Efter varje ändring bygger den appen, och om kompilatorn klagar får den
-felen tillbaka och rättar tills bygget går igenom. Användaren ser aldrig kod eller felmeddelanden, bara
-korta förklaringar och en lista med steg.
+felen tillbaka och rättar tills bygget går igenom. Användaren ser inte kod eller felmeddelanden, bara
+korta förklaringar, om inte nivån säger annat (se "Hur mycket man ser").
 
 Modellen är `claude-opus-5-5` med `effort: high` (ändras med `AGENT_MODEL` och `AGENT_EFFORT`).
 Anropen har serverstyrd reserv vid avböjda svar (`fallbacks: "default"`) och prompt-cachning påslagen.
@@ -686,13 +723,21 @@ var 25:e sekund, annars kopplar Flys proxy ner en tyst arbetare efter ungefär e
 - göra appen installerbar via en publik TestFlight-länk, och öppna länken direkt
 - App Store-guiden: texter med förslag från Claude, supportsida och integritetspolicy, skärmbilder,
   ikon (valfri bild görs om till rätt format), uppgifter till Apple, skicka sidan och skicka in
-- koppla ett eget Apple-utvecklarkonto, med nyckelfilen vald från Filer
+- koppla ett eget Apple-konto i en guide som tar ett steg i taget: en rörlig bild visar var man trycker
+  hos Apple, nyckelfilen väljs från Filer och koden klistras in med ett tryck. Samma sak med alla fält
+  på en sida finns kvar bakom "Fyll i allt på en gång" (`Sources/AppleAccountClassicView.swift`)
+- nivåerna i "Hur mycket man ser": valet under Mitt konto, byggarens steg under svaren, och för den som
+  ser allt en kodvy med filerna och Xcode-projektet att dela vidare (`Sources/Depth.swift`,
+  `Sources/CodeView.swift`)
 - för den som driver tjänsten: listan över appar att skapa i App Store Connect
 
 Appen är på svenska och engelska (`Sources/Localizable.xcstrings`). Ikonen, en dansande app-ruta, ritas av
 `scripts/ios-icon.swift`.
 Samma figur är appens maskot: `Sources/Mascot.swift` ritar den och låter den dansa när något arbetar, och
 `Sources/Look.swift` har färgerna, knapparna och de andra delarna som ger appen dess utseende.
+Ingen väntan visar ett snurrande hjul: `Sources/Waiting.swift` har `Waiting` (maskoten med en rad som byts),
+`WaitCard` (ett kort med vad som pågår och en stapel) och `BusyMark` (maskoten i en upptagen knapp).
+Apples egna svar på engelska ligger bakom "Visa vad Apple svarade" (`Detail`).
 
 Bygg och kör i simulatorn (kräver Xcode 26 eller senare och XcodeGen):
 
@@ -708,9 +753,13 @@ För en riktig telefon eller TestFlight behövs ditt team: `APPLE_TEAM_ID=XXXXXX
 och sedan arkivering i Xcode. Bundle-id:t är `app.appsmedjan.ios`.
 
 Kört i simulatorn mot en teststack med låtsasarbetare: inloggad start, installationsflödet fram till
-"Öppna i TestFlight", App Store-guidens formulär och engelska. **Inte kört**: appen på en
-riktig telefon, koppling av Apple-konto, ikonval från bildbiblioteket, skärmbildsknappen och att
-skicka sidan från appen. Tio enhetstester täcker tolkningen av serverns meddelanden.
+"Öppna i TestFlight", App Store-guidens formulär och engelska. Apple-guiden är körd hela vägen mot en
+låtsas-Apple: fel fil, en kod som inte är en kod, en nyckel som Apple inte känner igen, ett konto utan
+synligt team, och en lyckad koppling. **Inte kört**: appen på en riktig telefon, koppling mot Apple med en
+riktig nyckel, ikonval från bildbiblioteket, skärmbildsknappen och att skicka sidan från appen. 25
+enhetstester täcker tolkningen av serverns meddelanden, det som läses av nyckelfilens namn och koden,
+och nivån i serverns svar. Nivåerna är körda i simulatorn: rutan som säger att mer visas, valet under
+Mitt konto, stegen med och utan filnamn, och kodvyn med nedladdningen.
 
 ## Tester
 
@@ -738,6 +787,9 @@ både en egen och en hyrd (se "Hyrda Macar"). Det här är **inte kört på rikt
   sida i App Store").
 - Uppladdning med en användares eget kopplade Apple-konto.
 - `scripts/e2e.mjs` (Playwright är inte installerat här).
+- Byggaren med raden om personens nivå mot den riktiga modellen: att raden skickas är kontrollerat mot
+  ersättaren, men inte hur svaren blir.
+- Det nedladdade Xcode-projektet byggt i Xcode: mappen packas upp och XcodeGen gör ett projekt av den.
 - En omstart av den hyrda Macen.
 
 ## Säkerhet

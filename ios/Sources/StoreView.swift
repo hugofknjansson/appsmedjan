@@ -24,7 +24,7 @@ struct StoreView: View {
         } else if let errorText = model.errorText {
           ContentUnavailableView(errorText, systemImage: "wifi.exclamationmark")
         } else {
-          ProgressView()
+          Waiting()
         }
       }
       .paperBackground()
@@ -76,19 +76,17 @@ struct StoreView: View {
   private var texts: some View {
     @Bindable var model = model
     return Section {
-      Button {
-        let written = [model.listing.name, model.listing.subtitle, model.listing.promo, model.listing.description, model.listing.keywords, model.pages.privacyText]
-        if written.contains(where: { !$0.isEmpty }) { isConfirmingDraft = true } else { Task { await model.draft() } }
-      } label: {
-        if model.activity == .drafting {
-          Label("Skriver förslag", systemImage: "sparkles")
-        } else {
-          Label("Föreslå texter från appen", systemImage: "sparkles")
+      if model.activity == .drafting {
+        WaitCard(title: String(localized: "Skriver förslag"), lines: WaitingLines.draft)
+      } else {
+        Button("Föreslå texter från appen", systemImage: "sparkles") {
+          let written = [model.listing.name, model.listing.subtitle, model.listing.promo, model.listing.description, model.listing.keywords, model.pages.privacyText]
+          if written.contains(where: { !$0.isEmpty }) { isConfirmingDraft = true } else { Task { await model.draft() } }
         }
-      }
-      .disabled(model.isBusy)
-      .confirmationDialog("Det ersätter texterna du har skrivit.", isPresented: $isConfirmingDraft, titleVisibility: .visible) {
-        Button("Ersätt texterna") { Task { await model.draft() } }
+        .disabled(model.isBusy)
+        .confirmationDialog("Det ersätter texterna du har skrivit.", isPresented: $isConfirmingDraft, titleVisibility: .visible) {
+          Button("Ersätt texterna") { Task { await model.draft() } }
+        }
       }
 
       Counted("Namn", text: $model.listing.name, limit: StoreListing.Limit.name)
@@ -105,7 +103,7 @@ struct StoreView: View {
     } header: {
       Text("Texter")
     } footer: {
-      Text("Förslaget bygger på appens kod. Läs igenom det: du står för det som publiceras.")
+      Text("Förslaget bygger på hur din app ser ut och fungerar. Läs igenom det: du står för det som publiceras.")
     }
   }
 
@@ -224,7 +222,7 @@ struct StoreView: View {
     } header: {
       Text("Appikon")
     } footer: {
-      Text("Bilden görs kvadratisk och används från nästa version du gör installerbar. Utan egen ikon får appen en enkel platshållare.")
+      Text("Bilden görs kvadratisk och används från nästa gång du laddar upp appen. Utan egen ikon får appen en enkel bild så länge.")
     }
   }
 
@@ -237,10 +235,10 @@ struct StoreView: View {
       Toggle("Appen innehåller inget av det Apple frågar om för åldersgränsen", isOn: $model.choices.noMatureContent)
       if let notes = model.ageNotes {
         if notes.isEmpty {
-          Text("Förslaget hittade inget sådant i appens kod.").font(.footnote).foregroundStyle(.secondary)
+          Text("Förslaget hittade inget sådant i appen.").font(.footnote).foregroundStyle(.secondary)
         } else {
           VStack(alignment: .leading, spacing: 4) {
-            Text("Förslaget hittade det här i appens kod. Sätt i så fall åldersgränsen själv i App Store Connect:")
+            Text("Förslaget hittade det här i appen. Sätt i så fall åldersgränsen själv i App Store Connect:")
             ForEach(notes, id: \.self) { Text("• \($0)") }
           }
           .font(.footnote)
@@ -275,7 +273,7 @@ struct StoreView: View {
       if state.account == .none {
         Text("Koppla ditt Apple-utvecklarkonto för att kunna skicka sidan. Du kan förbereda allt här redan nu.")
       } else if !state.available {
-        Text("Ingen byggserver som kan nå Apple är ansluten just nu.").foregroundStyle(.secondary)
+        Text("Det går inte att nå Apple just nu. Försök igen om en stund.").foregroundStyle(.secondary)
       }
       if model.isDirty {
         Text("Du har ändringar som inte är sparade. De sparas innan sidan skickas.").foregroundStyle(.secondary)
@@ -287,23 +285,20 @@ struct StoreView: View {
         .foregroundStyle(.red)
       }
 
-      Button {
-        Task { await model.send() }
-      } label: {
-        if model.isSyncing {
-          Label(Texts.storeStage(state.sync.stage), systemImage: "arrow.up.circle")
-        } else {
-          Text("Skicka till App Store Connect")
-        }
+      if model.isSyncing || model.activity == .sending {
+        WaitCard(title: Texts.storeStage(state.sync.stage), lines: WaitingLines.store)
+      } else {
+        Button("Skicka till App Store Connect") { Task { await model.send() } }
+          .disabled(model.isBusy || state.account == .none || !state.available || (!model.isDirty && !state.problems.isEmpty))
       }
-      .disabled(model.isBusy || model.isSyncing || state.account == .none || !state.available || (!model.isDirty && !state.problems.isEmpty))
 
       switch state.sync.status {
       case .done:
-        Label(Texts.attached(state.sync.attached, build: state.build ?? ""), systemImage: "checkmark.circle")
+        Label(Texts.attached(state.sync.attached), systemImage: "checkmark.circle")
           .foregroundStyle(.green)
       case .failed:
-        Text(Texts.storeError(state.sync.error, detail: state.sync.detail, submitting: false)).foregroundStyle(.red)
+        Text(Texts.storeError(state.sync.error, submitting: false)).foregroundStyle(.red)
+        if state.sync.error == "rejected" { Detail(text: state.sync.detail ?? "") }
       case .idle, .working:
         EmptyView()
       }
@@ -311,7 +306,7 @@ struct StoreView: View {
       Text("Skicka")
     } footer: {
       if state.account != .none && state.build == nil {
-        Text("Appen är inte uppladdad än. Gör den installerbar först, så finns det ett bygge att välja.")
+        Text("Appen är inte uppladdad än. Gör den installerbar först.")
       }
     }
   }
@@ -330,18 +325,13 @@ struct StoreView: View {
       }
       Link("Öppna App Store Connect", destination: Self.connect)
 
-      Button {
-        isConfirmingSubmit = true
-      } label: {
-        if model.isSubmitting {
-          Label("Skickar in", systemImage: "paperplane")
-        } else {
-          Text("Skicka in för granskning")
-        }
+      if model.isSubmitting || model.activity == .submitting {
+        WaitCard(title: String(localized: "Skickar in"), lines: WaitingLines.review)
       }
+      Button("Skicka in för granskning") { isConfirmingSubmit = true }
       .disabled(model.isBusy || model.isSubmitting || model.isSyncing || model.isDirty || !state.canSubmit)
       .confirmationDialog(
-        "Appen skickas nu in till Apple för granskning, i utvecklarkontots namn.",
+        "Appen skickas nu in till Apple för granskning, i ditt namn.",
         isPresented: $isConfirmingSubmit,
         titleVisibility: .visible
       ) {
@@ -356,10 +346,11 @@ struct StoreView: View {
           .foregroundStyle(.green)
       case .failed:
         VStack(alignment: .leading, spacing: 6) {
-          Text(Texts.storeError(state.submit.error, detail: state.submit.detail, submitting: true))
+          Text(Texts.storeError(state.submit.error, submitting: true))
           ForEach(Texts.refusalHints(state.submit.detail ?? ""), id: \.self) { Text("• \($0)") }
         }
         .foregroundStyle(.red)
+        if state.submit.error == "rejected" { Detail(text: state.submit.detail ?? "") }
       case .idle, .working:
         EmptyView()
       }
@@ -367,7 +358,7 @@ struct StoreView: View {
       Text("Skicka in för granskning")
     } footer: {
       if !state.canSubmit && state.submit.status != .done {
-        Text("Knappen går att trycka på när sidan är skickad med ett bygge valt, kontaktuppgifterna är ifyllda och inget har ändrats sedan dess.")
+        Text("Knappen går att trycka på när appen är uppladdad, sidan är skickad, kontaktuppgifterna är ifyllda och inget har ändrats sedan dess.")
       }
     }
   }

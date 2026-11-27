@@ -19,6 +19,8 @@ import { addPart, appendText, send, upsertStep } from './live';
 import { chargeWork } from './plans';
 import { buildProject } from './preview';
 import { SYSTEM_PROMPT } from './prompt';
+import * as level from './level';
+import { builderNote } from '../../shared/level';
 import * as workers from './workers';
 
 type MessageParam = Anthropic.Beta.BetaMessageParam;
@@ -297,10 +299,15 @@ function buildMessages(projectId: string, history: ChatMessage[], userText: stri
     role: m.role,
     content: m.role === 'user' ? m.text : assistantText(m),
   }));
+  // A person who is shown more than the first level is spoken to accordingly. It goes here and not
+  // in the system prompt, which stays the same for everyone and so stays cached.
+  const owner = db.getProject(projectId)?.userId;
+  const note = owner ? builderNote(level.of(owner)) : null;
   messages.push({
     role: 'user',
     content: [
       { type: 'text', text: `Current state of the project:\n${snapshot(projectId)}` },
+      ...(note ? [{ type: 'text' as const, text: note }] : []),
       { type: 'text', text: userText },
     ],
   });

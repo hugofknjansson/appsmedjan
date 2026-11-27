@@ -7,6 +7,8 @@ import { Auth } from './Auth';
 import { Dashboard } from './Dashboard';
 import { Project } from './Project';
 import { Waiting } from './Waiting';
+import { LevelNote } from './LevelNote';
+import { forgetLevel } from './level';
 import './styles.css';
 
 function App() {
@@ -60,18 +62,25 @@ function App() {
   if (user === null) return <Auth onDone={setUser} />;
 
   const project = /^\/p\/([a-z0-9]+)$/.exec(path);
-  if (project) return <Project key={project[1]} id={project[1]!} isNew={grown === path} navigate={navigate} />;
   return (
-    <Dashboard
-      user={user}
-      navigate={navigate}
-      onLogout={() => {
-        void api.logout().finally(() => {
-          setUser(null);
-          navigate('/');
-        });
-      }}
-    />
+    <>
+      {project ? (
+        <Project key={project[1]} id={project[1]!} isNew={grown === path} navigate={navigate} />
+      ) : (
+        <Dashboard
+          user={user}
+          navigate={navigate}
+          onLogout={() => {
+            void api.logout().finally(() => {
+              forgetLevel();
+              setUser(null);
+              navigate('/');
+            });
+          }}
+        />
+      )}
+      <LevelNote />
+    </>
   );
 }
 

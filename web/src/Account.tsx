@@ -5,6 +5,8 @@ import { ApiError, api, type User } from './api';
 import { NAME } from './Logo';
 import { Mascot } from './Mascot';
 import { apiErrorText, t } from './i18n';
+import { LevelChoice } from './LevelNote';
+import { useLevelsOn } from './level';
 
 const errorText = (err: unknown) => apiErrorText(err instanceof ApiError ? err.code : 'internal');
 
@@ -111,6 +113,7 @@ export function AccountDialog({ user, onClose, onDeleted }: { user: User; onClos
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const text = t.account;
+  const levelsOn = useLevelsOn();
 
   useEffect(() => {
     dialog.current?.showModal();
@@ -144,6 +147,7 @@ export function AccountDialog({ user, onClose, onDeleted }: { user: User; onClos
           <strong>{user.email}</strong>{' '}
           {user.emailVerified !== undefined && <span className="muted">· {user.emailVerified ? text.emailConfirmed : text.emailNotConfirmed}</span>}
         </p>
+        {levelsOn && <LevelChoice />}
         <form className="account-delete" onSubmit={remove}>
           <h3>{text.deleteTitle}</h3>
           <p className="muted">{text.deleteText}</p>

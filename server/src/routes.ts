@@ -16,6 +16,10 @@ import { sendToPhone } from './tophone';
 import { config } from './config';
 import * as db from './db';
 import * as direct from './direct';
+import * as level from './level';
+import { isLevel, isReportedAct } from '../../shared/level';
+import { projectSpec } from '../../shared/xcodeproject';
+import { zip } from './zip';
 import { forget } from './live';
 import { STARTER_FILES } from './prompt';
 import { accountStatus, connectAccount, disconnectAccount } from './apple';
@@ -136,7 +140,7 @@ api.get('/config', (_req, res) => {
 });
 
 /** The person as the clients see them: with whether their address is confirmed. */
-const userJson = (user: db.User) => ({ ...user, emailVerified: db.emailVerified(user.id) });
+const userJson = (user: db.User) => ({ ...user, emailVerified: db.emailVerified(user.id), level: level.state(user.id) });
 
 api.get('/me', (req, res) => {
   const user = userFromRequest(req);
@@ -306,8 +310,9 @@ api.post('/projects', requireUser, (req, res) => {
   }
   const fallbackName = typeof req.body?.name === 'string' ? req.body.name.slice(0, 30) : 'App';
   const project = db.createProject(user.id, fallbackName || 'App', STARTER_FILES);
+  level.heard(user.id, text);
   startRun(project.id, text);
-  res.json({ project: publicProject(project) });
+  res.json({ project: publicProject(project), level: level.state(user.id) });
 });
 
 api.delete('/projects/:id', requireUser, (req, res) => {
@@ -324,7 +329,76 @@ api.delete('/projects/:id', requireUser, (req, res) => {
 api.get('/projects/:id/files', requireUser, (req, res) => {
   const project = ownProject(req, res);
   if (!project) return;
-  res.json({ files: db.getFiles(project.id) });
+  res.json({ files: db.getFiles(project.id), bundleId: project.bundleId, changedAt: db.filesChangedAt(project.id) });
+});
+
+/**
+ * The app's source as a folder to take away: the files, and the spec XcodeGen makes the Xcode
+ * project from, which is how the project is made here too.
+ */
+api.get('/projects/:id/source.zip', requireUser, (req, res) => {
+  const project = ownProject(req, res);
+  if (!project) return;
+  const files = db.getFiles(project.id);
+  const folder = (project.name.replace(/[^\p{L}\p{N} _-]/gu, '').trim() || 'App').slice(0, 40);
+  const entries: Record<string, string> = {
+    'project.yml': projectSpec({ appName: project.name, bundleId: project.bundleId }),
+    'README.txt': SOURCE_README.replace('{name}', project.name),
+  };
+  for (const [filePath, content] of Object.entries(files)) entries[filePath] = content;
+  const data = zip(Object.fromEntries(Object.entries(entries).map(([name, content]) => [`${folder}/${name}`, content])));
+  res
+    .type('application/zip')
+    .set('Content-Disposition', `attachment; filename="app.zip"; filename*=UTF-8''${encodeURIComponent(folder)}.zip`)
+    .set('Cache-Control', 'private, no-store')
+    .send(Buffer.from(data));
+});
+
+const SOURCE_README = `{name}
+
+The source of an app made with App Dance: a SwiftUI app for iPhone (iOS 17 or later).
+
+To open it in Xcode:
+
+  1. Install XcodeGen:   brew install xcodegen
+  2. In this folder:     xcodegen generate
+  3. Open App.xcodeproj, choose your team under Signing & Capabilities, and run.
+
+Everything the app is made of is in Sources/. There are no packages and no other dependencies.
+`;
+
+// --- How much the person is shown ---------------------------------------------------
+
+api.get('/level', requireUser, (req, res) => {
+  res.json({ level: level.state((req as Authed).user.id) });
+});
+
+/** The person's own choice of level, or null to have it follow what they write and do. */
+api.put('/level', requireUser, (req, res) => {
+  const chosen = (req.body as { chosen?: unknown } | undefined)?.chosen;
+  if (chosen !== null && !isLevel(chosen)) {
+    res.status(400).json({ error: 'bad_level' });
+    return;
+  }
+  level.choose((req as Authed).user.id, chosen);
+  res.json({ level: level.state((req as Authed).user.id) });
+});
+
+/** The person has seen the note that they are shown more now. */
+api.post('/level/seen', requireUser, (req, res) => {
+  level.told((req as Authed).user.id);
+  res.json({ level: level.state((req as Authed).user.id) });
+});
+
+/** Something the person did in a client that says how used to this they are. */
+api.post('/level/act', requireUser, (req, res) => {
+  const act = (req.body as { act?: unknown } | undefined)?.act;
+  if (!isReportedAct(act)) {
+    res.status(400).json({ error: 'bad_act' });
+    return;
+  }
+  level.did((req as Authed).user.id, act);
+  res.json({ level: level.state((req as Authed).user.id) });
 });
 
 api.post('/projects/:id/messages', requireUser, (req, res) => {
@@ -344,8 +418,9 @@ api.post('/projects/:id/messages', requireUser, (req, res) => {
     res.status(429).json({ error: 'daily_limit' });
     return;
   }
+  level.heard((req as Authed).user.id, text);
   startRun(project.id, text);
-  res.status(202).json({ ok: true });
+  res.status(202).json({ ok: true, level: level.state((req as Authed).user.id) });
 });
 
 api.post('/projects/:id/stop', requireUser, (req, res) => {
@@ -370,7 +445,8 @@ api.put('/apple-account', requireUser, authLimiter, async (req, res) => {
     return;
   }
   accountChanged(user.id);
-  res.json(accountStatus(user.id));
+  level.did(user.id, 'apple');
+  res.json({ ...accountStatus(user.id), level: level.state(user.id) });
 });
 
 api.delete('/apple-account', requireUser, (req, res) => {
@@ -396,6 +472,8 @@ api.post('/projects/:id/testflight', requireUser, (req, res) => {
       res.status(409).json({ error: 'busy' });
       return;
     default:
+      // Only an upload to an account of their own says something about the person.
+      if (db.getAppleAccount((req as Authed).user.id)) level.did((req as Authed).user.id, 'upload');
       res.status(202).json({ ok: true });
   }
 });
@@ -931,6 +1009,7 @@ api.post('/projects/:id/store/sync', requireUser, (req, res) => {
     res.status(status).json({ error: started === 'busy' ? 'busy' : `store_${started}` });
     return;
   }
+  level.did(user.id, 'store');
   res.status(202).json(storeState(project, user));
 });
 

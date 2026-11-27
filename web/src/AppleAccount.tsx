@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { ApiError, api, type AppleStatus } from './api';
 import { AppleAccountClassic } from './AppleAccountClassic';
+import { useLevel } from './level';
 import { apiErrorText, t } from './i18n';
 import { Confetti, Mascot, WaitingCaption } from './Mascot';
 
@@ -24,8 +25,14 @@ type Step = 'have' | 'join' | 'key' | 'file' | 'code' | 'team' | 'checking' | 'd
 const COUNTED: Step[] = ['key', 'file', 'code'];
 
 export function AppleAccountDialog({ onClose }: { onClose: () => void }) {
-  const [classic, setClassic] = useState(false);
-  return classic ? <AppleAccountClassic onClose={onClose} onGuide={() => setClassic(false)} /> : <Guide onClose={onClose} onClassic={() => setClassic(true)} />;
+  const level = useLevel().level;
+  // A developer knows what a Key ID is: they get every field at once, with the guide a press away.
+  const [classic, setClassic] = useState(level === 3);
+  const chooseClassic = () => {
+    setClassic(true);
+    void api.levelAct('classic').catch(() => undefined);
+  };
+  return classic ? <AppleAccountClassic onClose={onClose} onGuide={() => setClassic(false)} /> : <Guide onClose={onClose} onClassic={chooseClassic} />;
 }
 
 function Guide({ onClose, onClassic }: { onClose: () => void; onClassic: () => void }) {
@@ -45,6 +52,7 @@ function Guide({ onClose, onClassic }: { onClose: () => void; onClassic: () => v
   const [hint, setHint] = useState('');
   const [cheer, setCheer] = useState(0);
   const text = t.apple;
+  const level = useLevel().level;
 
   useEffect(() => {
     dialog.current?.showModal();
@@ -164,7 +172,7 @@ function Guide({ onClose, onClassic }: { onClose: () => void; onClassic: () => v
           <Tick /> {text.linked}
         </p>
         <p className="muted">{text.linkedHelp}</p>
-        <details className="apple-details">
+        <details className="apple-details" open={level >= 2 || undefined}>
           <summary>{text.details}</summary>
           <p className="muted fine">{text.linkedDetails.replace('{team}', status.teamId ?? '').replace('{key}', status.keyId ?? '')}</p>
         </details>

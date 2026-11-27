@@ -3708,3 +3708,253 @@ img.app-icon {
     transform: scale(0.3);
   }
 }
+
+/* --- How much the person is shown ------------------------------------------------- */
+
+/* The note that more is shown now: in a corner, over whatever page the person is on. */
+.level-note {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 40;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  width: min(420px, calc(100vw - 32px));
+  padding: 16px;
+  border-radius: 22px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--line);
+}
+
+.level-note .mascot {
+  flex: none;
+  width: 56px;
+  height: 56px;
+}
+
+.level-note p {
+  margin: 4px 0 0;
+  font-size: 0.92rem;
+}
+
+.level-note-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.level-choice {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.level-choice h3,
+.level-choice p {
+  margin: 0;
+}
+
+.level-choice h3 {
+  font-size: 1.05rem;
+}
+
+.level-choice [role='radiogroup'] {
+  display: grid;
+  gap: 8px;
+}
+
+.level-choice button {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 16px;
+  border: 2px solid transparent;
+  border-radius: 16px;
+  background: var(--sunken);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.16s var(--ease-out);
+}
+
+.level-choice button:active {
+  transform: scale(0.98);
+}
+
+.level-choice button[aria-checked='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.level-choice button span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* The note waits while the show of the app being built fills the page. */
+.page.project:has(.show) ~ .level-note {
+  display: none;
+}
+
+/* The builder's steps, folded away under the answer they led to. */
+.steps {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  white-space: normal;
+}
+
+.steps summary {
+  cursor: pointer;
+  width: fit-content;
+}
+
+.steps ol {
+  display: grid;
+  gap: 3px;
+  margin: 6px 0 0;
+  padding-left: 22px;
+}
+
+.steps code,
+.code code {
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 0.92em;
+}
+
+.steps-failed {
+  color: var(--danger);
+}
+
+/* The source, where the phone otherwise is. */
+.code {
+  align-self: stretch;
+  justify-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  padding: 16px;
+  border-radius: 22px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.code-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.code-head p {
+  margin: 0 0 8px;
+}
+
+.code-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 12px;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.code-facts dt {
+  color: var(--muted);
+}
+
+.code-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.code-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) 1fr;
+  gap: 12px;
+}
+
+.code-files {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+}
+
+.code-files button {
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.code-files button[aria-current] {
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.code-file {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 14px;
+  background: var(--sunken);
+}
+
+.code-file-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.85rem;
+}
+
+.code-file pre {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  tab-size: 4;
+}
+
+.release-play {
+  margin: 0;
+}
+
+@media (max-width: 820px) {
+  .code-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .code-files {
+    flex-direction: row;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .code {
+    min-height: 60dvh;
+  }
+}

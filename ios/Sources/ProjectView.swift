@@ -18,6 +18,8 @@ struct ProjectView: View {
   private var isShowUp: Bool { show != nil && watchesShow }
   /// True while the app is tried over the whole screen, as if it were installed.
   @State private var isTrying = false
+  /// The app's source, for the people who are shown everything.
+  @State private var isShowingCode = false
 
   /// The person's own phone comes first when apps can be installed straight onto it.
   private var phone: DirectInstall? {
@@ -147,6 +149,11 @@ struct ProjectView: View {
     .navigationTitle(store.name)
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
+      if Depth.shared.showsAll {
+        ToolbarItem(placement: .topBarTrailing) {
+          Button("Kod", systemImage: "chevron.left.forwardslash.chevron.right") { isShowingCode = true }
+        }
+      }
       ToolbarItem(placement: .topBarTrailing) {
         Button {
           guide = .phone
@@ -164,6 +171,9 @@ struct ProjectView: View {
         showsSimulator = false
         pane = .preview
       }
+    }
+    .sheet(isPresented: $isShowingCode) {
+      CodeView(store: store, api: api)
     }
     .alert("Appen hittades inte.", isPresented: .constant(store.isMissing)) {
       Button("Alla appar") { dismiss() }
@@ -323,6 +333,7 @@ struct ChatView: View {
             .transition(.rise)
             .accessibilityHint("Visar bygget över hela skärmen")
           } else if let asked {
+            StepsFold(parts: asked.parts)
             AfterBuild(
               words: asked.lastWords,
               canTry: store.preview.status != .unavailable,
@@ -369,9 +380,14 @@ struct ChatView: View {
             Button("Stoppa", systemImage: "stop.fill") { Task { await store.stop() } }
               .buttonStyle(.round)
           } else {
-            Button("Skicka", systemImage: "arrow.up") { send() }
-              .buttonStyle(.round)
-              .disabled(isSending || trimmedDraft.isEmpty)
+            if isSending {
+              BusyMark(size: 44)
+                .transition(.scale(scale: 0.6).combined(with: .opacity))
+            } else {
+              Button("Skicka", systemImage: "arrow.up") { send() }
+                .buttonStyle(.round)
+                .disabled(trimmedDraft.isEmpty)
+            }
           }
         }
       }
@@ -424,7 +440,8 @@ struct ChatView: View {
 }
 
 /// What the builder says, and what went wrong when something did. The steps it took on the way are
-/// not shown: they are about how the app is made, which is nothing the person needs to follow.
+/// about how the app is made, which is nothing most people need to follow: they are shown, folded
+/// away, only to the people who are shown more than the first level.
 private struct PartsView: View {
   private enum Block: Identifiable {
     case text(Int, String)
@@ -473,6 +490,7 @@ private struct PartsView: View {
             .background(Color.brand.opacity(0.14), in: .rect(cornerRadius: 16, style: .continuous))
         }
       }
+      StepsFold(parts: parts)
     }
     .frame(maxWidth: .infinity, alignment: .leading)
   }
@@ -566,7 +584,7 @@ private struct AfterBuild: View {
 
   private var question: String {
     if isLocked { return String(localized: "Vill du ha den på din telefon? Det ingår i planen Skapa.") }
-    if isGettingReady { return phone?.stage == "signing" ? String(localized: "Signerar för din telefon") : String(localized: "Gör appen klar för din telefon") }
+    if isGettingReady { return String(localized: "Gör appen klar för din telefon") }
     if phone?.phones == 0 { return String(localized: "Vill du ha den på din telefon också?") }
     return String(localized: "Vill du behålla den på telefonen?")
   }

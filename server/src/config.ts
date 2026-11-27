@@ -98,6 +98,11 @@ export const config = {
   maxCreditsPerMessage: Math.max(1, Math.floor(Number(process.env.MAX_CREDITS_PER_MESSAGE ?? 40)) || 40),
   /** How many credits each plan gives, when other than usual: "free=25; create=100; publish=260". */
   planCredits: process.env.PLAN_CREDITS ?? '',
+  /**
+   * Shows people more as they turn out to be used to app making: what the builder does, then the
+   * code (see shared/level.ts). LEVELS=0 shows everyone the first level, as before levels existed.
+   */
+  levels: process.env.LEVELS !== '0',
   /** How many phones one person may add. */
   maxPhones: Math.max(1, Number(process.env.MAX_PHONES_PER_USER ?? 2) || 2),
   /** The address people reach the service at, for links that phones open. Worked out from the request when empty. */

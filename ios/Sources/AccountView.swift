@@ -10,6 +10,7 @@ struct AccountView: View {
   @State private var password = ""
   @State private var isBusy = false
   @State private var isAsking = false
+  @State private var isDeleting = false
   @State private var errorText: String?
   @State private var sentText: String?
 
@@ -26,17 +27,28 @@ struct AccountView: View {
               Text(sentText)
                 .font(.footnote)
             } else {
-              Button("Skicka bekräftelsen igen") { sendAgain() }
-                .disabled(isBusy)
+              if isBusy {
+                WaitCard(title: String(localized: "Skickar mejlet"), lines: WaitingLines.invite)
+              } else {
+                Button("Skicka bekräftelsen igen") { sendAgain() }
+              }
             }
           }
+        }
+
+        if Depth.shared.isOn {
+          LevelChoice(api: model.api)
         }
 
         Section {
           SecureField("Ditt lösenord", text: $password)
             .textContentType(.password)
-          Button("Radera mitt konto", role: .destructive) { isAsking = true }
-            .disabled(isBusy || password.isEmpty)
+          if isDeleting {
+            WaitCard(title: String(localized: "Raderar kontot"), lines: [String(localized: "Städar ut allt"), String(localized: "Släcker lampan")])
+          } else {
+            Button("Radera mitt konto", role: .destructive) { isAsking = true }
+              .disabled(isBusy || password.isEmpty)
+          }
           if let errorText {
             Text(errorText)
               .font(.footnote)
@@ -69,7 +81,7 @@ struct AccountView: View {
         let status = try await model.api.verifyAgain()
         sentText = switch status {
         case "too_soon": String(localized: "Vi skickade nyss ett mejl. Vänta en minut och försök igen.")
-        case "not_sent": String(localized: "Tjänsten kan inte skicka mejl just nu. Hör av dig till den som driver den.")
+        case "not_sent": String(localized: "Vi kan inte skicka mejl just nu. Försök igen om en stund.")
         default: String(localized: "Skickat! Titta i inkorgen, och i skräpposten.")
         }
       } catch {
@@ -79,10 +91,10 @@ struct AccountView: View {
   }
 
   private func delete() {
-    isBusy = true
+    isDeleting = true
     errorText = nil
     Task {
-      defer { isBusy = false }
+      defer { isDeleting = false }
       do throws(APIError) {
         try await model.deleteAccount(password: password)
       } catch {

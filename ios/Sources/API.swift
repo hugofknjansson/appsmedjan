@@ -65,8 +65,23 @@ struct API {
     guard (200..<300).contains(http.statusCode) else {
       throw APIError(code: (try? JSONDecoder().decode(Failure.self, from: data))?.error ?? "internal")
     }
+    // Any answer may say that the person is shown more now.
+    Depth.shared.note(answer: data)
     guard let value = try? JSONDecoder().decode(Response.self, from: data) else { throw .unexpected }
     return value
+  }
+
+  /// A file from the server, as it is.
+  func download(_ path: String) async throws(APIError) -> Data {
+    do {
+      let (data, response) = try await URLSession.shared.data(from: baseURL.appending(path: path))
+      guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { throw APIError.unexpected }
+      return data
+    } catch let error as APIError {
+      throw error
+    } catch {
+      throw .network
+    }
   }
 
   /// The request that opens a project's WebSocket.
@@ -361,6 +376,52 @@ extension API {
 
   func submitStore(_ id: String) async throws(APIError) -> StoreState {
     try await request("POST", "api/projects/\(id)/store/submit", body: Data("{}".utf8))
+  }
+}
+
+// MARK: - How much the person is shown
+
+/// The app's source: every file by its path, and the id Apple knows the app by.
+nonisolated struct ProjectCode: Decodable {
+  let files: [String: String]
+  let bundleId: String?
+}
+
+extension API {
+  private struct LevelAnswer: Decodable {}
+
+  /// The person's own choice of level, or nil to have it follow what they write and do.
+  func chooseLevel(_ level: Int?) async throws(APIError) {
+    struct Body: Encodable {
+      let chosen: Int?
+      // Nil is said, not left out: it is the choice to follow along.
+      func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(chosen, forKey: .chosen)
+      }
+      enum CodingKeys: CodingKey { case chosen }
+    }
+    let _: LevelAnswer = try await send("PUT", "api/level", body: Body(chosen: level))
+  }
+
+  /// The note about being shown more has been seen.
+  func levelSeen() async throws(APIError) {
+    try await send("POST", "api/level/seen")
+  }
+
+  /// Something done here that says how used to this the person is: "details" or "classic".
+  func levelAct(_ act: String) async throws(APIError) {
+    struct Body: Encodable { let act: String }
+    let _: LevelAnswer = try await send("POST", "api/level/act", body: Body(act: act))
+  }
+
+  func code(_ id: String) async throws(APIError) -> ProjectCode {
+    try await get("api/projects/\(id)/files")
+  }
+
+  /// The source as a folder to open in Xcode, zipped.
+  func sourceZip(_ id: String) async throws(APIError) -> Data {
+    try await download("api/projects/\(id)/source.zip")
   }
 }
 

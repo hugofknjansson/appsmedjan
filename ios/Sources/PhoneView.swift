@@ -38,14 +38,22 @@ struct PhoneView: View {
         }
         .labelStyle(.iconOnly)
         .padding(.horizontal)
-        if let captureNote {
+        if isCapturing {
+          HStack(spacing: 8) {
+            BusyMark(size: 24)
+            Text("Sparar bilden")
+              .font(.footnote)
+              .foregroundStyle(.secondary)
+          }
+          .padding(.horizontal)
+        } else if let captureNote {
           Text(captureNote.text)
             .font(.footnote)
             .foregroundStyle(captureNote.failed ? .red : .secondary)
             .padding(.horizontal)
         }
       } else if store.preview.status == .running {
-        Text("Endast visning: tryck och text skickas inte till simulatorn just nu.")
+        Text("Endast visning: tryck och text skickas inte till appen just nu.")
           .font(.footnote)
           .foregroundStyle(.secondary)
           .padding(.horizontal)

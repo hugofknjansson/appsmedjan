@@ -38,7 +38,7 @@ struct PhoneTestView: View {
         Button("Prova appen utan att installera", action: tryNow)
           .font(.subheadline.weight(.semibold))
           .padding(.top, 4)
-        Button("Visa i simulatorn i stället", action: showSimulator)
+        Button("Visa förhandsvisningen i stället", action: showSimulator)
           .font(.footnote.weight(.semibold))
       }
       .padding()
@@ -73,7 +73,7 @@ struct PhoneTestView: View {
       }
       .buttonStyle(.bouncy)
       .disabled(isBusy)
-      Text("Safari öppnas med stegen. Telefonen lämnar bara sitt id, och ingenting blir kvar på den.")
+      Text("Safari öppnas med stegen. Telefonen presenterar sig bara, och ingenting blir kvar på den.")
         .font(.footnote)
         .foregroundStyle(.secondary)
         .multilineTextAlignment(.center)
@@ -147,7 +147,7 @@ struct PhoneTestView: View {
 
   private var footnote: String {
     if !direct.available && direct.status != .ready {
-      String(localized: "Ingen byggserver som kan signera är ansluten just nu.")
+      String(localized: "Det går inte att installera på telefonen just nu. Försök igen om en stund.")
     } else if store.isRunning {
       String(localized: "Appen byggs om i chatten. En ny version för telefonen görs klar av sig själv när det är färdigt.")
     } else {
@@ -180,7 +180,7 @@ private struct InstallSteps: View {
     let position = direct.position
     let titles = [
       String(localized: "Bygger appen"),
-      String(localized: "Signerar för din telefon"),
+      String(localized: "Gör i ordning för din telefon"),
       String(localized: "Hämtas till telefonen"),
       String(localized: "Installeras på hemskärmen"),
     ]
@@ -197,7 +197,7 @@ private struct InstallSteps: View {
           case .done:
             Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
           case .active:
-            ProgressView().controlSize(.small)
+            BusyMark(size: 22)
           case .waiting:
             Image(systemName: "circle").foregroundStyle(.tertiary)
           }
@@ -260,7 +260,7 @@ extension DirectInstall {
 
   var headline: String {
     switch status {
-    case .working: stage == "signing" ? String(localized: "Signerar för din telefon") : String(localized: "Bygger appen för din telefon")
+    case .working: stage == "signing" ? String(localized: "Gör i ordning för din telefon") : String(localized: "Bygger appen för din telefon")
     case .ready:
       switch install {
       case "asked", "fetching": String(localized: "Hämtas till telefonen")

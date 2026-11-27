@@ -1,5 +1,5 @@
-// What makes a wait worth watching: lines that take turns under the dancing mascot, and confetti
-// when something has gone well.
+// What makes a wait worth watching: the dancing mascot wherever something takes time, lines that
+// take turns under it, and confetti when something has gone well.
 import SwiftUI
 
 /// What to say while something takes time. Each list is gone through in order, again and again.
@@ -70,6 +70,159 @@ enum WaitingLines {
     String(localized: "Knyter skorna inför premiären"),
     String(localized: "Snart är den din"),
   ]
+  /// The person's apps are being fetched.
+  static let apps = [
+    String(localized: "Hämtar dina appar"),
+    String(localized: "Dammar av hyllan"),
+  ]
+  /// The app is on its way up to Apple.
+  static let upload = [
+    String(localized: "Packar ihop appen"),
+    String(localized: "Knyter ett snöre om paketet"),
+    String(localized: "Bär paketet till Apple"),
+    String(localized: "Ringer på hos Apple"),
+  ]
+  /// Apple has the app and is getting it ready.
+  static let processing = [
+    String(localized: "Apple packar upp"),
+    String(localized: "Apple räknar skruvarna"),
+    String(localized: "Apple provstartar appen"),
+  ]
+  /// Texts for the App Store are being written.
+  static let draft = [
+    String(localized: "Vässar pennan"),
+    String(localized: "Letar efter rätt ord"),
+    String(localized: "Stryker det tråkiga"),
+    String(localized: "Läser högt för sig själv"),
+  ]
+  /// The App Store page is on its way to Apple.
+  static let store = [
+    String(localized: "Bär texterna till Apple"),
+    String(localized: "Hänger upp bilderna"),
+    String(localized: "Rättar till skylten"),
+  ]
+  /// The app is being handed in for review.
+  static let review = [
+    String(localized: "Lägger appen i Apples brevlåda"),
+    String(localized: "Kollar att allt är med"),
+  ]
+  /// The person's plan is being fetched.
+  static let plan = [
+    String(localized: "Rullar ut mattan"),
+    String(localized: "Putsar din plan"),
+  ]
+  /// Apple is asked whether the person's key is good.
+  static let checking = [
+    String(localized: "Knackar på hos Apple"),
+    String(localized: "Visar upp nyckeln"),
+    String(localized: "Väntar på tummen upp"),
+  ]
+  /// An invitation is on its way.
+  static let invite = [
+    String(localized: "Skriver inbjudan"),
+    String(localized: "Slickar på frimärket"),
+  ]
+}
+
+/// What is shown while something takes its time: the mascot dancing, with a line under it that
+/// changes every few seconds. Nobody is left looking at a spinner or an empty page.
+struct Waiting: View {
+  var lines: [String] = []
+  var size: CGFloat = 120
+
+  var body: some View {
+    VStack(spacing: 12) {
+      Mascot(isDancing: true)
+        .frame(width: size)
+      if !lines.isEmpty {
+        WaitingCaption(lines: lines)
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+          .multilineTextAlignment(.center)
+      }
+    }
+    .frame(maxWidth: .infinity)
+    .padding(.vertical, 24)
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel(lines.first ?? String(localized: "Ett ögonblick"))
+  }
+}
+
+/// A wait in the middle of other things: what is going on, a line that changes, and, when it is
+/// known how far it has come, a bar.
+struct WaitCard: View {
+  let title: String
+  let lines: [String]
+  var fraction: Double?
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 12) {
+      MascotBadge(isDancing: true)
+        .frame(width: 44)
+      VStack(alignment: .leading, spacing: 4) {
+        Text(title)
+          .font(.subheadline.weight(.semibold))
+          .contentTransition(.opacity)
+        WaitingCaption(lines: lines)
+          .font(.footnote)
+          .foregroundStyle(.secondary)
+        if let fraction {
+          ProgressView(value: fraction)
+            .tint(.brand)
+            .animation(.smooth(duration: 0.6), value: fraction)
+            .padding(.top, 4)
+            .accessibilityLabel("Hur långt det har kommit")
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .animation(Motion.swap, value: title)
+    .accessibilityElement(children: .combine)
+  }
+}
+
+/// The mascot dancing where a spinner would have been: in a button that is busy, or beside a step
+/// that is under way.
+struct BusyMark: View {
+  /// White on the brand orange, as in a filled button.
+  var isOnBrand = false
+  var size: CGFloat = 28
+
+  var body: some View {
+    Mascot(tile: isOnBrand ? .white : .brand, eyes: isOnBrand ? .brandDeep : .white, isDancing: true)
+      .frame(width: size, height: size)
+      .accessibilityElement()
+      .accessibilityLabel("Ett ögonblick")
+  }
+}
+
+/// Apple's own words about what it turned down, kept behind a press: they are in English and full
+/// of Apple's names for things, and most people only need to know that it did not go through.
+struct Detail: View {
+  let text: String
+
+  /// Open from the start for the people who are shown more than the first level.
+  @State private var isOpen = Depth.shared.showsMore
+
+  var body: some View {
+    if !text.isEmpty {
+      DisclosureGroup("Visa vad Apple svarade", isExpanded: $isOpen) {
+        Text(text)
+          .font(.footnote)
+          .foregroundStyle(.secondary)
+          .textSelection(.enabled)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.top, 4)
+      }
+      .font(.footnote.weight(.semibold))
+      .tint(.secondary)
+      // Someone who goes looking for Apple's own words may well want more of the kind.
+      .onChange(of: isOpen) { _, open in
+        guard open, !Depth.shared.showsMore else { return }
+        Task { try? await API(baseURL: API.configuredBaseURL).levelAct("details") }
+      }
+    }
+  }
 }
 
 /// One line at a time from a list, each pushing the last one out of the way.

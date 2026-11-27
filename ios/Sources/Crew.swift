@@ -14,7 +14,7 @@ nonisolated enum Machine: CaseIterable, Identifiable {
     case .designer: String(localized: "Formgivare")
     case .coder: String(localized: "Kodare")
     case .painter: String(localized: "Ikonritare")
-    case .builder: String(localized: "Byggserver")
+    case .builder: String(localized: "Byggare")
     case .tester: String(localized: "Testtelefon")
     }
   }

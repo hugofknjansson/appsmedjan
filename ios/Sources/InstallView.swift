@@ -43,24 +43,23 @@ struct InstallView: View {
               Text("Vill du dela appen med andra via TestFlight, eller lägga upp den i App Store, behöver du ett eget Apple-utvecklarkonto.")
               Button("Koppla ditt Apple-utvecklarkonto") { isShowingAccount = true }
             } else {
-              Text("Att dela appen via TestFlight ingår inte här. Hör av dig till den som driver tjänsten.")
+              Text("Att dela appen via TestFlight ingår inte här. Hör av dig till oss.")
             }
           }
         } else {
           Section {
-            Button {
-              run { () throws(APIError) in try await store.sendToTestFlight() }
-            } label: {
-              if isUploading {
-                Label(Texts.publishStage(publish.stage), systemImage: "arrow.up.circle")
-              } else {
-                Text(isUploaded ? "Skicka en ny version" : "Gör appen installerbar")
+            if isUploading && publish.stage != "waiting_for_app" {
+              // The upload, as something to watch: what is being done, and how far it has come.
+              WaitCard(title: Texts.publishStage(publish.stage), lines: WaitingLines.upload, fraction: publish.uploadProgress)
+            } else {
+              Button(isUploaded ? "Skicka en ny version" : "Gör appen installerbar") {
+                run { () throws(APIError) in try await store.sendToTestFlight() }
               }
+              .disabled(isBusy || isUploading || store.isRunning || !publish.available)
             }
-            .disabled(isBusy || isUploading || store.isRunning || !publish.available)
           } footer: {
             if !publish.available {
-              Text("Ingen byggserver som kan ladda upp är ansluten just nu.")
+              Text("Det går inte att ladda upp just nu. Försök igen om en stund.")
             } else if store.isRunning {
               Text("Vänta tills appen är färdigbyggd i chatten.")
             }
@@ -93,7 +92,7 @@ struct InstallView: View {
     if isUploading && publish.stage == "waiting_for_app" {
       Section {
         if publish.account == .operator && publish.operator != true {
-          Text("Appen behöver läggas upp hos Apple av den som driver tjänsten. Det görs för hand, så det kan ta en stund. Du behöver inte göra något.")
+          Text("Vi lägger upp appen hos Apple åt dig. Det görs för hand, så det kan ta en stund. Du behöver inte göra något.")
         } else if let note = Texts.publishNote(publish) {
           Text(note.text)
         }
@@ -103,7 +102,7 @@ struct InstallView: View {
     } else if isUploaded {
       if isInternal {
         Section {
-          Label("Du är testare i utvecklarkontot, så ingen granskning behövs. Öppna TestFlight-appen.", systemImage: "checkmark.circle")
+          Label("Du är testare, så ingen granskning behövs. Öppna TestFlight-appen.", systemImage: "checkmark.circle")
           Link("Hämta TestFlight", destination: Self.testFlightApp)
         } header: {
           Text("Appen finns i TestFlight om några minuter")
@@ -113,7 +112,9 @@ struct InstallView: View {
       switch test.status {
       case .none, .working, .processing:
         Section {
-          Label("Apple tar emot appen. Det tar oftast en kvart. Du kan stänga den här rutan under tiden.", systemImage: "hourglass")
+          WaitCard(title: String(localized: "Apple tar emot appen"), lines: WaitingLines.processing)
+        } footer: {
+          Text("Det tar oftast en kvart. Du kan stänga den här rutan under tiden.")
         }
       case .review:
         Section {
@@ -133,11 +134,12 @@ struct InstallView: View {
         }
       case .rejected:
         Section {
-          Text("Apple godkände inte appen för test. Den som driver tjänsten har fått veta varför.").foregroundStyle(.red)
+          Text("Apple godkände inte appen för test. Vi har fått veta varför och hör av oss.").foregroundStyle(.red)
         }
       case .failed:
         Section {
-          Text(Texts.storeError(test.error, detail: test.detail, submitting: false)).foregroundStyle(.red)
+          Text(Texts.storeError(test.error, submitting: false)).foregroundStyle(.red)
+          if test.error == "rejected" { Detail(text: test.detail ?? "") }
           Button("Försök igen") {
             run { () throws(APIError) in try await api.shareAgain(store.id) }
           }
@@ -175,12 +177,13 @@ struct InstallView: View {
         Label("Apple har skickat en inbjudan till \(fast.email ?? ""). Öppna mejlet och tacka ja. Sedan kommer appen till TestFlight inom några minuter.", systemImage: "envelope")
       }
     case .working:
-      Section { Label("Skickar inbjudan", systemImage: "paperplane") }
+      Section { WaitCard(title: String(localized: "Skickar inbjudan"), lines: WaitingLines.invite) }
     case .none, .failed:
       if fast.available && test.status != .approved {
         Section {
           if fast.status == .failed {
-            Text("Det gick inte att bjuda in dig. \(fast.detail ?? "")").foregroundStyle(.red)
+            Text("Det gick inte att bjuda in dig. Kontrollera adressen och försök igen.").foregroundStyle(.red)
+            Detail(text: fast.detail ?? "")
           }
           TextField("E-postadressen till ditt Apple-konto", text: $person.email)
             .textContentType(.emailAddress)
@@ -198,7 +201,7 @@ struct InstallView: View {
         } header: {
           Text("Vill du inte vänta?")
         } footer: {
-          Text("Du kan bli testare direkt, utan att vänta på Apples granskning. Då bjuds du in till tjänstens utvecklarkonto hos Apple, med tillgång till enbart din app. Du tackar ja i ett mejl från Apple.")
+          Text("Du kan bli testare direkt, utan att vänta på Apples granskning. Då bjuds du in till vårt konto hos Apple, med tillgång till enbart din app. Du tackar ja i ett mejl från Apple.")
         }
       }
     }

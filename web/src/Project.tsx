@@ -20,6 +20,8 @@ import { FrameBus } from './frames';
 import { Phone } from './Phone';
 import { Confetti, Mascot, MascotBadge, WaitingCaption } from './Mascot';
 import { Waiting } from './Waiting';
+import { Code } from './Code';
+import { useLevel } from './level';
 import { apiErrorText, t } from './i18n';
 
 interface State {
@@ -83,7 +85,10 @@ export function Project({ id, navigate, isNew = false }: { id: string; navigate:
   const [state, dispatch] = useReducer(reduce, null);
   const [connected, setConnected] = useState(true);
   const [missing, setMissing] = useState(false);
-  const [tab, setTab] = useState<'chat' | 'phone' | 'preview'>(() =>
+  const level = useLevel().level;
+  // Counts the times the builder has changed a file, so that the code is read again.
+  const [filesVersion, setFilesVersion] = useState(0);
+  const [tab, setTab] = useState<'chat' | 'phone' | 'preview' | 'code'>(() =>
     window.matchMedia('(max-width: 820px)').matches ? 'chat' : 'preview',
   );
   const bus = useMemo(() => new FrameBus(), []);
@@ -119,6 +124,7 @@ export function Project({ id, navigate, isNew = false }: { id: string; navigate:
           bus.push(null);
           return;
         }
+        if (ev.type === 'files.changed' || ev.type === 'run.end') setFilesVersion((n) => n + 1);
         dispatch(ev);
         if (ev.type === 'state') {
           everConnected = true;
@@ -199,7 +205,11 @@ export function Project({ id, navigate, isNew = false }: { id: string; navigate:
   useEffect(() => {
     if (state && !phone) setTab((now) => (now === 'phone' ? 'preview' : now));
   }, [state, phone]);
-  const choose = (next: 'phone' | 'preview') => setTab(next);
+  // So does the code, for someone who has chosen to be shown less.
+  useEffect(() => {
+    if (level < 3) setTab((now) => (now === 'code' ? 'preview' : now));
+  }, [level]);
+  const choose = (next: 'phone' | 'preview' | 'code') => setTab(next);
 
   // Something to cheer about: the builder has finished without trouble, or the app has arrived on the phone.
   const [cheers, setCheers] = useState(0);
@@ -330,10 +340,15 @@ export function Project({ id, navigate, isNew = false }: { id: string; navigate:
             <button role="tab" aria-selected={tab === 'preview'} onClick={() => choose('preview')}>
               {phone ? t.simulator : t.preview}
             </button>
+            {level === 3 && (
+              <button role="tab" aria-selected={tab === 'code'} onClick={() => choose('code')}>
+                {t.level.code}
+              </button>
+            )}
           </div>
         </div>
       </header>
-      {state && !phoneOpen && <PublishNote publish={state.publish} />}
+      {state && !phoneOpen && <PublishNote publish={state.publish} level={level} />}
       {appleOpen && <AppleAccountDialog onClose={() => setAppleOpen(false)} />}
       {planOpen && <PlanDialog onClose={() => setPlanOpen(false)} />}
       {releaseOpen && state && (
@@ -385,7 +400,8 @@ export function Project({ id, navigate, isNew = false }: { id: string; navigate:
               <DirectInstallSteps id={id} direct={phone} running={state.running} note={sentNote} />
             </div>
           )}
-          {state && tab !== 'phone' && (
+          {state && tab === 'code' && <Code id={id} version={filesVersion} publish={state.publish} />}
+          {state && tab !== 'phone' && tab !== 'code' && (
             <Phone
               bus={bus}
               preview={state.preview}
@@ -407,7 +423,7 @@ export function Project({ id, navigate, isNew = false }: { id: string; navigate:
 const RECENT_MS = 6 * 3600_000;
 
 /** Tells how the latest upload went. Old results stay quiet so the bar doesn't greet every visit. */
-function PublishNote({ publish }: { publish: PublishState }) {
+function PublishNote({ publish, level }: { publish: PublishState; level: number }) {
   const [dismissed, setDismissed] = useState<string | null>(null);
 
   let text = '';
@@ -425,6 +441,8 @@ function PublishNote({ publish }: { publish: PublishState }) {
   } else if (publish.account !== 'none' && publish.at && Date.now() - publish.at < RECENT_MS) {
     if (publish.status === 'uploaded') {
       text = (publish.tester === 'added' ? t.publishUploadedTester : t.publishUploaded).replace('{build}', publish.build ?? '');
+      // Which upload it was is for those who keep track of such things.
+      if (level >= 2 && publish.build) text = `${t.level.version.replace('{build}', publish.build)} ${text}`;
     } else if (publish.status === 'failed') {
       const code = publish.error ?? 'internal';
       // With the person's own account, the fix for a key or signing problem is theirs to make.
@@ -481,6 +499,7 @@ function Chat({ id, state, phone, onPhone, onSend, onTry, onPlans, onShow }: Cha
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [asking, setAsking] = useState(false);
+  const level = useLevel().level;
 
   // After the wait, one thing: the question whether to put the app on the phone. The builder's last
   // words go into that card instead of a bubble of their own.
@@ -565,6 +584,12 @@ function Chat({ id, state, phone, onPhone, onSend, onTry, onPlans, onShow }: Cha
         {asked && phone && phone.status === 'working' && (
           <div className="msg assistant" aria-live="polite">
             <ProgressCard title={phone.stage === 'signing' ? t.direct.steps[1]! : t.direct.gettingReady} lines={t.wait.phone} fraction={directProgress(phone) ?? 0.05} />
+          </div>
+        )}
+        {/* The steps behind the answer that went into the card below. */}
+        {asked && level >= 2 && (
+          <div className="msg assistant">
+            <Steps parts={asked.parts} named={level === 3} />
           </div>
         )}
         {asked && phone && phone.status !== 'working' && (
@@ -686,10 +711,47 @@ function rich(text: string): Array<string | JSX.Element> {
 }
 
 /**
+ * The steps the builder took, folded away under a line that says how many: for the people who are
+ * shown more than the first level. `named`: with the names of the files, for those shown everything.
+ */
+function Steps({ parts, named }: { parts: Part[]; named: boolean }) {
+  // What the builder says along the way is shown where it is said, not as a step.
+  const steps = parts.flatMap((part) => (part.t === 'step' && part.step.kind !== 'say' ? [part.step] : []));
+  if (steps.length === 0) return null;
+  const text = t.level;
+  return (
+    <details className="steps">
+      <summary>
+        {text.steps} · {text.stepsCount.replace('{n}', String(steps.length))}
+      </summary>
+      <ol>
+        {steps.map((step) => {
+          const kind = step.kind as Exclude<typeof step.kind, 'say'>;
+          const withName = named && step.detail.trim() !== '';
+          const [before, after] = (withName ? text.stepNamed[kind] : text.step[kind]).split('{file}');
+          return (
+            <li key={step.id} data-status={step.status}>
+              {before}
+              {/* A file is named the way it is written; the app's name is a name like any other. */}
+              {after !== undefined && (kind === 'rename' ? step.detail : <code>{step.detail.replace(/^Sources\//, '')}</code>)}
+              {after}
+              {step.status === 'error' && <span className="steps-failed"> · {text.stepFailed}</span>}
+              {step.status === 'running' && <span className="muted"> · {text.stepRunning}</span>}
+            </li>
+          );
+        })}
+      </ol>
+    </details>
+  );
+}
+
+/**
  * What the builder says, and what went wrong when something did. The steps it took on the way are
- * not shown: they are about how the app is made, which is nothing the person needs to follow.
+ * about how the app is made, which is nothing most people need to follow: they are shown, folded
+ * away, only to the people who are shown more than the first level.
  */
 function Parts({ parts }: { parts: Part[] }) {
+  const level = useLevel().level;
   return (
     <>
       {parts.map((part, i) => {
@@ -709,6 +771,7 @@ function Parts({ parts }: { parts: Part[] }) {
         }
         return null;
       })}
+      {level >= 2 && <Steps parts={parts} named={level === 3} />}
     </>
   );
 }

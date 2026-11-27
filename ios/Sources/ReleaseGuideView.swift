@@ -89,7 +89,7 @@ struct ReleaseGuideView: View {
 
           if let guide {
             if guide.account == .none, !guide.canConnect {
-              Text("Det här är inte påslaget för ditt konto. Hör av dig till den som driver tjänsten.")
+              Text("Det här är inte påslaget för ditt konto. Hör av dig till oss.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .card()
@@ -106,10 +106,23 @@ struct ReleaseGuideView: View {
               }
               .card(padding: 18)
               .animation(.smooth, value: steps)
+              // Someone who has asked about the other store gets a straight answer where the stores are.
+              if goal == .store, Depth.shared.askedAboutPlay {
+                VStack(alignment: .leading, spacing: 4) {
+                  Text("Google Play och Android: här byggs iPhone-appar. Android finns inte än.")
+                  if Depth.shared.showsAll {
+                    Text("Koden är Swift och SwiftUI. Du hittar den under Kod, högst upp på appens sida.")
+                  }
+                }
+                .font(.footnote)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(14)
+                .background(Color.brand.opacity(0.14), in: .rect(cornerRadius: 16, style: .continuous))
+              }
               if isAllDone { done }
             }
           } else if errorText == nil {
-            ProgressView().padding(.top, 40)
+            Waiting()
           }
 
           if let errorText {
@@ -199,9 +212,10 @@ struct ReleaseGuideView: View {
               .background(Color(.paper), in: .rect(cornerRadius: 8))
           }
           if let detail = step.detail {
-            Text(detail)
+            Text("Apple sa nej till något här.")
               .font(.footnote)
               .foregroundStyle(.red)
+            Detail(text: detail)
           }
         }
         if step.state == .now, let action = action(step) {
@@ -231,8 +245,7 @@ struct ReleaseGuideView: View {
         .foregroundStyle(.green)
         .frame(width: 28, height: 28)
     case .working:
-      ProgressView()
-        .frame(width: 28, height: 28)
+      BusyMark(size: 28)
     case .now, .later:
       Text(verbatim: "\(number)")
         .font(.subheadline.weight(.bold))
@@ -272,14 +285,14 @@ struct ReleaseGuideView: View {
     case .key:
       String(localized: "Du skapar en nyckel hos Apple och lämnar den här, så att vi kan sköta resten åt dig. Vi visar hur.")
     case .phone:
-      String(localized: "Telefonen lämnar sitt id en gång, i Safari. Sedan kan dina appar signeras för just den.")
+      String(localized: "Telefonen presenterar sig en gång, i Safari. Sedan kan dina appar installeras på just den.")
     case .install:
       step.state == .working
         ? String(localized: "Appen görs klar för din telefon.")
-        : String(localized: "Vi signerar appen för din telefon. Första gången ber telefonen dig slå på Utvecklarläge under Inställningar.")
+        : String(localized: "Vi gör i ordning appen för din telefon. Första gången ber telefonen dig slå på Utvecklarläge under Inställningar.")
     case .app:
       if step.bundleId != nil {
-        String(localized: "Skapa en ny app i App Store Connect och välj det här id:t i listan. Det kan bara du göra. Uppladdningen fortsätter av sig själv när appen finns.")
+        String(localized: "Det här steget gör du själv hos Apple: tryck på plus, välj New App och iOS, och välj det här id:t i listan Bundle ID. Uppladdningen fortsätter av sig själv när appen finns.")
       } else if step.state == .working {
         String(localized: "Appen laddas upp till ditt konto.")
       } else {

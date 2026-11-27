@@ -214,6 +214,14 @@ db.exec(`
     data TEXT NOT NULL,
     updated_at INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS user_levels (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    words TEXT NOT NULL DEFAULT '[]',
+    acts TEXT NOT NULL DEFAULT '[]',
+    chosen INTEGER,
+    told INTEGER NOT NULL DEFAULT 1,
+    updated_at INTEGER NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS store_syncs (
     project_id TEXT PRIMARY KEY REFERENCES projects(id) ON DELETE CASCADE,
     status TEXT NOT NULL,
@@ -1220,4 +1228,38 @@ export function listMessages(projectId: string): ChatMessage[] {
     .prepare('SELECT id, role, text, parts, created_at FROM messages WHERE project_id = ? ORDER BY id')
     .all(projectId) as unknown as MessageRow[];
   return rows.map(toMessage);
+}
+
+// --- How much a person is shown ------------------------------------------------
+
+/** What has been noticed about a person, their own choice of level, and the level they were last told about. */
+export interface LevelRow {
+  words: string[];
+  acts: string[];
+  chosen: number | null;
+  told: number;
+}
+
+/** Null for a person nothing has been kept about yet. */
+export function getLevel(userId: string): LevelRow | null {
+  const row = db.prepare('SELECT words, acts, chosen, told FROM user_levels WHERE user_id = ?').get(userId) as
+    | { words: string; acts: string; chosen: number | null; told: number }
+    | undefined;
+  if (!row) return null;
+  return { words: JSON.parse(row.words) as string[], acts: JSON.parse(row.acts) as string[], chosen: row.chosen, told: row.told };
+}
+
+export function setLevel(userId: string, row: LevelRow): void {
+  db.prepare(
+    `INSERT INTO user_levels (user_id, words, acts, chosen, told, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET words = excluded.words, acts = excluded.acts, chosen = excluded.chosen, told = excluded.told, updated_at = excluded.updated_at`,
+  ).run(userId, JSON.stringify(row.words), JSON.stringify(row.acts), row.chosen, row.told, Date.now());
+}
+
+/** Everything the person has written to the builder, in all their apps, oldest first. */
+export function userTexts(userId: string): string[] {
+  const rows = db
+    .prepare("SELECT m.text FROM messages m JOIN projects p ON p.id = m.project_id WHERE p.user_id = ? AND m.role = 'user' ORDER BY m.id")
+    .all(userId) as unknown as { text: string }[];
+  return rows.map((row) => row.text);
 }

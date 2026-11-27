@@ -47,6 +47,9 @@ struct RootView: View {
       AuthView()
     case .signedIn(let user):
       DashboardView(user: user)
+        // Said once when the person is shown more than before, over whatever screen they are on.
+        .overlay(alignment: .bottom) { LevelNote(api: model.api) }
+        .animation(Motion.arrive, value: Depth.shared.state)
         // While the app is open, apps sent to this phone from the web come in on a line of its own.
         .task(id: scenePhase == .active) {
           guard scenePhase == .active else { return }

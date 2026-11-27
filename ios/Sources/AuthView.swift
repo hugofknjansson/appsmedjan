@@ -157,7 +157,7 @@ struct AuthView: View {
       }
 
       Button { submit() } label: {
-        if isBusy { ProgressView().tint(.white) } else { Text(mode == .logIn ? "Logga in" : "Skapa konto") }
+        if isBusy { BusyMark(isOnBrand: true, size: 34) } else { Text(mode == .logIn ? "Logga in" : "Skapa konto") }
       }
       .buttonStyle(.bouncy)
       .disabled(!canSubmit)
@@ -236,7 +236,7 @@ struct AuthView: View {
         let mail = try await model.api.forgotPassword(email: address)
         forgotSaid = mail
           ? String(localized: "Om det finns ett konto med \(address) har vi skickat en länk dit. Den gäller i en timme.")
-          : String(localized: "Tjänsten kan inte skicka mejl just nu. Hör av dig till den som driver den.")
+          : String(localized: "Vi kan inte skicka mejl just nu. Försök igen om en stund.")
       } catch {
         forgotSaid = Texts.apiError(error.code)
       }

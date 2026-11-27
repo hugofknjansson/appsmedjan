@@ -139,6 +139,33 @@ struct PopButtonStyle: ButtonStyle {
   }
 }
 
+/// The second thing to press on a screen: as wide as the main action, in a pale orange.
+struct SoftButtonStyle: ButtonStyle {
+  func makeBody(configuration: Configuration) -> some View {
+    Face(configuration: configuration)
+  }
+
+  private struct Face: View {
+    let configuration: Configuration
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+      configuration.label
+        .font(.headline)
+        .foregroundStyle(Color.brand)
+        .frame(maxWidth: .infinity, minHeight: 50)
+        .background(Color.brand.opacity(0.14), in: .capsule)
+        .opacity(isEnabled ? 1 : 0.55)
+        .scaleEffect(configuration.isPressed ? 0.97 : 1)
+        .animation(Motion.press, value: configuration.isPressed)
+    }
+  }
+}
+
+extension ButtonStyle where Self == SoftButtonStyle {
+  static var soft: SoftButtonStyle { SoftButtonStyle() }
+}
+
 extension ButtonStyle where Self == PopButtonStyle {
   static var pop: PopButtonStyle { PopButtonStyle() }
 }

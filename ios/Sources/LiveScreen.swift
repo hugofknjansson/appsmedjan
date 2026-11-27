@@ -16,7 +16,7 @@ struct LiveScreen: View {
         FingerSurface(isOn: canInput, looksAhead: store.preview.predictFinger ?? true) { store.input($0) }
       }
       .accessibilityElement()
-      .accessibilityLabel("Appens skärm i simulatorn")
+      .accessibilityLabel("Appens skärm")
   }
 
   @ViewBuilder
@@ -43,8 +43,8 @@ struct PreviewPlaceholder: View {
       }
     case .unavailable:
       MascotNote(
-        title: Text("Ingen simulator är tillgänglig just nu"),
-        message: Text("Din app sparas. Förhandsvisningen startar när en byggserver är ansluten.")
+        title: Text("Förhandsvisningen är upptagen just nu"),
+        message: Text("Din app sparas. Förhandsvisningen startar så fort det finns plats.")
       )
     case .failed:
       MascotNote(title: Text("Den senaste ändringen gick inte att bygga")) {
@@ -52,7 +52,7 @@ struct PreviewPlaceholder: View {
           .buttonStyle(.bouncy)
       }
     case .idle:
-      MascotNote(title: Text("Simulatorn är pausad")) {
+      MascotNote(title: Text("Förhandsvisningen är pausad")) {
         Button("Starta") { store.startPreview() }
           .buttonStyle(.bouncy)
           .disabled(store.isRunning)

@@ -63,7 +63,12 @@ struct DashboardView: View {
             .listRowBackground(Color.clear)
         }
 
-        if !projects.isEmpty {
+        if !hasLoaded && errorText == nil {
+          Section("Dina appar") {
+            Waiting(lines: WaitingLines.apps, size: 88)
+              .listRowBackground(Color.clear)
+          }
+        } else if !projects.isEmpty {
           Section("Dina appar") {
             ForEach(projects) { project in
               NavigationLink(value: project) {
@@ -102,7 +107,7 @@ struct DashboardView: View {
           } header: {
             Text("Appar att skapa i App Store Connect")
           } footer: {
-            Text("De här väntar på att du skapar appen hos Apple. Välj bundle-id:t i listan när du skapar den.")
+            Text("De här väntar på att du skapar appen hos Apple. Välj id:t i listan Bundle ID när du skapar den.")
           }
         }
       }
@@ -122,7 +127,7 @@ struct DashboardView: View {
             Text(user.email)
             Button("Mitt konto", systemImage: "person.text.rectangle") { isShowingMyAccount = true }
             Button("Min plan", systemImage: "star.circle") { isShowingPlan = true }
-            Button("Apple-utvecklarkonto", systemImage: "person.badge.key") { isShowingAccount = true }
+            Button("Apple-konto", systemImage: "person.badge.key") { isShowingAccount = true }
             Button("Logga ut", role: .destructive) {
               Task { await model.logOut() }
             }
@@ -214,7 +219,7 @@ struct DashboardView: View {
         } label: {
           ZStack {
             Label("Bygg min app", systemImage: "sparkles").opacity(isCreating ? 0 : 1)
-            if isCreating { ProgressView().tint(.brandDeep).transition(.scale(scale: 0.6).combined(with: .opacity)) }
+            if isCreating { BusyMark(size: 34).transition(.scale(scale: 0.6).combined(with: .opacity)) }
           }
           .animation(Motion.swap, value: isCreating)
         }
@@ -331,9 +336,9 @@ struct DashboardView: View {
       requests = (try? await model.api.operatorRequests()) ?? []
       let status = try await model.api.status()
       notice = if !status.agentReady {
-        String(localized: "Tjänsten saknar API-nyckel, så appar kan inte byggas ännu.")
+        String(localized: "Det går inte att bygga appar just nu. Felet ligger hos oss.")
       } else if status.workers == 0 {
-        String(localized: "Ingen byggserver är ansluten, så förhandsvisningen är avstängd just nu.")
+        String(localized: "Förhandsvisningen är avstängd just nu. Din app sparas ändå.")
       } else {
         nil
       }

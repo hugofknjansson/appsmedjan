@@ -6,6 +6,7 @@ import type { PublishState, ReleaseGoal, ReleaseGuide, ReleaseStep } from '../..
 import { ApiError, api } from './api';
 import { apiErrorText, t } from './i18n';
 import { Mascot } from './Mascot';
+import { useLevel } from './level';
 
 const DEVELOPER_APP = 'https://apps.apple.com/app/apple-developer/id640199958';
 const CONNECT_APP = 'https://apps.apple.com/app/app-store-connect/id1234793120';
@@ -31,6 +32,7 @@ export function ReleaseDialog({ id, publish, onClose, onAccount, onPhone, onPage
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const text = t.release;
+  const level = useLevel();
 
   useEffect(() => {
     dialog.current?.showModal();
@@ -154,6 +156,13 @@ export function ReleaseDialog({ id, publish, onClose, onAccount, onPhone, onPage
                 );
               })}
             </ol>
+            {/* Someone who has asked about the other store gets a straight answer where the stores are. */}
+            {goal === 'store' && level.play && (
+              <p className="notice release-play">
+                {t.level.play}
+                {level.level === 3 && ` ${t.level.playCode}`}
+              </p>
+            )}
             {allDone && (
               <div className="release-done">
                 <Mascot cheering />

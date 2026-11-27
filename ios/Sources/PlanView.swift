@@ -13,6 +13,8 @@ struct PlanView: View {
   @Environment(\.dismiss) private var dismiss
   @State private var plan: PlanState?
   @State private var isBusy = false
+  /// A code is being tried: the mascot stands in for the button meanwhile.
+  @State private var isUnlocking = false
   @State private var errorText: String?
   @State private var code = ""
 
@@ -45,9 +47,8 @@ struct PlanView: View {
               .foregroundStyle(.secondary)
               .frame(maxWidth: .infinity, alignment: .leading)
           } else if errorText == nil {
-            Mascot(isDancing: true)
-              .frame(width: 120)
-              .padding(.top, 60)
+            Waiting(lines: WaitingLines.plan)
+              .padding(.top, 36)
           }
           if let errorText {
             Text(errorText)
@@ -102,14 +103,18 @@ struct PlanView: View {
           .padding(.horizontal, 14)
           .padding(.vertical, 11)
           .background(Color(.paper), in: .rect(cornerRadius: 14, style: .continuous))
-        Button("Lås upp", action: unlock)
-          .font(.subheadline.weight(.semibold))
-          .padding(.horizontal, 16)
-          .frame(minHeight: 44)
-          .foregroundStyle(.white)
-          .background(.brandGradient, in: .capsule)
-          .buttonStyle(.pop)
-          .disabled(isBusy || code.trimmingCharacters(in: .whitespaces).isEmpty)
+        if isUnlocking {
+          BusyMark(size: 44)
+        } else {
+          Button("Lås upp", action: unlock)
+            .font(.subheadline.weight(.semibold))
+            .padding(.horizontal, 16)
+            .frame(minHeight: 44)
+            .foregroundStyle(.white)
+            .background(.brandGradient, in: .capsule)
+            .buttonStyle(.pop)
+            .disabled(isBusy || code.trimmingCharacters(in: .whitespaces).isEmpty)
+        }
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -149,7 +154,7 @@ struct PlanView: View {
           .foregroundStyle(.secondary)
       }
       meter(String(localized: "Appar"), plan.used.apps, of: plan.limits.apps)
-      Text("Ett meddelande kostar det som arbetet bakom det kostar: en liten ändring brukar ta några få credits och en ny app fler. Inget meddelande kostar mer än \(Texts.credits(credits.maxPerMessage)).")
+      Text("En liten ändring brukar kosta några få credits och en ny app fler. Inget meddelande kostar mer än \(Texts.credits(credits.maxPerMessage)).")
         .font(.footnote)
         .foregroundStyle(.secondary)
       if !credits.recent.isEmpty {
@@ -258,9 +263,13 @@ struct PlanView: View {
     let given = code.trimmingCharacters(in: .whitespaces)
     guard !given.isEmpty, !isBusy else { return }
     isBusy = true
+    isUnlocking = true
     errorText = nil
     Task {
-      defer { isBusy = false }
+      defer {
+        isBusy = false
+        isUnlocking = false
+      }
       do throws(APIError) {
         let wasLocked = plan?.isLocked == true
         plan = try await api.unlockPlan(code: given)

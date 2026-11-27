@@ -48,6 +48,9 @@ import {
   type PublishState,
 } from '../shared/protocol';
 import { codecOf } from '../web/src/frames';
+import { NO_SIGNS, builderNote, levelFor, levelPoints, levelState, withAct, withWords, wordsIn, type LevelSigns } from '../shared/level';
+import { zip } from '../server/src/zip';
+import zlib from 'node:zlib';
 import { addViewer, askViewers, delaySummary, everyoneTakesVideo, forget, live, sendFrame, sendLatestPicture, someoneNeedsLight, viewerAnswered } from '../server/src/live';
 import { keepAlive } from '../shared/keepalive';
 import { EventEmitter } from 'node:events';
@@ -1145,6 +1148,75 @@ assert.notEqual(seal(pem, 'user-1'), sealed, 'every encryption uses a fresh nonc
 
   // Someone on the operator's account has nothing to join or connect.
   assert.equal(states(releaseGuide({ ...none, account: 'operator', available: true }, page).store).startsWith('member:done key:done app:now'), true);
+}
+
+// --- How much a person is shown -----------------------------------------------------
+{
+  const said = (...texts: string[]): LevelSigns => texts.reduce(withWords, NO_SIGNS);
+
+  // Someone describing an app in their own words is shown the first level, however much they write.
+  assert.equal(levelFor(said('Gör en app där jag håller koll på mina växter och när de ska vattnas.')), 1);
+  assert.equal(levelFor(said('Jag vill lägga ut den på App Store så att mina vänner kan ladda ner den')), 1);
+  // Words that mean something else to most people are not taken for a developer's.
+  assert.deepEqual(wordsIn('En app för Taylor Swift-fans där man betygsätter IPA och ser vem som blev MVP'), []);
+  assert.deepEqual(wordsIn('Compile a list of tips for the server, and commit to a habit every day'), []);
+  assert.deepEqual(wordsIn('Jag är ingen utvecklare, och not a developer either'), []);
+  assert.deepEqual(wordsIn('skriv till mig på namn@github.com'), []);
+  assert.deepEqual(wordsIn('Använd SwiftUI, tack'), ['swift']);
+  assert.deepEqual(wordsIn('Lägg den i mitt repo på GitHub.'), ['git']);
+
+  // The second level: three words of someone who has been near app making, or one developer's word.
+  const near = said('Hämta vädret från ett API', 'spara det i en databas', 'och skicka push-notiser');
+  assert.equal(levelPoints(near), 3);
+  assert.equal(levelFor(near), 2);
+  assert.equal(levelFor(said('Hämta vädret från ett API och ett API till')), 1);
+  assert.equal(levelFor(said('Byt till Swift 6')), 2);
+  // An Apple developer account of one's own, and one word.
+  assert.equal(levelFor(withAct(NO_SIGNS, 'apple')), 1);
+  assert.equal(levelFor(withAct(said('när kommer den på TestFlight?'), 'apple')), 2);
+
+  // The third: a developer who wants the app out, or someone who plainly speaks a developer's language.
+  const developer = said('Jag är utvecklare och vill ladda upp på App Store och Play Store');
+  assert.deepEqual(developer.words.sort(), ['appstore', 'play', 'self']);
+  assert.equal(levelFor(developer), 3);
+  assert.equal(levelFor(said('I am a developer')), 2);
+  assert.equal(levelFor(withAct(said('I am a developer'), 'apple')), 3);
+  assert.equal(levelFor(said('Use MVVM', 'keep it in git', 'and add unit tests')), 3);
+  // Wanting the app in both stores is not a developer's wish alone.
+  assert.equal(levelFor(said('Kan den finnas på App Store och Google Play och för Android?')), 2);
+
+  // A word counts once however often it comes back, and what is noticed is its key, never the text.
+  assert.equal(withWords(near, 'ett API till'), near);
+  assert.equal(withAct(withAct(NO_SIGNS, 'details'), 'details').acts.length, 1);
+
+  // The level goes up by itself and says so once; the person's own choice stands over it.
+  assert.deepEqual(levelState(NO_SIGNS, null, 1), { level: 1, chosen: null, fresh: false, play: false });
+  assert.deepEqual(levelState(developer, null, 1), { level: 3, chosen: null, fresh: true, play: true });
+  assert.deepEqual(levelState(developer, null, 3), { level: 3, chosen: null, fresh: false, play: true });
+  assert.deepEqual(levelState(developer, 1, 3), { level: 1, chosen: 1, fresh: false, play: true });
+  assert.deepEqual(levelState(NO_SIGNS, 3, 1), { level: 3, chosen: 3, fresh: false, play: false });
+
+  // The builder is told nothing about a person at the first level: its instructions are for them.
+  assert.equal(builderNote(1), null);
+  assert.match(builderNote(3)!, /developer/);
+}
+
+// --- The source as a zip --------------------------------------------------------------
+{
+  const data = Buffer.from(zip({ 'Växter/Sources/App.swift': 'import SwiftUI\n', 'Växter/README.txt': 'Hej' }, new Date(2026, 10, 27, 12, 30, 10)));
+  // The end record names two entries and where the directory starts.
+  const end = data.length - 22;
+  assert.equal(data.readUInt32LE(end), 0x06054b50);
+  assert.equal(data.readUInt16LE(end + 10), 2);
+  const directory = data.readUInt32LE(end + 16);
+  assert.equal(data.readUInt32LE(directory), 0x02014b50);
+  // The first entry, read back the way an unzipper does.
+  assert.equal(data.readUInt32LE(0), 0x04034b50);
+  const nameLength = data.readUInt16LE(26);
+  assert.equal(data.subarray(30, 30 + nameLength).toString('utf8'), 'Växter/Sources/App.swift');
+  const packed = data.subarray(30 + nameLength, 30 + nameLength + data.readUInt32LE(18));
+  assert.equal(zlib.inflateRawSync(packed).toString('utf8'), 'import SwiftUI\n');
+  assert.equal(data.readUInt32LE(14), zlib.crc32(Buffer.from('import SwiftUI\n')));
 }
 
 console.log('Unit checks passed.');

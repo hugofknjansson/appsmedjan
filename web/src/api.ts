@@ -1,3 +1,5 @@
+import type { Level, LevelState } from '../../shared/level';
+import { noteLevel } from './level';
 import type { PlanId, PlanState, PublishState, ReleaseGuide, ReviewContact, StoreChoices, StoreListing, StorePages, StoreState, TesterPerson, ToPhoneResult } from '../../shared/protocol';
 
 /** An app someone is waiting for the operator to create in App Store Connect. */
@@ -14,6 +16,8 @@ export interface User {
   email: string;
   /** Whether the address is confirmed. Missing from servers before confirming. */
   emailVerified?: boolean;
+  /** How much the person is shown. Missing from servers before levels, and where they are off. */
+  level?: LevelState;
 }
 
 export interface ProjectSummary {
@@ -77,6 +81,8 @@ async function call<T>(method: string, url: string, body?: unknown): Promise<T> 
   }
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) throw new ApiError(typeof data.error === 'string' ? data.error : 'internal');
+  // Any answer may say that the person is shown more now.
+  noteLevel(data);
   return data as T;
 }
 
@@ -97,6 +103,14 @@ export const api = {
     call<{ project: ProjectSummary }>('POST', '/api/projects', { text, name }),
   deleteProject: (id: string) => call<{ ok: true }>('DELETE', `/api/projects/${id}`),
   sendMessage: (id: string, text: string) => call<{ ok: true }>('POST', `/api/projects/${id}/messages`, { text }),
+  /** The app's source: every file by its path, and the id Apple knows the app by. */
+  files: (id: string) => call<{ files: Record<string, string>; bundleId?: string; changedAt?: number }>('GET', `/api/projects/${id}/files`),
+  /** The person's own choice of how much to be shown, or null to have it follow what they write and do. */
+  chooseLevel: (chosen: Level | null) => call<{ level?: LevelState }>('PUT', '/api/level', { chosen }),
+  /** The note about being shown more has been seen. */
+  levelSeen: () => call<{ level?: LevelState }>('POST', '/api/level/seen', {}),
+  /** Something done here that says how used to this the person is. */
+  levelAct: (act: 'details' | 'classic') => call<{ level?: LevelState }>('POST', '/api/level/act', { act }),
   stop: (id: string) => call<{ ok: true }>('POST', `/api/projects/${id}/stop`, {}),
   appleAccount: () => call<AppleStatus>('GET', '/api/apple-account'),
   connectApple: (body: { key: string; keyId: string; issuerId: string; teamId: string }) =>
